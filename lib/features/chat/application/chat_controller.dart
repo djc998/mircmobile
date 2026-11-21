@@ -10,6 +10,7 @@ import 'package:irc_client/core/irc/irc_client.dart';
 import 'package:irc_client/core/irc/irc_events.dart';
 import 'package:irc_client/core/irc/irc_transport.dart';
 import 'package:irc_client/features/connection/data/certificate_trust.dart';
+import 'package:irc_client/features/connection/data/saved_connection.dart';
 import 'package:irc_client/features/favorites/application/room_prefs_controller.dart';
 
 /// Name of the server/status buffer.
@@ -34,100 +35,150 @@ class ChatLine {
   final ChatLineKind kind;
 }
 
-/// One conversation: the status window, a channel or a private chat.
+/// One conversation on one network: its status window, a channel or a
+/// private chat.
 class ChatBuffer {
-  ChatBuffer(this.name);
+  ChatBuffer(this.networkId, this.name);
 
+  /// Id of the [NetworkSession] this conversation belongs to.
+  final String networkId;
   final String name;
   final List<ChatLine> lines = [];
   int unread = 0;
   bool mentioned = false;
 
+  /// Unique across networks; see [ChatState.bufferKey].
+  String get key => ChatState.bufferKey(networkId, name);
+
   bool get isStatus => name == statusBuffer;
   bool get isChannel => name.startsWith('#') || name.startsWith('&');
 }
 
-class ChatState {
-  const ChatState({
-    this.status = IrcConnectionStatus.disconnected,
-    this.network = '',
-    this.nick = '',
-    this.buffers = const {},
-    this.active = statusBuffer,
-    this.revision = 0,
-    this.rooms = const [],
-    this.roomsLoading = false,
-    this.roomsFetchedAt,
-    this.roomsError,
-    this.untrustedCertificate,
-    this.secureConnectFailed = false,
-  });
+/// One network the user is connected to (or was, and may reconnect to).
+///
+/// Several sessions can be open at once; each has its own [IrcClient].
+class NetworkSession {
+  NetworkSession({required this.config, required this.client})
+    : id = config.host.toLowerCase(),
+      nick = config.nick;
 
-  final IrcConnectionStatus status;
-  final String network;
-  final String nick;
+  /// Lower-cased host the user picked, e.g. `irc.libera.chat`. Favorites,
+  /// recents and saved history are keyed by it.
+  final String id;
+  IrcConnectionConfig config;
+  IrcClient client;
 
-  /// Buffers keyed by lower-cased name, in insertion order.
-  final Map<String, ChatBuffer> buffers;
-  final String active;
+  // Cancelled by the controller when the network is replaced or closed.
+  // ignore: cancel_subscriptions
+  StreamSubscription<IrcEvent>? subscription;
 
-  /// Bumped on every change so listeners rebuild.
-  final int revision;
+  IrcConnectionStatus status = IrcConnectionStatus.disconnected;
 
-  /// Rooms from the last LIST on this network (the room browser's data).
-  final List<ChannelListEntry> rooms;
-  final bool roomsLoading;
+  /// Name the network gives itself (ISUPPORT NETWORK), once known.
+  String name = '';
+  String nick;
 
-  /// When [rooms] was fetched, or null if never.
-  final DateTime? roomsFetchedAt;
-
-  /// Why the last LIST failed, if it did.
-  final String? roomsError;
+  /// Rooms from the last LIST on this network.
+  List<ChannelListEntry> rooms = const [];
+  bool roomsLoading = false;
+  DateTime? roomsFetchedAt;
+  String? roomsError;
 
   /// Set when the server's certificate failed verification; the chat screen
   /// asks whether to trust it.
-  final CertificateInfo? untrustedCertificate;
+  CertificateInfo? untrustedCertificate;
 
   /// Set when a secure (TLS) connection couldn't be opened at all, so the
   /// chat screen can offer an unencrypted connection instead.
-  final bool secureConnectFailed;
+  bool secureConnectFailed = false;
+
+  /// Conversation that WHOIS replies go to while a WHOIS is running.
+  String? whoisBuffer;
+
+  /// Room the user asked to join from the browser; opened when joined.
+  String? pendingSelect;
+
+  /// Display name: the network's own name, or its host until known.
+  String get label => name.isEmpty ? config.host : name;
+
+  bool get isConnected => status == IrcConnectionStatus.connected;
 
   bool get hasConnectionProblem =>
       untrustedCertificate != null || secureConnectFailed;
 
-  ChatBuffer? get activeBuffer => buffers[active.toLowerCase()];
+  void clearConnectionProblem() {
+    untrustedCertificate = null;
+    secureConnectFailed = false;
+  }
+}
+
+/// A room from a LIST reply, tagged with the network it is on.
+class NetworkRoom {
+  const NetworkRoom(this.network, this.entry);
+
+  final NetworkSession network;
+  final ChannelListEntry entry;
+}
+
+class ChatState {
+  const ChatState({
+    this.networks = const {},
+    this.buffers = const {},
+    this.activeKey,
+    this.revision = 0,
+  });
+
+  /// Open networks keyed by [NetworkSession.id], in the order added.
+  final Map<String, NetworkSession> networks;
+
+  /// Buffers keyed by [bufferKey], in insertion order.
+  final Map<String, ChatBuffer> buffers;
+
+  /// Key of the open conversation.
+  final String? activeKey;
+
+  /// Bumped on every change so listeners rebuild.
+  final int revision;
+
+  static String bufferKey(String networkId, String name) =>
+      '$networkId/${name.toLowerCase()}';
+
+  ChatBuffer? get activeBuffer => activeKey == null ? null : buffers[activeKey];
+
+  /// Network of the open conversation (or the first network).
+  NetworkSession? get activeNetwork {
+    final buffer = activeBuffer;
+    if (buffer != null) return networks[buffer.networkId];
+    return networks.values.firstOrNull;
+  }
+
+  List<ChatBuffer> buffersFor(String networkId) => [
+    for (final b in buffers.values)
+      if (b.networkId == networkId) b,
+  ];
+
+  List<NetworkSession> get connectedNetworks => [
+    for (final n in networks.values)
+      if (n.isConnected) n,
+  ];
+
+  /// Rooms from every network, for the room browser.
+  List<NetworkRoom> get allRooms => [
+    for (final n in networks.values)
+      for (final r in n.rooms) NetworkRoom(n, r),
+  ];
+
+  bool get roomsLoading => networks.values.any((n) => n.roomsLoading);
 
   ChatState copyWith({
-    IrcConnectionStatus? status,
-    String? network,
-    String? nick,
+    Map<String, NetworkSession>? networks,
     Map<String, ChatBuffer>? buffers,
-    String? active,
-    List<ChannelListEntry>? rooms,
-    bool? roomsLoading,
-    DateTime? roomsFetchedAt,
-    String? roomsError,
-    bool clearRoomsError = false,
-    CertificateInfo? untrustedCertificate,
-    bool? secureConnectFailed,
-    bool clearConnectionProblem = false,
+    String? activeKey,
   }) => ChatState(
-    status: status ?? this.status,
-    network: network ?? this.network,
-    nick: nick ?? this.nick,
+    networks: networks ?? this.networks,
     buffers: buffers ?? this.buffers,
-    active: active ?? this.active,
+    activeKey: activeKey ?? this.activeKey,
     revision: revision + 1,
-    rooms: rooms ?? this.rooms,
-    roomsLoading: roomsLoading ?? this.roomsLoading,
-    roomsFetchedAt: roomsFetchedAt ?? this.roomsFetchedAt,
-    roomsError: clearRoomsError ? null : (roomsError ?? this.roomsError),
-    untrustedCertificate: clearConnectionProblem
-        ? null
-        : (untrustedCertificate ?? this.untrustedCertificate),
-    secureConnectFailed:
-        !clearConnectionProblem &&
-        (secureConnectFailed ?? this.secureConnectFailed),
   );
 }
 
@@ -140,33 +191,35 @@ final chatControllerProvider = NotifierProvider<ChatController, ChatState>(
   ChatController.new,
 );
 
-/// Owns the single active [IrcClient] and turns its events into buffers.
+/// Owns one [IrcClient] per open network and turns their events into
+/// conversations.
 class ChatController extends Notifier<ChatState> {
-  IrcClient? _client;
-  IrcConnectionConfig? _config;
-  StreamSubscription<IrcEvent>? _sub;
-
-  IrcClient? get client => _client;
-
-  /// Host of the current network; favorites and recents are keyed by it.
-  String? get host => _client?.config.host;
+  /// Every open session, so they can be closed when the app goes away
+  /// (state can't be read while the provider is disposed).
+  final _sessions = <NetworkSession>{};
 
   @override
   ChatState build() {
     ref.onDispose(() {
-      unawaited(_sub?.cancel());
-      unawaited(_client?.dispose());
+      for (final n in _sessions) {
+        unawaited(n.subscription?.cancel());
+        unawaited(n.client.dispose());
+      }
     });
-    return ChatState(buffers: {statusBuffer: ChatBuffer(statusBuffer)});
+    return const ChatState();
   }
 
-  /// Connects to a network, replacing any previous connection.
+  /// Client of the open conversation's network.
+  IrcClient? get client => state.activeNetwork?.client;
+
+  /// Host of the open conversation's network; favorites and recents are
+  /// keyed by it.
+  String? get host => state.activeNetwork?.id;
+
+  /// Connects to a network. Other networks stay connected. Connecting to a
+  /// network that is already open replaces its connection but keeps its
+  /// conversations.
   Future<void> connect(IrcConnectionConfig requested) async {
-    await _sub?.cancel();
-    // Close the old connection in the background; don't wait for it.
-    final old = _client;
-    _client = null;
-    if (old != null) unawaited(old.dispose());
     // Add certificates the user trusted earlier for this server.
     final config = requested.copyWith(
       trustedFingerprints: {
@@ -176,18 +229,37 @@ class ChatController extends Notifier<ChatState> {
             .fingerprintsFor(requested.host),
       },
     );
-    _config = config;
     final client = IrcClient(
       config,
       transportFactory: ref.read(transportFactoryProvider),
     );
-    _client = client;
-    state = ChatState(
-      network: config.host,
-      nick: config.nick,
-      buffers: {statusBuffer: ChatBuffer(statusBuffer)},
-    );
+    final id = config.host.toLowerCase();
+    var session = state.networks[id];
+    final isNew = session == null;
+    if (session != null) {
+      await session.subscription?.cancel();
+      // Close the old connection in the background; don't wait for it.
+      unawaited(session.client.dispose());
+      session
+        ..config = config
+        ..client = client
+        ..nick = config.nick
+        ..status = IrcConnectionStatus.disconnected
+        ..roomsLoading = false
+        ..whoisBuffer = null
+        ..clearConnectionProblem();
+    } else {
+      session = NetworkSession(config: config, client: client);
+      _sessions.add(session);
+      state = state.copyWith(networks: {...state.networks, id: session});
+    }
+    final status = _ensureBuffer(session, statusBuffer);
+    // A new network opens on its server tab; reconnecting stays put.
+    if (isNew || state.activeKey == null) {
+      state = state.copyWith(activeKey: status.key);
+    }
     _addLine(
+      session,
       statusBuffer,
       ChatLine(
         text:
@@ -196,69 +268,128 @@ class ChatController extends Notifier<ChatState> {
         kind: ChatLineKind.event,
       ),
     );
-    _sub = client.events.listen(_onEvent);
+    final current = session;
+    session.subscription = client.events.listen((e) => _onEvent(current, e));
     await client.connect();
   }
 
-  Future<void> disconnect() async {
-    await _client?.disconnect();
+  NetworkSession? _network(String? id) =>
+      id == null ? state.activeNetwork : state.networks[id];
+
+  /// Disconnects a network (the open one by default) but keeps its
+  /// conversations so it can be reconnected.
+  Future<void> disconnect([String? networkId]) async {
+    await _network(networkId)?.client.disconnect();
+  }
+
+  /// Reconnects a network that was disconnected.
+  Future<void> reconnect([String? networkId]) async {
+    final session = _network(networkId);
+    if (session == null) return;
+    await connect(session.config);
+  }
+
+  /// Disconnects a network and closes all of its conversations.
+  Future<void> removeNetwork(String networkId) async {
+    final session = state.networks[networkId];
+    if (session == null) return;
+    _sessions.remove(session);
+    await session.subscription?.cancel();
+    unawaited(session.client.dispose());
+    unawaited(
+      ref
+          .read(savedConnectionRepositoryProvider)
+          .removeNetwork(session.config.host),
+    );
+    final networks = Map.of(state.networks)..remove(networkId);
+    final buffers = Map.of(state.buffers)
+      ..removeWhere((_, b) => b.networkId == networkId);
+    final activeGone = !buffers.containsKey(state.activeKey);
+    state = ChatState(
+      networks: networks,
+      buffers: buffers,
+      activeKey: activeGone
+          ? networks.values
+                .map((n) => ChatState.bufferKey(n.id, statusBuffer))
+                .firstOrNull
+          : state.activeKey,
+      revision: state.revision + 1,
+    );
   }
 
   /// Trusts the certificate that was just rejected and reconnects.
-  Future<void> trustCertificateAndReconnect() async {
-    final cert = state.untrustedCertificate;
-    final config = _config;
-    if (cert == null || config == null) return;
+  Future<void> trustCertificateAndReconnect([String? networkId]) async {
+    final session = _network(networkId);
+    final cert = session?.untrustedCertificate;
+    if (session == null || cert == null) return;
     await ref
         .read(certificateTrustStoreProvider)
-        .trust(config.host, cert.sha256);
-    await connect(config);
+        .trust(session.config.host, cert.sha256);
+    await connect(session.config);
   }
 
   /// Reconnects without TLS on port 6667, after the user agreed.
-  Future<void> connectWithoutEncryption() async {
-    final config = _config;
-    if (config == null) return;
-    await connect(config.copyWith(useTls: false, port: 6667));
+  Future<void> connectWithoutEncryption([String? networkId]) async {
+    final session = _network(networkId);
+    if (session == null) return;
+    await connect(session.config.copyWith(useTls: false, port: 6667));
   }
 
   /// Hides the connection-problem banner.
-  void dismissConnectionProblem() {
-    state = state.copyWith(clearConnectionProblem: true);
+  void dismissConnectionProblem([String? networkId]) {
+    _network(networkId)?.clearConnectionProblem();
+    _touch();
   }
 
-  /// Asks the server for its room list. Results land in [ChatState.rooms].
+  /// Asks one network (or every connected network) for its room list.
+  /// Results land in [NetworkSession.rooms].
   ///
-  /// Returns false when not connected yet.
-  bool fetchRooms() {
-    final client = _client;
-    if (client == null || state.status != IrcConnectionStatus.connected) {
-      return false;
+  /// Returns false when nothing is connected yet.
+  bool fetchRooms([String? networkId]) {
+    final targets = networkId == null
+        ? state.connectedNetworks
+        : [
+            if (state.networks[networkId]?.isConnected ?? false)
+              state.networks[networkId]!,
+          ];
+    if (targets.isEmpty) return false;
+    for (final n in targets) {
+      if (n.roomsLoading) continue;
+      n
+        ..roomsLoading = true
+        ..roomsError = null;
+      n.client.list();
     }
-    if (state.roomsLoading) return true;
-    state = state.copyWith(roomsLoading: true, clearRoomsError: true);
-    client.list();
+    _touch();
     return true;
   }
 
-  /// Opens (or switches to) a private conversation with [nick].
+  /// Fetches rooms from connected networks that haven't been asked yet.
+  void fetchMissingRooms() {
+    for (final n in state.connectedNetworks) {
+      if (n.roomsFetchedAt == null && !n.roomsLoading && n.roomsError == null) {
+        fetchRooms(n.id);
+      }
+    }
+  }
+
+  /// Opens (or switches to) a private conversation with [nick] on the open
+  /// conversation's network.
   void openPrivateChat(String nick) {
+    final session = state.activeNetwork;
     final name = nick.trim();
-    if (name.isEmpty || name.contains(' ')) return;
-    _ensureBuffer(name);
-    selectBuffer(name);
+    if (session == null || name.isEmpty || name.contains(' ')) return;
+    selectBuffer(_ensureBuffer(session, name).key);
   }
 
   /// Asks the server about [nick]; replies are shown in the open
   /// conversation instead of the server tab.
   void whoisUser(String nick) {
-    final client = _client;
-    if (client == null) return;
-    _whoisBuffer = state.active;
-    client.whois(nick);
+    final session = state.activeNetwork;
+    if (session == null) return;
+    session.whoisBuffer = state.activeBuffer?.name ?? statusBuffer;
+    session.client.whois(nick);
   }
-
-  String? _whoisBuffer;
 
   /// WHOIS reply numerics (RFC 2812 and common extensions).
   static const _whoisReplies = {
@@ -279,103 +410,132 @@ class ChatController extends Notifier<ChatState> {
     '671',
   };
 
-  /// Joins a room from the browser and makes it the open conversation.
-  void joinRoom(String name) {
-    final client = _client;
-    if (client == null) return;
-    if (client.channel(name) != null) {
-      selectBuffer(name);
+  /// Joins a room (from the browser or a favorite) on a network and makes
+  /// it the open conversation.
+  void joinRoom(String name, {String? networkId}) {
+    final session = _network(networkId);
+    if (session == null) return;
+    if (session.client.channel(name) != null) {
+      selectBuffer(ChatState.bufferKey(session.id, name));
       return;
     }
-    client.join(name);
+    session.pendingSelect = name.toLowerCase();
+    session.client.join(name);
   }
 
-  void selectBuffer(String name) {
-    final buffer = state.buffers[name.toLowerCase()];
+  /// Opens the conversation with [key] (see [ChatBuffer.key]).
+  void selectBuffer(String key) {
+    final buffer = state.buffers[key];
     if (buffer == null) return;
     buffer
       ..unread = 0
       ..mentioned = false;
-    state = state.copyWith(active: buffer.name);
+    state = state.copyWith(activeKey: key);
   }
 
   /// Closes a conversation, leaving the channel if needed.
-  void closeBuffer(String name) {
-    if (name == statusBuffer) return;
-    final client = _client;
-    if (client != null && client.isChannel(name)) client.part(name);
-    final buffers = Map.of(state.buffers)..remove(name.toLowerCase());
-    state = state.copyWith(
+  void closeBuffer(String key) {
+    final buffer = state.buffers[key];
+    if (buffer == null || buffer.isStatus) return;
+    final session = state.networks[buffer.networkId];
+    if (session != null &&
+        session.isConnected &&
+        session.client.isChannel(buffer.name)) {
+      session.client.part(buffer.name);
+    }
+    final buffers = Map.of(state.buffers)..remove(key);
+    state = ChatState(
+      networks: state.networks,
       buffers: buffers,
-      active: state.active.toLowerCase() == name.toLowerCase()
-          ? statusBuffer
-          : state.active,
+      activeKey: state.activeKey == key
+          ? ChatState.bufferKey(buffer.networkId, statusBuffer)
+          : state.activeKey,
+      revision: state.revision + 1,
     );
   }
 
-  /// Runs what the user typed in the active conversation.
+  /// Runs what the user typed in the open conversation.
   void submit(String text) {
-    final client = _client;
-    final active = state.active;
-    if (client == null) {
+    final session = state.activeNetwork;
+    final buffer = state.activeBuffer;
+    if (session == null || buffer == null) return;
+    if (session.status == IrcConnectionStatus.disconnected) {
       _addLine(
-        active,
-        ChatLine(text: 'Not connected.', kind: ChatLineKind.error),
+        session,
+        buffer.name,
+        ChatLine(
+          text: 'Not connected to ${session.label}.',
+          kind: ChatLineKind.error,
+        ),
       );
       return;
     }
     final result = runInput(
-      client,
+      session.client,
       text,
-      target: active == statusBuffer ? null : active,
+      target: buffer.isStatus ? null : buffer.name,
     );
     switch (result) {
       case InputSent():
         break;
       case InputOpenQuery(:final nick):
-        _ensureBuffer(nick);
-        selectBuffer(nick);
+        selectBuffer(_ensureBuffer(session, nick).key);
       case InputError(:final message):
-        _addLine(active, ChatLine(text: message, kind: ChatLineKind.error));
+        _addLine(
+          session,
+          buffer.name,
+          ChatLine(text: message, kind: ChatLineKind.error),
+        );
     }
   }
 
-  ChatBuffer _ensureBuffer(String name) {
-    final key = name.toLowerCase();
+  void _touch() => state = state.copyWith();
+
+  ChatBuffer _ensureBuffer(NetworkSession session, String name) {
+    final key = ChatState.bufferKey(session.id, name);
     final existing = state.buffers[key];
     if (existing != null) return existing;
-    final buffer = ChatBuffer(name);
+    final buffer = ChatBuffer(session.id, name);
     state = state.copyWith(buffers: {...state.buffers, key: buffer});
     return buffer;
   }
 
-  void _addLine(String bufferName, ChatLine line, {bool countUnread = true}) {
-    final buffer = _ensureBuffer(bufferName);
+  void _addLine(
+    NetworkSession session,
+    String bufferName,
+    ChatLine line, {
+    bool countUnread = true,
+  }) {
+    final buffer = _ensureBuffer(session, bufferName);
     buffer.lines.add(line);
     if (buffer.lines.length > maxLinesPerBuffer) {
       buffer.lines.removeRange(0, buffer.lines.length - maxLinesPerBuffer);
     }
-    final isActive = state.active.toLowerCase() == bufferName.toLowerCase();
-    if (!isActive && countUnread) {
+    if (state.activeKey != buffer.key && countUnread) {
       buffer.unread++;
-      if (state.nick.isNotEmpty &&
+      if (session.nick.isNotEmpty &&
           line.kind == ChatLineKind.message &&
-          line.text.toLowerCase().contains(state.nick.toLowerCase())) {
+          line.text.toLowerCase().contains(session.nick.toLowerCase())) {
         buffer.mentioned = true;
       }
     }
-    state = state.copyWith();
+    _touch();
   }
 
-  void _onEvent(IrcEvent e) {
+  void _onEvent(NetworkSession session, IrcEvent e) {
+    // Ignore late events from a connection that was replaced.
+    if (state.networks[session.id] != session) return;
+    void add(String buffer, ChatLine line, {bool countUnread = true}) =>
+        _addLine(session, buffer, line, countUnread: countUnread);
+
     switch (e) {
       case RawLineEvent():
         return;
       case StatusChangedEvent(:final status, :final reason):
-        state = state.copyWith(
-          status: status,
-          roomsLoading: status == IrcConnectionStatus.connected ? null : false,
-        );
+        session.status = status;
+        if (status != IrcConnectionStatus.connected) {
+          session.roomsLoading = false;
+        }
         final label = switch (status) {
           IrcConnectionStatus.connecting => 'Connecting…',
           IrcConnectionStatus.registering => 'Logging in…',
@@ -386,7 +546,7 @@ class ChatController extends Notifier<ChatState> {
           IrcConnectionStatus.disconnected =>
             'Disconnected${reason == null ? '' : ' ($reason)'}.',
         };
-        _addLine(
+        add(
           statusBuffer,
           ChatLine(text: label, kind: ChatLineKind.event),
           countUnread: false,
@@ -397,8 +557,8 @@ class ChatController extends Notifier<ChatState> {
             : certificate.isSelfSigned
             ? "it's self-signed"
             : "it isn't issued for $host by a trusted authority";
-        state = state.copyWith(untrustedCertificate: certificate);
-        _addLine(
+        session.untrustedCertificate = certificate;
+        add(
           statusBuffer,
           ChatLine(
             text:
@@ -408,12 +568,11 @@ class ChatController extends Notifier<ChatState> {
           ),
         );
       case RegisteredEvent(:final nick, :final network):
-        state = state.copyWith(
-          nick: nick,
-          network: network,
-          clearConnectionProblem: true,
-        );
-        _addLine(
+        session
+          ..nick = nick
+          ..name = network
+          ..clearConnectionProblem();
+        add(
           statusBuffer,
           ChatLine(
             text:
@@ -424,11 +583,12 @@ class ChatController extends Notifier<ChatState> {
           countUnread: false,
         );
       case ServerInfoEvent(:final network):
-        if (network != state.network) {
-          state = state.copyWith(network: network);
+        if (network != session.name) {
+          session.name = network;
+          _touch();
         }
       case SaslEvent(:final outcome):
-        _addLine(
+        add(
           statusBuffer,
           ChatLine(
             text: 'Account login: ${outcome.name}',
@@ -436,7 +596,7 @@ class ChatController extends Notifier<ChatState> {
           ),
         );
       case MessageEvent():
-        _addLine(
+        add(
           e.target,
           ChatLine(
             sender: e.sender,
@@ -452,7 +612,7 @@ class ChatController extends Notifier<ChatState> {
           ),
         );
       case JoinEvent(:final channel, :final nick, :final isSelf):
-        _addLine(
+        add(
           channel,
           ChatLine(
             text: isSelf ? 'You joined $channel' : '$nick joined',
@@ -462,11 +622,14 @@ class ChatController extends Notifier<ChatState> {
           countUnread: false,
         );
         if (isSelf) {
-          selectBuffer(channel);
-          final host = this.host;
-          if (host != null) {
-            ref.read(roomPrefsProvider.notifier).addRecent(host, channel);
+          // Open the room if the user asked for it, or if they're looking
+          // at this network. Don't jump away from another network's chat.
+          final asked = session.pendingSelect == channel.toLowerCase();
+          if (asked) session.pendingSelect = null;
+          if (asked || state.activeBuffer?.networkId == session.id) {
+            selectBuffer(ChatState.bufferKey(session.id, channel));
           }
+          ref.read(roomPrefsProvider.notifier).addRecent(session.id, channel);
         }
       case PartEvent(:final channel, :final nick, :final isSelf):
         final what = e.kickedBy != null
@@ -475,7 +638,7 @@ class ChatController extends Notifier<ChatState> {
         final reason = e.reason == null || e.reason!.isEmpty
             ? ''
             : ' (${e.reason})';
-        _addLine(
+        add(
           channel,
           ChatLine(
             text: '${isSelf && e.kickedBy == null ? 'You left' : what}$reason',
@@ -486,7 +649,7 @@ class ChatController extends Notifier<ChatState> {
         );
       case QuitEvent(:final nick, :final channels, :final reason):
         for (final c in channels) {
-          _addLine(
+          add(
             c,
             ChatLine(
               text: '$nick quit${reason == null ? '' : ' ($reason)'}',
@@ -497,9 +660,12 @@ class ChatController extends Notifier<ChatState> {
           );
         }
       case NickChangeEvent(:final oldNick, :final newNick, :final isSelf):
-        if (isSelf) state = state.copyWith(nick: newNick);
+        if (isSelf) {
+          session.nick = newNick;
+          _touch();
+        }
         for (final c in e.channels) {
-          _addLine(
+          add(
             c,
             ChatLine(
               text: '$oldNick is now known as $newNick',
@@ -509,7 +675,7 @@ class ChatController extends Notifier<ChatState> {
           );
         }
       case TopicEvent(:final channel, :final topic, :final setBy):
-        _addLine(
+        add(
           channel,
           ChatLine(
             text: setBy == null
@@ -520,14 +686,13 @@ class ChatController extends Notifier<ChatState> {
           countUnread: false,
         );
       case MembersChangedEvent():
-        state = state.copyWith();
+        _touch();
       case ChannelListEvent(:final entries):
-        state = state.copyWith(
-          rooms: entries,
-          roomsLoading: false,
-          roomsFetchedAt: DateTime.now(),
-        );
-        _addLine(
+        session
+          ..rooms = entries
+          ..roomsLoading = false
+          ..roomsFetchedAt = DateTime.now();
+        add(
           statusBuffer,
           ChatLine(
             text:
@@ -538,18 +703,26 @@ class ChatController extends Notifier<ChatState> {
           countUnread: false,
         );
       case ServerErrorEvent(:final text, :final target, :final code):
-        if (code == 'CONNECT' && (_config?.useTls ?? false)) {
-          state = state.copyWith(secureConnectFailed: true);
+        if (code == 'CONNECT' && session.config.useTls) {
+          session.secureConnectFailed = true;
         }
         // 416: list too large / not allowed; LIST errors end the request.
-        if (state.roomsLoading && (code == '416' || target == 'LIST')) {
-          state = state.copyWith(roomsLoading: false, roomsError: text);
+        if (session.roomsLoading && (code == '416' || target == 'LIST')) {
+          session
+            ..roomsLoading = false
+            ..roomsError = text;
         }
+        final active = state.activeBuffer;
         final buffer =
-            target != null && state.buffers.containsKey(target.toLowerCase())
+            target != null &&
+                state.buffers.containsKey(
+                  ChatState.bufferKey(session.id, target),
+                )
             ? target
-            : state.active;
-        _addLine(
+            : active != null && active.networkId == session.id
+            ? active.name
+            : statusBuffer;
+        add(
           buffer,
           ChatLine(
             text: code == 'CONNECT' || code == 'ERROR' ? text : '$text ($code)',
@@ -558,15 +731,17 @@ class ChatController extends Notifier<ChatState> {
         );
       case ServerNoticeEvent(:final message, :final text):
         // 263 RPL_TRYAGAIN: the server refused LIST for now.
-        if (state.roomsLoading && message.command == '263') {
-          state = state.copyWith(roomsLoading: false, roomsError: text);
+        if (session.roomsLoading && message.command == '263') {
+          session
+            ..roomsLoading = false
+            ..roomsError = text;
         }
-        final whoisTarget = _whoisBuffer;
+        final whoisTarget = session.whoisBuffer;
         if (whoisTarget != null && _whoisReplies.contains(message.command)) {
           if (message.command == '318') {
-            _whoisBuffer = null; // End of WHOIS.
+            session.whoisBuffer = null; // End of WHOIS.
           } else {
-            _addLine(
+            add(
               whoisTarget,
               ChatLine(text: stripFormatting(text), kind: ChatLineKind.notice),
               countUnread: false,
@@ -574,7 +749,7 @@ class ChatController extends Notifier<ChatState> {
           }
           return;
         }
-        _addLine(
+        add(
           statusBuffer,
           ChatLine(text: stripFormatting(text), kind: ChatLineKind.notice),
           countUnread: false,

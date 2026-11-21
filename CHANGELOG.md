@@ -7,6 +7,15 @@ and the project uses [Semantic Versioning](https://semver.org/).
 ## [Unreleased]
 
 ### Added
+- Several networks at once (iOS, Android, macOS). Adding a network keeps the
+  others connected. The conversation list is grouped by network and lists
+  each network's favorite rooms for one-tap join. The room browser fetches
+  and searches rooms from every connected network, labels each room with
+  its network and can filter by network. **Continue** reopens every network
+  that was open, and **Connect to all** opens every listed network.
+  Disconnect, reconnect and close work per network, and reconnecting keeps
+  that network's conversations.
+  See [docs/features/multi-network.md](docs/features/multi-network.md).
 - Private messages are easy to start (iOS, Android, macOS): tap a name in
   the people list, or a nickname in the chat, for **Send private message**,
   **Who is this? (whois)** and **Copy nickname**. A **New private message**
@@ -15,6 +24,8 @@ and the project uses [Semantic Versioning](https://semver.org/).
   server tab. See [docs/features/private-messages.md](docs/features/private-messages.md).
 
 ### Fixed
+- Logging in again without retyping the password no longer deletes the
+  saved password.
 - The Join and New private message dialogs no longer use their text field
   after it was disposed while the dialog closes.
 - EFnet (and other servers with self-signed, mismatched or expired TLS

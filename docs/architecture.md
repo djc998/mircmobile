@@ -37,12 +37,16 @@ lib/
    SASL before `CAP END`.
 3. Each incoming line is parsed into an `IrcMessage`, applied to the client's
    state (channels, members, nick) and re-emitted as an `IrcEvent`.
-4. `ChatController` (a Riverpod `Notifier`) turns events into conversation
-   buffers (`*status`, channels, private chats) with unread counts.
-5. The room browser calls `ChatController.fetchRooms`, which sends `LIST`.
-   The client collects the replies into one `ChannelListEvent`, the
-   controller stores them in `ChatState.rooms`, and the screen filters and
-   sorts them locally with `filterRooms`.
+4. `ChatController` (a Riverpod `Notifier`) keeps one `NetworkSession`
+   (with its own `IrcClient`) per open network and turns each client's
+   events into conversation buffers (`*status`, channels, private chats)
+   with unread counts. Buffers are keyed by network and name. See
+   [features/multi-network.md](features/multi-network.md).
+5. The room browser calls `ChatController.fetchRooms`, which sends `LIST`
+   to every connected network. Each client collects the replies into one
+   `ChannelListEvent`, the controller stores them on that network's
+   session, and the screen merges them (`ChatState.allRooms`), then filters
+   and sorts them locally with `filterRooms`.
 6. The chat screen watches the controller. Typed text goes through
    `runInput`, which maps `/commands` to client calls.
 
