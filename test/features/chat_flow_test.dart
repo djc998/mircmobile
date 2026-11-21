@@ -1,4 +1,5 @@
 import 'dart:async';
+import 'dart:io';
 
 import 'package:flutter_riverpod/flutter_riverpod.dart';
 import 'package:flutter_test/flutter_test.dart';
@@ -36,6 +37,7 @@ void main() {
             host,
             port, {
             required useTls,
+            trustedFingerprints = const {},
           }) {
             connectedHost = host;
             return transport;
@@ -101,7 +103,8 @@ void main() {
       ProviderScope(
         overrides: [
           transportFactoryProvider.overrideWithValue(
-            (host, port, {required useTls}) => transport,
+            (host, port, {required useTls, trustedFingerprints = const {}}) =>
+                transport,
           ),
         ],
         child: const IrcApp(),
@@ -189,7 +192,8 @@ void main() {
             keyValueStoreProvider.overrideWithValue(store),
             secretStoreProvider.overrideWithValue(secrets),
             transportFactoryProvider.overrideWithValue(
-              (host, port, {required useTls}) => transport,
+              (host, port, {required useTls, trustedFingerprints = const {}}) =>
+                  transport,
             ),
           ],
           child: const IrcApp(),
@@ -264,4 +268,128 @@ void main() {
     await tester.pumpWidget(const SizedBox());
     await tester.pump(const Duration(seconds: 1));
   });
+
+  testWidgets('untrusted certificate: trust once, then connect', (
+    tester,
+  ) async {
+    tester.view.physicalSize = const Size(800, 1800);
+    tester.view.devicePixelRatio = 1;
+    addTearDown(tester.view.reset);
+    final store = MemoryKeyValueStore();
+    final calls = <({bool tls, int port, Set<String> trusted})>[];
+    final good = FakeTransport();
+    final cert = CertificateInfo(
+      subject: 'CN=irc.choopa.net',
+      issuer: 'CN=irc.choopa.net',
+      validUntil: DateTime(2100),
+      sha256: 'AB:CD:EF',
+    );
+    await tester.pumpWidget(
+      ProviderScope(
+        overrides: [
+          keyValueStoreProvider.overrideWithValue(store),
+          transportFactoryProvider.overrideWithValue((
+            host,
+            port, {
+            required useTls,
+            trustedFingerprints = const {},
+          }) {
+            calls.add((tls: useTls, port: port, trusted: trustedFingerprints));
+            if (!trustedFingerprints.contains('AB:CD:EF')) {
+              return _FailingTransport(
+                UntrustedCertificateException(host, cert),
+              );
+            }
+            return good;
+          }),
+        ],
+        child: const IrcApp(),
+      ),
+    );
+    await tester.enterText(find.widgetWithText(TextField, 'Nickname'), 'me');
+    await tester.tap(find.text('EFnet'));
+    await tester.pumpAndSettle();
+
+    expect(find.textContaining('self-signed'), findsWidgets);
+    expect(find.textContaining('AB:CD:EF'), findsOneWidget);
+    await tester.tap(find.text('Trust and connect'));
+    // Closing the old connection completes outside the fake clock.
+    await tester.runAsync(
+      () => Future<void>.delayed(const Duration(milliseconds: 50)),
+    );
+    await tester.pump();
+    good.incoming.add(':s 001 me :Welcome');
+    await tester.pumpAndSettle();
+
+    expect(calls.length, 2);
+    expect(calls.last.trusted, contains('AB:CD:EF'));
+    expect(find.text('Trust and connect'), findsNothing);
+    expect(store.values['trustedCertificates'], contains('AB:CD:EF'));
+
+    await tester.pumpWidget(const SizedBox());
+    await tester.pump(const Duration(seconds: 1));
+  });
+
+  testWidgets('secure connection fails: offer unencrypted fallback', (
+    tester,
+  ) async {
+    tester.view.physicalSize = const Size(800, 1800);
+    tester.view.devicePixelRatio = 1;
+    addTearDown(tester.view.reset);
+    final calls = <({bool tls, int port})>[];
+    final plain = FakeTransport();
+    await tester.pumpWidget(
+      ProviderScope(
+        overrides: [
+          transportFactoryProvider.overrideWithValue((
+            host,
+            port, {
+            required useTls,
+            trustedFingerprints = const {},
+          }) {
+            calls.add((tls: useTls, port: port));
+            return useTls
+                ? _FailingTransport(const SocketException('timed out'))
+                : plain;
+          }),
+        ],
+        child: const IrcApp(),
+      ),
+    );
+    await tester.enterText(find.widgetWithText(TextField, 'Nickname'), 'me');
+    await tester.tap(find.text('OFTC'));
+    await tester.pump();
+    await tester.pump(const Duration(milliseconds: 100));
+
+    expect(find.text('Connect without encryption'), findsOneWidget);
+    await tester.tap(find.text('Connect without encryption'));
+    await tester.runAsync(
+      () => Future<void>.delayed(const Duration(milliseconds: 50)),
+    );
+    await tester.pump();
+    expect(calls.last, (tls: false, port: 6667));
+    expect(plain.written, contains('NICK me'));
+    expect(find.textContaining('NOT encrypted'), findsOneWidget);
+
+    await tester.pumpWidget(const SizedBox());
+    await tester.pump(const Duration(minutes: 10));
+  });
+}
+
+class _FailingTransport implements IrcTransport {
+  _FailingTransport(this.error);
+
+  final Exception error;
+
+  @override
+  Future<void> connect() async => throw error;
+
+  @override
+  Stream<String> get lines => const Stream.empty();
+
+  @override
+  void writeLine(String line) {}
+
+  @override
+  Future<void> close() async {}
 }

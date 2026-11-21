@@ -49,7 +49,12 @@ void main() {
     transport = FakeTransport();
     client = IrcClient(
       config,
-      transportFactory: (host, port, {required useTls}) => transport,
+      transportFactory: (
+        host,
+        port, {
+        required useTls,
+        trustedFingerprints = const {},
+      }) => transport,
       floodInterval: Duration.zero,
       floodBurst: 1000,
     );
@@ -82,7 +87,7 @@ void main() {
     expect(transport.written.take(3), [
       'CAP LS 302',
       'NICK me',
-      'USER me 0 * :me',
+      'USER mobile 0 * :Mobile IRC user',
     ]);
     expect(client.status, IrcConnectionStatus.registering);
     await register();
@@ -94,6 +99,19 @@ void main() {
     expect(events.whereType<ServerInfoEvent>().last.network, 'TestNet');
     expect(client.capabilities, containsAll(['server-time', 'multi-prefix']));
     expect(events.whereType<RegisteredEvent>().single.nick, 'me');
+  });
+
+  test('custom username and real name are cleaned up and sent', () async {
+    await setUpClient(
+      config: const IrcConnectionConfig(
+        host: 'h',
+        nick: 'me',
+        username: 'den nis!toolongname',
+        realname: '  Dennis C\n ',
+        autoReconnect: false,
+      ),
+    );
+    expect(transport.written, contains('USER dennistool 0 * :Dennis C'));
   });
 
   test('sends PASS when a server password is set', () async {
@@ -295,11 +313,12 @@ void main() {
     final transports = <FakeTransport>[];
     client = IrcClient(
       const IrcConnectionConfig(host: 'h', nick: 'me'),
-      transportFactory: (host, port, {required useTls}) {
-        final t = FakeTransport();
-        transports.add(t);
-        return t;
-      },
+      transportFactory:
+          (host, port, {required useTls, trustedFingerprints = const {}}) {
+            final t = FakeTransport();
+            transports.add(t);
+            return t;
+          },
       floodInterval: Duration.zero,
       maxReconnectDelay: Duration.zero,
     );
@@ -327,7 +346,12 @@ void main() {
     transport = FakeTransport()..failWith = Exception('refused');
     client = IrcClient(
       const IrcConnectionConfig(host: 'h', nick: 'me', autoReconnect: false),
-      transportFactory: (host, port, {required useTls}) => transport,
+      transportFactory: (
+        host,
+        port, {
+        required useTls,
+        trustedFingerprints = const {},
+      }) => transport,
     );
     events = [];
     client.events.listen(events.add);
@@ -335,6 +359,43 @@ void main() {
     await pumpEventQueue();
     expect(events.whereType<ServerErrorEvent>().single.code, 'CONNECT');
     expect(client.status, IrcConnectionStatus.disconnected);
+  });
+
+  test('untrusted certificate asks the user and does not reconnect', () async {
+    final cert = CertificateInfo(
+      subject: 'CN=irc.example',
+      issuer: 'CN=irc.example',
+      validUntil: DateTime(2100),
+      sha256: 'AA:BB',
+    );
+    var attempts = 0;
+    Set<String>? passedTrust;
+    client = IrcClient(
+      const IrcConnectionConfig(
+        host: 'irc.efnet.org',
+        nick: 'me',
+        trustedFingerprints: {'CC:DD'},
+      ),
+      transportFactory:
+          (host, port, {required useTls, trustedFingerprints = const {}}) {
+            attempts++;
+            passedTrust = trustedFingerprints;
+            return FakeTransport()
+              ..failWith = UntrustedCertificateException(host, cert);
+          },
+      maxReconnectDelay: Duration.zero,
+    );
+    events = [];
+    client.events.listen(events.add);
+    await client.connect();
+    await Future<void>.delayed(const Duration(milliseconds: 20));
+    final rejected = events.whereType<CertificateRejectedEvent>().single;
+    expect(rejected.host, 'irc.efnet.org');
+    expect(rejected.certificate.sha256, 'AA:BB');
+    expect(rejected.certificate.isSelfSigned, isTrue);
+    expect(client.status, IrcConnectionStatus.disconnected);
+    expect(attempts, 1);
+    expect(passedTrust, {'CC:DD'});
   });
 
   test('SASL outcome is reported', () async {

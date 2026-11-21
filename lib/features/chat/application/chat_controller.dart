@@ -9,6 +9,7 @@ import 'package:irc_client/core/irc/input_commands.dart';
 import 'package:irc_client/core/irc/irc_client.dart';
 import 'package:irc_client/core/irc/irc_events.dart';
 import 'package:irc_client/core/irc/irc_transport.dart';
+import 'package:irc_client/features/connection/data/certificate_trust.dart';
 import 'package:irc_client/features/favorites/application/room_prefs_controller.dart';
 
 /// Name of the server/status buffer.
@@ -58,6 +59,8 @@ class ChatState {
     this.roomsLoading = false,
     this.roomsFetchedAt,
     this.roomsError,
+    this.untrustedCertificate,
+    this.secureConnectFailed = false,
   });
 
   final IrcConnectionStatus status;
@@ -81,6 +84,17 @@ class ChatState {
   /// Why the last LIST failed, if it did.
   final String? roomsError;
 
+  /// Set when the server's certificate failed verification; the chat screen
+  /// asks whether to trust it.
+  final CertificateInfo? untrustedCertificate;
+
+  /// Set when a secure (TLS) connection couldn't be opened at all, so the
+  /// chat screen can offer an unencrypted connection instead.
+  final bool secureConnectFailed;
+
+  bool get hasConnectionProblem =>
+      untrustedCertificate != null || secureConnectFailed;
+
   ChatBuffer? get activeBuffer => buffers[active.toLowerCase()];
 
   ChatState copyWith({
@@ -94,6 +108,9 @@ class ChatState {
     DateTime? roomsFetchedAt,
     String? roomsError,
     bool clearRoomsError = false,
+    CertificateInfo? untrustedCertificate,
+    bool? secureConnectFailed,
+    bool clearConnectionProblem = false,
   }) => ChatState(
     status: status ?? this.status,
     network: network ?? this.network,
@@ -105,6 +122,12 @@ class ChatState {
     roomsLoading: roomsLoading ?? this.roomsLoading,
     roomsFetchedAt: roomsFetchedAt ?? this.roomsFetchedAt,
     roomsError: clearRoomsError ? null : (roomsError ?? this.roomsError),
+    untrustedCertificate: clearConnectionProblem
+        ? null
+        : (untrustedCertificate ?? this.untrustedCertificate),
+    secureConnectFailed:
+        !clearConnectionProblem &&
+        (secureConnectFailed ?? this.secureConnectFailed),
   );
 }
 
@@ -120,6 +143,7 @@ final chatControllerProvider = NotifierProvider<ChatController, ChatState>(
 /// Owns the single active [IrcClient] and turns its events into buffers.
 class ChatController extends Notifier<ChatState> {
   IrcClient? _client;
+  IrcConnectionConfig? _config;
   StreamSubscription<IrcEvent>? _sub;
 
   IrcClient? get client => _client;
@@ -137,9 +161,22 @@ class ChatController extends Notifier<ChatState> {
   }
 
   /// Connects to a network, replacing any previous connection.
-  Future<void> connect(IrcConnectionConfig config) async {
+  Future<void> connect(IrcConnectionConfig requested) async {
     await _sub?.cancel();
-    await _client?.dispose();
+    // Close the old connection in the background; don't wait for it.
+    final old = _client;
+    _client = null;
+    if (old != null) unawaited(old.dispose());
+    // Add certificates the user trusted earlier for this server.
+    final config = requested.copyWith(
+      trustedFingerprints: {
+        ...requested.trustedFingerprints,
+        ...ref
+            .read(certificateTrustStoreProvider)
+            .fingerprintsFor(requested.host),
+      },
+    );
+    _config = config;
     final client = IrcClient(
       config,
       transportFactory: ref.read(transportFactoryProvider),
@@ -165,6 +202,29 @@ class ChatController extends Notifier<ChatState> {
 
   Future<void> disconnect() async {
     await _client?.disconnect();
+  }
+
+  /// Trusts the certificate that was just rejected and reconnects.
+  Future<void> trustCertificateAndReconnect() async {
+    final cert = state.untrustedCertificate;
+    final config = _config;
+    if (cert == null || config == null) return;
+    await ref
+        .read(certificateTrustStoreProvider)
+        .trust(config.host, cert.sha256);
+    await connect(config);
+  }
+
+  /// Reconnects without TLS on port 6667, after the user agreed.
+  Future<void> connectWithoutEncryption() async {
+    final config = _config;
+    if (config == null) return;
+    await connect(config.copyWith(useTls: false, port: 6667));
+  }
+
+  /// Hides the connection-problem banner.
+  void dismissConnectionProblem() {
+    state = state.copyWith(clearConnectionProblem: true);
   }
 
   /// Asks the server for its room list. Results land in [ChatState.rooms].
@@ -293,8 +353,28 @@ class ChatController extends Notifier<ChatState> {
           ChatLine(text: label, kind: ChatLineKind.event),
           countUnread: false,
         );
+      case CertificateRejectedEvent(:final host, :final certificate):
+        final why = certificate.isExpired
+            ? 'it has expired'
+            : certificate.isSelfSigned
+            ? "it's self-signed"
+            : "it isn't issued for $host by a trusted authority";
+        state = state.copyWith(untrustedCertificate: certificate);
+        _addLine(
+          statusBuffer,
+          ChatLine(
+            text:
+                "$host's security certificate can't be verified because "
+                '$why.',
+            kind: ChatLineKind.error,
+          ),
+        );
       case RegisteredEvent(:final nick, :final network):
-        state = state.copyWith(nick: nick, network: network);
+        state = state.copyWith(
+          nick: nick,
+          network: network,
+          clearConnectionProblem: true,
+        );
         _addLine(
           statusBuffer,
           ChatLine(
@@ -420,6 +500,9 @@ class ChatController extends Notifier<ChatState> {
           countUnread: false,
         );
       case ServerErrorEvent(:final text, :final target, :final code):
+        if (code == 'CONNECT' && (_config?.useTls ?? false)) {
+          state = state.copyWith(secureConnectFailed: true);
+        }
         // 416: list too large / not allowed; LIST errors end the request.
         if (state.roomsLoading && (code == '416' || target == 'LIST')) {
           state = state.copyWith(roomsLoading: false, roomsError: text);

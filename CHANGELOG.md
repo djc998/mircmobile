@@ -6,7 +6,21 @@ and the project uses [Semantic Versioning](https://semver.org/).
 
 ## [Unreleased]
 
+### Fixed
+- EFnet (and other servers with self-signed, mismatched or expired TLS
+  certificates) failed with `CERTIFICATE_VERIFY_FAILED`. The app now shows
+  the certificate details and lets you **Trust and connect**. It remembers
+  that exact certificate (SHA-256 fingerprint) per server, so a different
+  certificate later is still refused. Verification is never turned off.
+- DALnet disconnected new users as a "compromised host" (`[exp/dm]`). The
+  app sent the nickname as the username and real name too, which DALnet's
+  drone detector flags. It now sends `mobile` / `Mobile IRC user` by
+  default, and both can be set under **More options** on the start screen.
+
 ### Added
+- When a secure connection can't be opened at all (for example a server
+  without TLS), the chat screen offers **Connect without encryption**
+  (port 6667) with a clear warning.
 - Favorites and recent rooms (iOS, Android, macOS). Star a room from the chat
   screen or the room browser; favorites are kept per network and rejoined
   automatically on connect ("Rejoin my favorite rooms"). The last 10 rooms
@@ -60,5 +74,5 @@ and the project uses [Semantic Versioning](https://semver.org/).
   nick list and a message box. Wide layouts (iPad, Mac) show the
   conversation list beside the chat.
 - Android INTERNET permission and the macOS network-client entitlement.
-- Unit and widget tests (82 in total), GitHub Actions CI (format, analyze,
+- Unit and widget tests (90 in total), GitHub Actions CI (format, analyze,
   test).

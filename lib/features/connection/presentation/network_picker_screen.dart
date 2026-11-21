@@ -28,6 +28,8 @@ class _NetworkPickerScreenState extends ConsumerState<NetworkPickerScreen> {
   final _channels = TextEditingController();
   final _account = TextEditingController();
   final _password = TextEditingController();
+  final _username = TextEditingController();
+  final _realname = TextEditingController();
   bool _useAccount = false;
   bool _rememberPassword = true;
   bool _rejoinFavorites = true;
@@ -43,6 +45,8 @@ class _NetworkPickerScreenState extends ConsumerState<NetworkPickerScreen> {
     _nick.text = saved.nick;
     _rememberPassword = saved.rememberPassword;
     _rejoinFavorites = saved.rejoinFavorites;
+    _username.text = saved.username ?? '';
+    _realname.text = saved.realname ?? '';
     final account = saved.account;
     if (account != null && account.isNotEmpty) {
       _useAccount = true;
@@ -63,6 +67,8 @@ class _NetworkPickerScreenState extends ConsumerState<NetworkPickerScreen> {
     _channels.dispose();
     _account.dispose();
     _password.dispose();
+    _username.dispose();
+    _realname.dispose();
     super.dispose();
   }
 
@@ -116,6 +122,8 @@ class _NetworkPickerScreenState extends ConsumerState<NetworkPickerScreen> {
           account: account.isEmpty ? null : account,
           rememberPassword: _rememberPassword,
           rejoinFavorites: _rejoinFavorites,
+          username: _username.text.trim().isEmpty ? null : _username.text,
+          realname: _realname.text.trim().isEmpty ? null : _realname.text,
         ),
         password: password,
       ),
@@ -127,6 +135,8 @@ class _NetworkPickerScreenState extends ConsumerState<NetworkPickerScreen> {
       useTls: network.useTls,
       nick: nick,
       autoJoin: autoJoin,
+      username: _username.text,
+      realname: _realname.text,
       sasl: account.isNotEmpty
           ? SaslCredentials(account: account, password: password)
           : null,
@@ -229,6 +239,32 @@ class _NetworkPickerScreenState extends ConsumerState<NetworkPickerScreen> {
                 onChanged: (v) => setState(() => _rememberPassword = v),
               ),
             ],
+            ExpansionTile(
+              tilePadding: EdgeInsets.zero,
+              title: const Text('More options'),
+              subtitle: const Text('Username and real name'),
+              children: [
+                TextField(
+                  controller: _username,
+                  autocorrect: false,
+                  decoration: const InputDecoration(
+                    labelText: 'Username (optional)',
+                    hintText: IrcClient.defaultUsername,
+                    border: OutlineInputBorder(),
+                  ),
+                ),
+                const SizedBox(height: 12),
+                TextField(
+                  controller: _realname,
+                  decoration: const InputDecoration(
+                    labelText: 'Real name (optional, shown to others)',
+                    hintText: IrcClient.defaultRealname,
+                    border: OutlineInputBorder(),
+                  ),
+                ),
+                const SizedBox(height: 12),
+              ],
+            ),
             const SizedBox(height: 24),
             Text('Networks', style: theme.textTheme.titleMedium),
             const SizedBox(height: 8),

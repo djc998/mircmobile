@@ -3,6 +3,7 @@ library;
 
 import 'package:irc_client/core/irc/cap_negotiator.dart';
 import 'package:irc_client/core/irc/irc_message.dart';
+import 'package:irc_client/core/irc/irc_transport.dart';
 
 /// Lifecycle of a connection.
 enum IrcConnectionStatus {
@@ -50,6 +51,15 @@ class ServerInfoEvent extends IrcEvent {
   ServerInfoEvent({required this.network});
 
   final String network;
+}
+
+/// The server's TLS certificate failed verification and isn't trusted yet.
+/// The connection was not made; the UI should ask the user what to do.
+class CertificateRejectedEvent extends IrcEvent {
+  CertificateRejectedEvent({required this.host, required this.certificate});
+
+  final String host;
+  final CertificateInfo certificate;
 }
 
 class SaslEvent extends IrcEvent {
