@@ -243,6 +243,13 @@ class _NetworkPickerScreenState extends ConsumerState<NetworkPickerScreen> {
               )
             : null,
         title: Text(adding ? 'Add a network' : 'Choose a network'),
+        actions: [
+          IconButton(
+            tooltip: 'Appearance',
+            icon: const Icon(Icons.palette_outlined),
+            onPressed: () => context.push('/appearance'),
+          ),
+        ],
       ),
       body: SafeArea(
         child: ListView(

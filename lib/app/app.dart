@@ -4,6 +4,8 @@ import 'package:irc_client/core/theme/app_theme.dart';
 import 'package:irc_client/features/chat/presentation/chat_screen.dart';
 import 'package:irc_client/features/connection/presentation/network_picker_screen.dart';
 import 'package:irc_client/features/discovery/presentation/room_browser_screen.dart';
+import 'package:irc_client/features/settings/application/appearance_controller.dart';
+import 'package:irc_client/features/settings/presentation/appearance_screen.dart';
 import 'package:material_ui/material_ui.dart';
 
 /// Working name until the final app name is chosen.
@@ -15,6 +17,10 @@ final routerProvider = Provider<GoRouter>(
       GoRoute(
         path: '/',
         builder: (context, state) => const NetworkPickerScreen(),
+      ),
+      GoRoute(
+        path: '/appearance',
+        builder: (context, state) => const AppearanceScreen(),
       ),
       GoRoute(
         path: '/chat',
@@ -35,12 +41,26 @@ class IrcApp extends ConsumerWidget {
 
   @override
   Widget build(BuildContext context, WidgetRef ref) {
+    final appearance = ref.watch(appearanceProvider);
     return MaterialApp.router(
       title: appName,
-      theme: AppTheme.light(),
-      darkTheme: AppTheme.dark(),
+      theme: AppTheme.build(appearance.preset, Brightness.light),
+      darkTheme: AppTheme.build(appearance.preset, Brightness.dark),
+      themeMode: switch (appearance.mode) {
+        AppearanceMode.system => ThemeMode.system,
+        AppearanceMode.light => ThemeMode.light,
+        AppearanceMode.dark => ThemeMode.dark,
+      },
       routerConfig: ref.watch(routerProvider),
       debugShowCheckedModeBanner: false,
+      builder: (context, child) => MediaQuery(
+        data: MediaQuery.of(context).copyWith(
+          textScaler: TextScaler.linear(
+            MediaQuery.textScalerOf(context).scale(appearance.textScale),
+          ),
+        ),
+        child: child!,
+      ),
     );
   }
 }

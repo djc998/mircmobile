@@ -954,6 +954,46 @@ void main() {
     await tester.pumpWidget(const SizedBox());
     await tester.pump(const Duration(seconds: 1));
   });
+
+  testWidgets('appearance: pick dark mode, a theme and text size', (
+    tester,
+  ) async {
+    tester.view.physicalSize = const Size(800, 1800);
+    tester.view.devicePixelRatio = 1;
+    addTearDown(tester.view.reset);
+    final store = MemoryKeyValueStore();
+    Future<void> launch() async {
+      await tester.pumpWidget(const SizedBox());
+      await tester.pumpWidget(
+        ProviderScope(
+          overrides: [keyValueStoreProvider.overrideWithValue(store)],
+          child: const IrcApp(),
+        ),
+      );
+      await tester.pumpAndSettle();
+    }
+
+    await launch();
+    await tester.tap(find.byTooltip('Appearance'));
+    await tester.pumpAndSettle();
+    expect(find.text('Appearance'), findsOneWidget);
+    await tester.tap(find.text('Dark'));
+    await tester.pumpAndSettle();
+    await tester.tap(find.text('High contrast'));
+    await tester.pumpAndSettle();
+    await tester.tap(find.text('Large'));
+    await tester.pumpAndSettle();
+
+    BuildContext ctx() => tester.element(find.byType(Scaffold).last);
+    expect(Theme.of(ctx()).brightness, Brightness.dark);
+    expect(Theme.of(ctx()).colorScheme.surface, Colors.black);
+    expect(MediaQuery.textScalerOf(ctx()).scale(10), closeTo(11.5, 0.01));
+
+    // Remembered on the next launch.
+    await launch();
+    expect(Theme.of(ctx()).brightness, Brightness.dark);
+    expect(Theme.of(ctx()).colorScheme.surface, Colors.black);
+  });
 }
 
 class _FailingTransport implements IrcTransport {
