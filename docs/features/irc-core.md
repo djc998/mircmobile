@@ -6,6 +6,16 @@ Status: done (v0.1, unreleased). Platforms: iOS, Android, macOS.
 
 - Connects over TLS (port 6697) by default. Plain-text connections are
   possible for custom servers and are labelled "NOT encrypted".
+- Certificates are always verified. When a server's certificate fails
+  (self-signed, wrong name or expired, common on EFnet), the connection
+  stops and the app asks the user. Trusting stores that certificate's
+  SHA-256 fingerprint for the server host
+  (`features/connection/data/certificate_trust.dart`); only that exact
+  certificate is accepted afterwards. If TLS can't be opened at all, the
+  user can choose an unencrypted connection on port 6667.
+- Sends username `mobile` and real name `Mobile IRC user` unless the user
+  sets their own ("More options"). The nickname is never reused for these,
+  because DALnet bans logins where all three match as bots.
 - Negotiates IRCv3 capabilities: `server-time`, `message-tags`,
   `multi-prefix`, `away-notify`, `account-notify`, `extended-join`,
   `echo-message`, `cap-notify`, `userhost-in-names`, `batch`, plus `sasl`

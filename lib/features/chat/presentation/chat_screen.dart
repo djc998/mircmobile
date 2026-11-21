@@ -118,6 +118,11 @@ class ChatScreen extends ConsumerWidget {
             Expanded(
               child: Column(
                 children: [
+                  if (state.hasConnectionProblem)
+                    _ConnectionProblemBanner(
+                      state: state,
+                      controller: controller,
+                    ),
                   Expanded(child: _MessageList(lines: buffer?.lines ?? [])),
                   const Divider(height: 1),
                   _InputBar(onSubmit: controller.submit),
@@ -405,4 +410,66 @@ class _NickList extends StatelessWidget {
 
   static int _rank(IrcMember m) =>
       m.prefixes.isEmpty ? 99 : '~&@%+'.indexOf(m.topPrefix).abs();
+}
+
+/// Asks what to do when a secure connection can't be made: trust an
+/// unverified certificate, or fall back to an unencrypted connection.
+class _ConnectionProblemBanner extends StatelessWidget {
+  const _ConnectionProblemBanner({
+    required this.state,
+    required this.controller,
+  });
+
+  final ChatState state;
+  final ChatController controller;
+
+  @override
+  Widget build(BuildContext context) {
+    final cert = state.untrustedCertificate;
+    final String message;
+    final List<Widget> actions;
+    if (cert != null) {
+      message =
+          "This server's security certificate can't be verified "
+          '(${cert.isExpired
+              ? 'expired'
+              : cert.isSelfSigned
+              ? 'self-signed'
+              : 'not issued for this server'}). '
+          'This is common on older networks like EFnet. If you trust it, '
+          'the chat is still encrypted and the app remembers this exact '
+          'certificate.\n'
+          'Issued to: ${cert.subject}\nFingerprint: ${cert.sha256}';
+      actions = [
+        TextButton(
+          onPressed: controller.dismissConnectionProblem,
+          child: const Text('Cancel'),
+        ),
+        FilledButton(
+          onPressed: controller.trustCertificateAndReconnect,
+          child: const Text('Trust and connect'),
+        ),
+      ];
+    } else {
+      message =
+          "Couldn't open a secure connection to this network. You can "
+          'try an unencrypted connection instead. Others on the network '
+          'path could read your messages and password.';
+      actions = [
+        TextButton(
+          onPressed: controller.dismissConnectionProblem,
+          child: const Text('Keep trying'),
+        ),
+        TextButton(
+          onPressed: controller.connectWithoutEncryption,
+          child: const Text('Connect without encryption'),
+        ),
+      ];
+    }
+    return MaterialBanner(
+      leading: const Icon(Icons.gpp_maybe_outlined),
+      content: Text(message),
+      actions: actions,
+    );
+  }
 }

@@ -13,6 +13,8 @@ class SavedConnection {
     this.account,
     this.rememberPassword = true,
     this.rejoinFavorites = true,
+    this.username,
+    this.realname,
   });
 
   factory SavedConnection.fromJson(Map<String, Object?> json) =>
@@ -22,6 +24,8 @@ class SavedConnection {
         account: json['account'] as String?,
         rememberPassword: json['rememberPassword'] as bool? ?? true,
         rejoinFavorites: json['rejoinFavorites'] as bool? ?? true,
+        username: json['username'] as String?,
+        realname: json['realname'] as String?,
       );
 
   final String nick;
@@ -36,12 +40,18 @@ class SavedConnection {
   /// Join this network's favorite rooms automatically on connect.
   final bool rejoinFavorites;
 
+  /// Optional IRC username and real name; defaults are used when empty.
+  final String? username;
+  final String? realname;
+
   Map<String, Object?> toJson() => {
     'nick': nick,
     'networkHost': networkHost,
     'account': account,
     'rememberPassword': rememberPassword,
     'rejoinFavorites': rejoinFavorites,
+    'username': username,
+    'realname': realname,
   };
 }
 

@@ -25,6 +25,7 @@ class IrcConnectionConfig {
     this.sasl,
     this.autoJoin = const [],
     this.autoReconnect = true,
+    this.trustedFingerprints = const {},
   });
 
   final String host;
@@ -37,6 +38,27 @@ class IrcConnectionConfig {
   final SaslCredentials? sasl;
   final List<String> autoJoin;
   final bool autoReconnect;
+
+  /// Certificates the user chose to trust for this server (SHA-256).
+  final Set<String> trustedFingerprints;
+
+  IrcConnectionConfig copyWith({
+    int? port,
+    bool? useTls,
+    Set<String>? trustedFingerprints,
+  }) => IrcConnectionConfig(
+    host: host,
+    nick: nick,
+    port: port ?? this.port,
+    useTls: useTls ?? this.useTls,
+    username: username,
+    realname: realname,
+    serverPassword: serverPassword,
+    sasl: sasl,
+    autoJoin: autoJoin,
+    autoReconnect: autoReconnect,
+    trustedFingerprints: trustedFingerprints ?? this.trustedFingerprints,
+  );
 }
 
 /// A user in a channel together with their status prefixes (e.g. `@+`).
@@ -159,10 +181,20 @@ class IrcClient {
       config.host,
       config.port,
       useTls: config.useTls,
+      trustedFingerprints: config.trustedFingerprints,
     );
     _transport = transport;
     try {
       await transport.connect();
+    } on UntrustedCertificateException catch (e) {
+      // Retrying can't help until the user decides, so don't reconnect.
+      _transport = null;
+      _emit(CertificateRejectedEvent(host: e.host, certificate: e.certificate));
+      _setStatus(
+        IrcConnectionStatus.disconnected,
+        reason: 'Untrusted certificate',
+      );
+      return;
     } on Object catch (e) {
       _transport = null;
       _emit(ServerErrorEvent(code: 'CONNECT', text: 'Could not connect: $e'));
@@ -215,8 +247,8 @@ class IrcClient {
     _flood
       ..sendNow('NICK $_nick')
       ..sendNow(
-        'USER ${config.username ?? config.nick} 0 * '
-        ':${config.realname ?? config.nick}',
+        'USER ${_username(config.username)} 0 * '
+        ':${_realname(config.realname)}',
       );
     _resetIdleTimer();
   }
@@ -746,6 +778,30 @@ class IrcClient {
       case 'TIME':
         sendRaw('NOTICE $to :\x01TIME ${DateTime.now().toUtc()}\x01');
     }
+  }
+
+  /// Username sent when the user hasn't set one.
+  ///
+  /// Not the nickname: networks such as DALnet treat a login where the nick,
+  /// username and real name are all the same as a bot ("drone") and ban it.
+  static const String defaultUsername = 'mobile';
+
+  /// Real name ("gecos") sent when the user hasn't set one.
+  static const String defaultRealname = 'Mobile IRC user';
+
+  /// A username must be one word of safe characters; fall back otherwise.
+  static String _username(String? value) {
+    final cleaned = (value ?? '').trim().replaceAll(
+      RegExp('[^A-Za-z0-9_.-]'),
+      '',
+    );
+    if (cleaned.isEmpty) return defaultUsername;
+    return cleaned.length > 10 ? cleaned.substring(0, 10) : cleaned;
+  }
+
+  static String _realname(String? value) {
+    final cleaned = (value ?? '').replaceAll(RegExp(r'[\r\n]'), ' ').trim();
+    return cleaned.isEmpty ? defaultRealname : cleaned;
   }
 
   /// Reported in CTCP VERSION replies.

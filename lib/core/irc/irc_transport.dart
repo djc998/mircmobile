@@ -6,6 +6,8 @@ import 'dart:convert';
 import 'dart:io';
 import 'dart:typed_data';
 
+import 'package:crypto/crypto.dart';
+
 /// A bidirectional line-oriented connection to an IRC server.
 ///
 /// The client only talks to this interface, so a bouncer or WebSocket
@@ -25,11 +27,65 @@ abstract interface class IrcTransport {
 }
 
 /// Creates a transport for a server address.
+///
+/// [trustedFingerprints] are SHA-256 fingerprints of certificates the user
+/// chose to trust even though normal verification fails (self-signed,
+/// wrong name or expired), as many EFnet servers use.
 typedef IrcTransportFactory = IrcTransport Function(
   String host,
   int port, {
   required bool useTls,
+  Set<String> trustedFingerprints,
 });
+
+/// Details of a server certificate, shown when asking the user to trust it.
+class CertificateInfo {
+  const CertificateInfo({
+    required this.subject,
+    required this.issuer,
+    required this.validUntil,
+    required this.sha256,
+  });
+
+  factory CertificateInfo.fromCertificate(X509Certificate cert) =>
+      CertificateInfo(
+        subject: cert.subject,
+        issuer: cert.issuer,
+        validUntil: cert.endValidity,
+        sha256: certificateFingerprint(cert.der),
+      );
+
+  final String subject;
+  final String issuer;
+  final DateTime validUntil;
+
+  /// Upper-case hex SHA-256 of the DER certificate, colon separated.
+  final String sha256;
+
+  bool get isExpired => validUntil.isBefore(DateTime.now());
+
+  bool get isSelfSigned => subject == issuer;
+}
+
+/// SHA-256 fingerprint in the usual `AB:CD:...` form.
+String certificateFingerprint(List<int> der) => sha256
+    .convert(der)
+    .bytes
+    .map((b) => b.toRadixString(16).padLeft(2, '0').toUpperCase())
+    .join(':');
+
+/// The server's certificate failed verification and isn't trusted.
+class UntrustedCertificateException implements Exception {
+  UntrustedCertificateException(this.host, this.certificate);
+
+  final String host;
+  final CertificateInfo certificate;
+
+  @override
+  String toString() =>
+      "The certificate for $host can't be verified "
+      '(${certificate.subject}, issued by ${certificate.issuer}).';
+}
 
 /// Splits a byte stream into IRC lines.
 ///
@@ -98,6 +154,7 @@ class SocketIrcTransport implements IrcTransport {
     this.host,
     this.port, {
     required this.useTls,
+    this.trustedFingerprints = const {},
     this.timeout = const Duration(seconds: 20),
   });
 
@@ -106,6 +163,7 @@ class SocketIrcTransport implements IrcTransport {
 
   /// TLS is the default. Plaintext is allowed but the UI warns about it.
   final bool useTls;
+  final Set<String> trustedFingerprints;
   final Duration timeout;
 
   Socket? _socket;
@@ -116,9 +174,29 @@ class SocketIrcTransport implements IrcTransport {
 
   @override
   Future<void> connect() async {
-    final socket = useTls
-        ? await SecureSocket.connect(host, port, timeout: timeout)
-        : await Socket.connect(host, port, timeout: timeout);
+    CertificateInfo? rejected;
+    final Socket socket;
+    try {
+      socket = useTls
+          ? await SecureSocket.connect(
+              host,
+              port,
+              timeout: timeout,
+              // Only called when normal verification fails. Accept the
+              // certificate only if the user trusted this exact one before.
+              onBadCertificate: (cert) {
+                final info = CertificateInfo.fromCertificate(cert);
+                if (trustedFingerprints.contains(info.sha256)) return true;
+                rejected = info;
+                return false;
+              },
+            )
+          : await Socket.connect(host, port, timeout: timeout);
+    } on HandshakeException {
+      final info = rejected;
+      if (info != null) throw UntrustedCertificateException(host, info);
+      rethrow;
+    }
     _socket = socket..setOption(SocketOption.tcpNoDelay, true);
     const IrcLineDecoder()
         .bind(socket)
@@ -154,4 +232,10 @@ IrcTransport defaultTransportFactory(
   String host,
   int port, {
   required bool useTls,
-}) => SocketIrcTransport(host, port, useTls: useTls);
+  Set<String> trustedFingerprints = const {},
+}) => SocketIrcTransport(
+  host,
+  port,
+  useTls: useTls,
+  trustedFingerprints: trustedFingerprints,
+);
