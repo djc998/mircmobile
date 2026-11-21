@@ -398,6 +398,48 @@ void main() {
     expect(passedTrust, {'CC:DD'});
   });
 
+  test('tracks room settings, operator status and invites', () async {
+    await setUpClient();
+    await register();
+    await server(':me!u@h JOIN #mine');
+    expect(transport.written.last, 'MODE #mine');
+    await server(':s 353 me = #mine :@me');
+    await server(':s 366 me #mine :End');
+    await server(':s 324 me #mine +nt');
+    final chan = client.channel('#mine')!;
+    expect(chan.modes, {'n', 't'});
+    expect(chan.modesKnown, isTrue);
+    expect(client.isOperator('#mine'), isTrue);
+    expect(
+      events.whereType<ChannelModeEvent>().last.setBy,
+      isNull,
+      reason: '324 is the server telling us the current settings',
+    );
+
+    await server(':me!u@h MODE #mine +isk secret');
+    expect(chan.isInviteOnly && chan.isSecret, isTrue);
+    expect(chan.key, 'secret');
+    await server(':me!u@h MODE #mine -k+l secret 10');
+    expect(chan.hasKey, isFalse);
+    expect(chan.limit, 10);
+    await server(':me!u@h MODE #mine -i+b bad!*@*');
+    expect(chan.isInviteOnly, isFalse);
+    expect(events.whereType<ChannelModeEvent>().last.change, '-i+b bad!*@*');
+
+    await server(':alice!a@h JOIN #mine');
+    await server(':me!u@h MODE #mine +v alice');
+    expect(client.isOperator('#mine'), isTrue);
+    await server(':x!x@h MODE #mine -o me');
+    expect(client.isOperator('#mine'), isFalse);
+    // Owner (~) and admin (&) rank above op.
+    await server(':x!x@h MODE #mine +q me');
+    expect(client.isOperator('#mine'), isTrue);
+
+    await server(':bob!b@h INVITE me #club');
+    final invite = events.whereType<InviteEvent>().single;
+    expect((invite.from, invite.channel), ('bob', '#club'));
+  });
+
   test('SASL outcome is reported', () async {
     await setUpClient(
       config: const IrcConnectionConfig(
@@ -467,6 +509,26 @@ void main() {
       expect(transport.written.last, 'WHOIS bob');
       runInput(client, '/quote MODE #chat +m');
       expect(transport.written.last, 'MODE #chat +m');
+    });
+
+    test('/mode, /invite, /kick, /ban, /op, /devoice', () {
+      runInput(client, '/mode +ik secret', target: '#chat');
+      expect(transport.written.last, 'MODE #chat +ik secret');
+      runInput(client, '/mode #other');
+      expect(transport.written.last, 'MODE #other');
+      runInput(client, '/invite bob', target: '#chat');
+      expect(transport.written.last, 'INVITE bob #chat');
+      runInput(client, '/invite bob #other');
+      expect(transport.written.last, 'INVITE bob #other');
+      runInput(client, '/kick bob be nice', target: '#chat');
+      expect(transport.written.last, 'KICK #chat bob :be nice');
+      runInput(client, '/ban bob', target: '#chat');
+      expect(transport.written.last, 'MODE #chat +b bob!*@*');
+      runInput(client, '/op bob alice', target: '#chat');
+      expect(transport.written.last, 'MODE #chat +oo bob alice');
+      runInput(client, '/devoice bob', target: '#chat');
+      expect(transport.written.last, 'MODE #chat -v bob');
+      expect(runInput(client, '/kick bob'), isA<InputError>());
     });
 
     test('/query opens a conversation', () {

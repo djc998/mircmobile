@@ -122,6 +122,23 @@ class SavedConnectionRepository {
     );
   }
 
+  /// Saves [password] for [account] on [host] (after registering a
+  /// nickname) and makes it the account to log in with when none is set.
+  Future<void> rememberAccount(
+    String host,
+    String account,
+    String password,
+  ) async {
+    await _secrets.write(_passwordKey(host, account), password);
+    final saved = load();
+    if (saved != null && (saved.account == null || saved.account!.isEmpty)) {
+      await _store.setString(
+        _key,
+        jsonEncode({...saved.toJson(), 'account': account}),
+      );
+    }
+  }
+
   Future<String?> loadPassword(String host, String account) =>
       _secrets.read(_passwordKey(host, account));
 

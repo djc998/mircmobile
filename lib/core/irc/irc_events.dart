@@ -204,3 +204,29 @@ class ServerNoticeEvent extends IrcEvent {
   final IrcMessage message;
   final String text;
 }
+
+/// A channel's modes changed (MODE), or the server told us its modes (324).
+class ChannelModeEvent extends IrcEvent {
+  ChannelModeEvent({
+    required this.channel,
+    required this.change,
+    this.setBy,
+    super.time,
+  });
+
+  final String channel;
+
+  /// The mode string with its arguments, e.g. `+ik secret`.
+  final String change;
+
+  /// Who changed it; null for the server's reply to a MODE query (324).
+  final String? setBy;
+}
+
+/// Someone invited us to a channel.
+class InviteEvent extends IrcEvent {
+  InviteEvent({required this.from, required this.channel, super.time});
+
+  final String from;
+  final String channel;
+}

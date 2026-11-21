@@ -5,16 +5,20 @@ import 'dart:async';
 import 'dart:convert';
 
 import 'package:flutter_riverpod/flutter_riverpod.dart';
+import 'package:irc_client/core/irc/cap_negotiator.dart';
 import 'package:irc_client/core/irc/formatting.dart';
 import 'package:irc_client/core/irc/input_commands.dart';
 import 'package:irc_client/core/irc/irc_client.dart';
 import 'package:irc_client/core/irc/irc_events.dart';
 import 'package:irc_client/core/irc/irc_transport.dart';
+import 'package:irc_client/core/irc/networks.dart';
+import 'package:irc_client/core/irc/services.dart';
 import 'package:irc_client/core/storage/app_storage.dart';
 import 'package:irc_client/features/chat/data/chat_history_store.dart';
 import 'package:irc_client/features/connection/data/certificate_trust.dart';
 import 'package:irc_client/features/connection/data/saved_connection.dart';
 import 'package:irc_client/features/favorites/application/room_prefs_controller.dart';
+import 'package:irc_client/features/rooms/domain/room_modes.dart';
 
 /// Name of the server/status buffer.
 const String statusBuffer = '*status';
@@ -125,6 +129,19 @@ class NetworkSession {
   /// Room the user asked to join from the browser; opened when joined.
   String? pendingSelect;
 
+  /// Rooms the user is creating, by lower-cased name, with the settings to
+  /// apply once the server confirms we run the room.
+  final Map<String, RoomSettings> pendingCreate = {};
+
+  /// Invitations waiting for Join or Ignore.
+  final List<RoomInvite> invites = [];
+
+  /// Logged in to a services account (SASL succeeded).
+  bool loggedIn = false;
+
+  /// This network's NickServ/ChanServ.
+  NetworkServices get services => NetworkServices(servicesFor(id));
+
   /// Display name: the network's own name, or its host until known.
   String get label => name.isEmpty ? config.host : name;
 
@@ -137,6 +154,14 @@ class NetworkSession {
     untrustedCertificate = null;
     secureConnectFailed = false;
   }
+}
+
+/// Someone invited the user to a room.
+class RoomInvite {
+  const RoomInvite({required this.from, required this.channel});
+
+  final String from;
+  final String channel;
 }
 
 /// A room from a LIST reply, tagged with the network it is on.
@@ -570,6 +595,138 @@ class ChatController extends Notifier<ChatState> {
     session.client.join(name);
   }
 
+  /// Creates a room (or joins it if it already exists) and, once the
+  /// server confirms the user runs it, applies [settings].
+  void createRoom(String name, RoomSettings settings, {String? networkId}) {
+    final session = _network(networkId);
+    var room = name.trim();
+    if (session == null || room.isEmpty) return;
+    if (!session.client.isChannel(room)) room = '#$room';
+    final key = room.toLowerCase();
+    session
+      ..pendingCreate[key] = settings
+      ..pendingSelect = key;
+    final password = settings.password?.trim() ?? '';
+    session.client.join(room, key: password.isEmpty ? null : password);
+  }
+
+  /// Changes a room's settings. Only works for the room's operators.
+  void updateRoom(String channel, RoomSettings settings, {String? networkId}) {
+    final session = _network(networkId);
+    final chan = session?.client.channel(channel);
+    if (session == null || chan == null) return;
+    final change = modeChange(
+      current: chan.modes,
+      currentKey: chan.key,
+      wanted: settings,
+    );
+    if (change != null) {
+      session.client.setModes(chan.name, change.modes, change.args);
+    }
+  }
+
+  void inviteUser(String nick, String channel, {String? networkId}) {
+    final session = _network(networkId);
+    if (session == null) return;
+    session.client.invite(nick, channel);
+    _addLine(
+      session,
+      channel,
+      ChatLine(text: 'Invited $nick to $channel.', kind: ChatLineKind.event),
+      countUnread: false,
+    );
+  }
+
+  void kickUser(String channel, String nick, {String? networkId}) =>
+      _network(networkId)?.client.kick(channel, nick);
+
+  /// Bans [nick] and removes them from the room.
+  void banUser(String channel, String nick, {String? networkId}) {
+    final client = _network(networkId)?.client;
+    if (client == null) return;
+    client
+      ..ban(channel, nick)
+      ..kick(channel, nick, reason: 'Banned');
+  }
+
+  void makeOperator(String channel, String nick, {String? networkId}) =>
+      _network(networkId)?.client.setModes(channel, '+o', [nick]);
+
+  /// Joins the room from an invitation and forgets the invitation.
+  void acceptInvite(String networkId, RoomInvite invite) {
+    dismissInvite(networkId, invite);
+    joinRoom(invite.channel, networkId: networkId);
+  }
+
+  void dismissInvite(String networkId, RoomInvite invite) {
+    state.networks[networkId]?.invites.remove(invite);
+    _touch();
+  }
+
+  /// Registers the current nickname with NickServ and remembers the
+  /// password for automatic login (SASL) next time. The reply opens in a
+  /// NickServ chat.
+  Future<void> registerNick(
+    String password,
+    String email, {
+    String? networkId,
+  }) async {
+    final session = _network(networkId);
+    if (session == null || !session.services.canRegisterNick) return;
+    final msg = session.services.registerNick(password, email);
+    session.client.sendRaw('PRIVMSG ${msg.target} :${msg.text}');
+    await ref
+        .read(savedConnectionRepositoryProvider)
+        .rememberAccount(session.config.host, session.nick, password);
+    _openServiceChat(
+      session,
+      'NickServ',
+      'Asked NickServ to register ${session.nick}. Check $email for a '
+          'confirmation message if the network sends one.',
+    );
+  }
+
+  /// Logs in to the current nickname's account now (without reconnecting).
+  void identifyNick(String password, {String? networkId}) {
+    final session = _network(networkId);
+    if (session == null || !session.services.canRegisterNick) return;
+    final msg = session.services.identify(password);
+    session.client.sendRaw('PRIVMSG ${msg.target} :${msg.text}');
+    _openServiceChat(session, 'NickServ', 'Logging in to ${session.nick}…');
+  }
+
+  /// Asks ChanServ to register [channel] so it is kept permanently. The
+  /// reply opens in a ChanServ chat.
+  void registerRoom(String channel, {String? password, String? networkId}) {
+    final session = _network(networkId);
+    if (session == null || !session.services.canRegisterRoom) return;
+    final msg = session.services.registerRoom(channel, password: password);
+    session.client.sendRaw('PRIVMSG ${msg.target} :${msg.text}');
+    _addLine(
+      session,
+      channel,
+      ChatLine(
+        text:
+            'Asked ChanServ to keep $channel. Its answer is in the '
+            'ChanServ chat.',
+        kind: ChatLineKind.event,
+      ),
+      countUnread: false,
+    );
+    _openServiceChat(session, 'ChanServ', 'Registering $channel…');
+  }
+
+  void _openServiceChat(NetworkSession session, String name, String note) {
+    final buffer = _ensureBuffer(session, name);
+    _addLine(
+      session,
+      name,
+      ChatLine(text: note, kind: ChatLineKind.event),
+      countUnread: false,
+    );
+    selectBuffer(buffer.key);
+  }
+
   /// Opens the conversation with [key] (see [ChatBuffer.key]).
   void selectBuffer(String key) {
     final buffer = state.buffers[key];
@@ -741,6 +898,7 @@ class ChatController extends Notifier<ChatState> {
           _touch();
         }
       case SaslEvent(:final outcome):
+        session.loggedIn = outcome == SaslOutcome.success;
         add(
           statusBuffer,
           ChatLine(
@@ -840,6 +998,20 @@ class ChatController extends Notifier<ChatState> {
         );
       case MembersChangedEvent():
         _touch();
+      case ChannelModeEvent(:final channel, :final change, :final setBy):
+        _onChannelModes(session, channel, change, setBy);
+      case InviteEvent(:final from, :final channel):
+        session.invites
+          ..removeWhere((i) => i.channel.toLowerCase() == channel.toLowerCase())
+          ..add(RoomInvite(from: from, channel: channel));
+        add(
+          statusBuffer,
+          ChatLine(
+            text: '$from invited you to $channel.',
+            kind: ChatLineKind.event,
+          ),
+          countUnread: false,
+        );
       case ChannelListEvent(:final entries):
         session
           ..rooms = entries
@@ -908,5 +1080,70 @@ class ChatController extends Notifier<ChatState> {
           countUnread: false,
         );
     }
+  }
+
+  void _onChannelModes(
+    NetworkSession session,
+    String channel,
+    String change,
+    String? setBy,
+  ) {
+    final words = describeModeChange(change);
+    if (change.trim().isNotEmpty && change.trim() != '+') {
+      _addLine(
+        session,
+        channel,
+        ChatLine(
+          text: setBy == null
+              ? 'Room settings: $words'
+              : '$setBy changed the room: $words',
+          kind: ChatLineKind.event,
+        ),
+        countUnread: false,
+      );
+    }
+    // The reply to our MODE query after joining tells us whether we got
+    // to create (and run) a room the user asked for.
+    final settings = session.pendingCreate.remove(channel.toLowerCase());
+    if (settings == null || setBy != null) return;
+    final chan = session.client.channel(channel);
+    if (chan == null) return;
+    if (!session.client.isOperator(channel)) {
+      _addLine(
+        session,
+        channel,
+        ChatLine(
+          text:
+              '$channel already exists and someone else runs it, so its '
+              "settings weren't changed.",
+          kind: ChatLineKind.error,
+        ),
+      );
+      return;
+    }
+    final apply = modeChange(
+      current: chan.modes,
+      currentKey: chan.key,
+      wanted: RoomSettings(
+        inviteOnly: settings.inviteOnly,
+        secret: settings.secret,
+        topicLocked: settings.topicLocked ?? true,
+        password: settings.password,
+      ),
+    );
+    if (apply != null) {
+      session.client.setModes(chan.name, apply.modes, apply.args);
+    }
+    _addLine(
+      session,
+      channel,
+      ChatLine(
+        text:
+            'You created $channel and run it. Open Room settings in the menu '
+            'to change who can join or to keep the room permanently.',
+        kind: ChatLineKind.event,
+      ),
+      countUnread: false,
+    );
   }
 }
