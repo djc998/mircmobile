@@ -7,6 +7,21 @@ and the project uses [Semantic Versioning](https://semver.org/).
 ## [Unreleased]
 
 ### Added
+- Favorites and recent rooms (iOS, Android, macOS). Star a room from the chat
+  screen or the room browser; favorites are kept per network and rejoined
+  automatically on connect ("Rejoin my favorite rooms"). The last 10 rooms
+  you joined on each network appear as quick-join chips in the room browser,
+  and a **Favorites** filter shows only starred rooms. Favorite rooms show a
+  star in the conversation list.
+  See [docs/features/favorites.md](docs/features/favorites.md).
+- Saved connection settings: the nickname, last network and account name are
+  remembered, and a **Continue on <network>** card reconnects in one tap.
+  Account passwords are stored only in the iOS/macOS Keychain or Android
+  encrypted storage (flutter_secure_storage), with a "Remember password"
+  switch.
+- Storage layer (`lib/core/storage/app_storage.dart`) wrapping
+  shared_preferences and flutter_secure_storage behind interfaces, with
+  in-memory versions for tests.
 - Room browser (iOS, Android, macOS): tap the compass in the chat screen to
   see every room on the network. Search by name or topic, filter by size
   (any, 10+, 50+, 200+ people), sort by most people or A–Z, and join with
@@ -45,5 +60,5 @@ and the project uses [Semantic Versioning](https://semver.org/).
   nick list and a message box. Wide layouts (iPad, Mac) show the
   conversation list beside the chat.
 - Android INTERNET permission and the macOS network-client entitlement.
-- Unit and widget tests (75 in total), GitHub Actions CI (format, analyze,
+- Unit and widget tests (82 in total), GitHub Actions CI (format, analyze,
   test).

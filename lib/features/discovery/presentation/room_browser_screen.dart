@@ -4,6 +4,7 @@ import 'package:irc_client/core/irc/formatting.dart';
 import 'package:irc_client/core/irc/irc_events.dart';
 import 'package:irc_client/features/chat/application/chat_controller.dart';
 import 'package:irc_client/features/discovery/domain/room_filter.dart';
+import 'package:irc_client/features/favorites/application/room_prefs_controller.dart';
 import 'package:material_ui/material_ui.dart';
 
 /// Lists every room on the network with search, sort and a size filter.
@@ -19,6 +20,7 @@ class _RoomBrowserScreenState extends ConsumerState<RoomBrowserScreen> {
   String _query = '';
   int _minUsers = 0;
   RoomSort _sort = RoomSort.mostPeople;
+  bool _favoritesOnly = false;
 
   @override
   void initState() {
@@ -38,8 +40,10 @@ class _RoomBrowserScreenState extends ConsumerState<RoomBrowserScreen> {
     super.dispose();
   }
 
-  void _join(ChannelListEntry room) {
-    ref.read(chatControllerProvider.notifier).joinRoom(room.name);
+  void _join(ChannelListEntry room) => _joinName(room.name);
+
+  void _joinName(String name) {
+    ref.read(chatControllerProvider.notifier).joinRoom(name);
     if (context.canPop()) {
       context.pop();
     } else {
@@ -61,8 +65,13 @@ class _RoomBrowserScreenState extends ConsumerState<RoomBrowserScreen> {
     final state = ref.watch(chatControllerProvider);
     final controller = ref.read(chatControllerProvider.notifier);
     final connected = state.status == IrcConnectionStatus.connected;
+    final prefs = ref.watch(roomPrefsProvider);
+    final host = controller.host ?? '';
+    final recents = prefs.recentsFor(host);
     final rooms = filterRooms(
-      state.rooms,
+      _favoritesOnly
+          ? state.rooms.where((r) => prefs.isFavorite(host, r.name)).toList()
+          : state.rooms,
       query: _query,
       minUsers: _minUsers,
       sort: _sort,
@@ -114,6 +123,15 @@ class _RoomBrowserScreenState extends ConsumerState<RoomBrowserScreen> {
               padding: const EdgeInsets.symmetric(horizontal: 16, vertical: 8),
               child: Row(
                 children: [
+                  Padding(
+                    padding: const EdgeInsets.only(right: 8),
+                    child: FilterChip(
+                      avatar: const Icon(Icons.star, size: 18),
+                      label: const Text('Favorites'),
+                      selected: _favoritesOnly,
+                      onSelected: (v) => setState(() => _favoritesOnly = v),
+                    ),
+                  ),
                   for (final min in roomSizeFilters)
                     Padding(
                       padding: const EdgeInsets.only(right: 8),
@@ -139,9 +157,39 @@ class _RoomBrowserScreenState extends ConsumerState<RoomBrowserScreen> {
                 ],
               ),
             ),
+            if (recents.isNotEmpty && _query.isEmpty && connected)
+              SingleChildScrollView(
+                scrollDirection: Axis.horizontal,
+                padding: const EdgeInsets.fromLTRB(16, 0, 16, 8),
+                child: Row(
+                  children: [
+                    const Padding(
+                      padding: EdgeInsets.only(right: 8),
+                      child: Text('Recent:'),
+                    ),
+                    for (final room in recents)
+                      Padding(
+                        padding: const EdgeInsets.only(right: 8),
+                        child: ActionChip(
+                          avatar: const Icon(Icons.history, size: 18),
+                          label: Text(room),
+                          onPressed: () => _joinName(room),
+                        ),
+                      ),
+                  ],
+                ),
+              ),
             if (state.roomsLoading) const LinearProgressIndicator(),
             Expanded(
-              child: _body(context, state, rooms, connected, controller),
+              child: _body(
+                context,
+                state,
+                rooms,
+                connected,
+                controller,
+                prefs,
+                host,
+              ),
             ),
           ],
         ),
@@ -155,6 +203,8 @@ class _RoomBrowserScreenState extends ConsumerState<RoomBrowserScreen> {
     List<ChannelListEntry> rooms,
     bool connected,
     ChatController controller,
+    RoomPrefs prefs,
+    String host,
   ) {
     final theme = Theme.of(context);
     if (!connected && state.rooms.isEmpty) {
@@ -182,6 +232,8 @@ class _RoomBrowserScreenState extends ConsumerState<RoomBrowserScreen> {
         icon: Icons.search_off,
         text: state.rooms.isEmpty
             ? 'No rooms yet. Tap refresh to load them.'
+            : _favoritesOnly
+            ? 'No favorites here yet. Tap the star next to a room to add it.'
             : 'No rooms match. Try another word or a smaller size.',
       );
     }
@@ -213,9 +265,29 @@ class _RoomBrowserScreenState extends ConsumerState<RoomBrowserScreen> {
                 style: const TextStyle(fontSize: 12),
               ),
             ),
-            trailing: FilledButton.tonal(
-              onPressed: connected ? () => _join(room) : null,
-              child: const Text('Join'),
+            trailing: Row(
+              mainAxisSize: MainAxisSize.min,
+              children: [
+                IconButton(
+                  tooltip: prefs.isFavorite(host, room.name)
+                      ? 'Remove ${room.name} from favorites'
+                      : 'Add ${room.name} to favorites',
+                  icon: Icon(
+                    prefs.isFavorite(host, room.name)
+                        ? Icons.star
+                        : Icons.star_border,
+                  ),
+                  onPressed: host.isEmpty
+                      ? null
+                      : () => ref
+                            .read(roomPrefsProvider.notifier)
+                            .toggleFavorite(host, room.name),
+                ),
+                FilledButton.tonal(
+                  onPressed: connected ? () => _join(room) : null,
+                  child: const Text('Join'),
+                ),
+              ],
             ),
             onTap: connected ? () => _join(room) : null,
           );

@@ -19,10 +19,13 @@ lib/
     input_commands.dart      /commands typed by the user
     formatting.dart          mIRC colour code stripping, nick validation
     networks.dart            Built-in network list
+  core/storage/              KeyValueStore / SecretStore interfaces
   core/theme/                Material 3 theme, nick colours
   features/connection/       Network picker screen
   features/chat/             ChatController (Riverpod) and chat screen
+  features/connection/data/  SavedConnection (nick, network, account)
   features/discovery/        Room browser: filterRooms() and its screen
+  features/favorites/        Favorite and recent rooms per network
 ```
 
 ## Data flow
@@ -49,6 +52,13 @@ iOS suspends sockets in the background. v1 reconnects when the app returns;
 v2 adds bouncer support (soju/ZNC) and push. Because `IrcClient` only uses
 `IrcTransport`, a bouncer or WebSocket transport can be dropped in without
 touching the protocol code. Tests use an in-memory transport the same way.
+
+## Storage
+
+`main.dart` overrides `keyValueStoreProvider` with shared_preferences and
+`secretStoreProvider` with flutter_secure_storage (Keychain on iOS/macOS,
+encrypted storage on Android). Features only see the interfaces, and tests
+use the in-memory defaults. Passwords never go into shared_preferences.
 
 ## Decisions
 

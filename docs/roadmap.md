@@ -5,8 +5,8 @@
 - [x] Network picker and basic chat screen
 - [x] Room browser: search and sort LIST results, one-tap join
 - [ ] mIRC colour and style rendering
-- [ ] Favorites and recent rooms; saved networks and nick (shared_preferences)
-- [ ] Passwords in flutter_secure_storage
+- [x] Favorites and recent rooms; saved networks and nick (shared_preferences)
+- [x] Passwords in flutter_secure_storage
 - [ ] Scrollback in drift (SQLite)
 - [ ] App Store safety: ignore/block, report, content filter, terms on
       first launch
