@@ -1,0 +1,189 @@
+/// Typed events emitted by `IrcClient`.
+library;
+
+import 'package:irc_client/core/irc/cap_negotiator.dart';
+import 'package:irc_client/core/irc/irc_message.dart';
+
+/// Lifecycle of a connection.
+enum IrcConnectionStatus {
+  disconnected,
+  connecting,
+  registering,
+  connected,
+  reconnecting,
+}
+
+/// Base class for everything the client reports to the UI.
+sealed class IrcEvent {
+  IrcEvent({DateTime? time}) : time = time ?? DateTime.now();
+
+  final DateTime time;
+}
+
+/// Every raw line, in or out. Useful for a debug/status window.
+class RawLineEvent extends IrcEvent {
+  RawLineEvent(this.line, {required this.outgoing});
+
+  final String line;
+  final bool outgoing;
+}
+
+class StatusChangedEvent extends IrcEvent {
+  StatusChangedEvent(this.status, {this.reason});
+
+  final IrcConnectionStatus status;
+  final String? reason;
+}
+
+/// Registration finished (RPL_WELCOME).
+class RegisteredEvent extends IrcEvent {
+  RegisteredEvent({required this.nick, required this.network});
+
+  final String nick;
+
+  /// The network name from ISUPPORT NETWORK=, or the server name.
+  final String network;
+}
+
+class SaslEvent extends IrcEvent {
+  SaslEvent(this.outcome);
+
+  final SaslOutcome outcome;
+}
+
+/// A PRIVMSG or NOTICE, including CTCP ACTION (/me).
+class MessageEvent extends IrcEvent {
+  MessageEvent({
+    required this.target,
+    required this.sender,
+    required this.text,
+    required this.isOwn,
+    this.isAction = false,
+    this.isNotice = false,
+    this.tags = const {},
+    super.time,
+  });
+
+  /// The channel, or for a private message the other party's nick.
+  final String target;
+  final String sender;
+  final String text;
+  final bool isOwn;
+  final bool isAction;
+  final bool isNotice;
+  final Map<String, String> tags;
+}
+
+class JoinEvent extends IrcEvent {
+  JoinEvent({
+    required this.channel,
+    required this.nick,
+    required this.isSelf,
+    super.time,
+  });
+
+  final String channel;
+  final String nick;
+  final bool isSelf;
+}
+
+class PartEvent extends IrcEvent {
+  PartEvent({
+    required this.channel,
+    required this.nick,
+    required this.isSelf,
+    this.reason,
+    this.kickedBy,
+    super.time,
+  });
+
+  final String channel;
+  final String nick;
+  final bool isSelf;
+  final String? reason;
+
+  /// Set when the user was kicked rather than leaving.
+  final String? kickedBy;
+}
+
+class QuitEvent extends IrcEvent {
+  QuitEvent({
+    required this.nick,
+    required this.channels,
+    this.reason,
+    super.time,
+  });
+
+  final String nick;
+
+  /// Channels the user shared with us.
+  final List<String> channels;
+  final String? reason;
+}
+
+class NickChangeEvent extends IrcEvent {
+  NickChangeEvent({
+    required this.oldNick,
+    required this.newNick,
+    required this.isSelf,
+    required this.channels,
+    super.time,
+  });
+
+  final String oldNick;
+  final String newNick;
+  final bool isSelf;
+  final List<String> channels;
+}
+
+class TopicEvent extends IrcEvent {
+  TopicEvent({required this.channel, required this.topic, this.setBy});
+
+  final String channel;
+  final String topic;
+  final String? setBy;
+}
+
+/// The member list of a channel changed (after NAMES, JOIN, PART, ...).
+class MembersChangedEvent extends IrcEvent {
+  MembersChangedEvent(this.channel);
+
+  final String channel;
+}
+
+/// One entry from a LIST reply.
+class ChannelListEntry {
+  const ChannelListEntry({
+    required this.name,
+    required this.userCount,
+    required this.topic,
+  });
+
+  final String name;
+  final int userCount;
+  final String topic;
+}
+
+/// Results of a LIST request, delivered once RPL_LISTEND arrives.
+class ChannelListEvent extends IrcEvent {
+  ChannelListEvent(this.entries);
+
+  final List<ChannelListEntry> entries;
+}
+
+/// A server error numeric or ERROR line worth showing to the user.
+class ServerErrorEvent extends IrcEvent {
+  ServerErrorEvent({required this.code, required this.text, this.target});
+
+  final String code;
+  final String text;
+  final String? target;
+}
+
+/// Any other server message, e.g. MOTD lines and WHOIS replies.
+class ServerNoticeEvent extends IrcEvent {
+  ServerNoticeEvent(this.message, {required this.text});
+
+  final IrcMessage message;
+  final String text;
+}
