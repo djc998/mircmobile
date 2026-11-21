@@ -763,6 +763,37 @@ class ChatController extends Notifier<ChatState> {
     _saveOpenConversations(buffer.networkId);
   }
 
+  /// Changes the user's nickname on one network (the open one by default)
+  /// or on every open network, and remembers it for next time. Networks
+  /// that aren't connected use it when they reconnect.
+  ///
+  /// Returns an error message, or null when the change was sent.
+  String? changeNick(
+    String nick, {
+    String? networkId,
+    bool everywhere = false,
+  }) {
+    final name = nick.trim();
+    if (!isValidNick(name)) {
+      return 'Use letters, numbers and _-[]{}|^ only, starting with a letter.';
+    }
+    final targets = everywhere
+        ? state.networks.values.toList()
+        : [?_network(networkId)];
+    if (targets.isEmpty) return 'Connect to a network first.';
+    for (final session in targets) {
+      session.config = session.config.copyWith(nick: name);
+      if (session.status == IrcConnectionStatus.connected) {
+        session.client.changeNick(name);
+      } else {
+        session.nick = name;
+      }
+    }
+    _touch();
+    unawaited(ref.read(savedConnectionRepositoryProvider).rememberNick(name));
+    return null;
+  }
+
   /// Starts a reply to [line] in the open conversation.
   void startReply(ChatLine line) {
     final buffer = state.activeBuffer;
@@ -1081,7 +1112,15 @@ class ChatController extends Notifier<ChatState> {
         add(
           buffer,
           ChatLine(
-            text: code == 'CONNECT' || code == 'ERROR' ? text : '$text ($code)',
+            text: switch (code) {
+              'CONNECT' || 'ERROR' => text,
+              // Nickname in use / not allowed / temporarily unavailable.
+              '432' || '433' || '436' || '437' =>
+                "Couldn't change your nickname: $text. You're still "
+                    '${session.nick}. Choose another with Change nickname in '
+                    'the menu.',
+              _ => '$text ($code)',
+            },
             kind: ChatLineKind.error,
           ),
         );
