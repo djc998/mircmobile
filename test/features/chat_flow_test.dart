@@ -93,4 +93,79 @@ void main() {
     await tester.pumpWidget(const SizedBox());
     await tester.pump(const Duration(seconds: 1));
   });
+
+  testWidgets('browse rooms, search and join with one tap', (tester) async {
+    final transport = FakeTransport();
+    await tester.pumpWidget(
+      ProviderScope(
+        overrides: [
+          transportFactoryProvider.overrideWithValue(
+            (host, port, {required useTls}) => transport,
+          ),
+        ],
+        child: const IrcApp(),
+      ),
+    );
+    await tester.enterText(find.widgetWithText(TextField, 'Nickname'), 'me');
+    await tester.tap(find.text('OFTC'));
+    await tester.pumpAndSettle();
+    transport.incoming
+      ..add(':s CAP * LS :server-time')
+      ..add(':s CAP * ACK :server-time')
+      ..add(':s 001 me :Welcome')
+      ..add(':s 005 me NETWORK=OFTC ELIST=U :are supported');
+    await tester.pumpAndSettle();
+
+    await tester.tap(find.byTooltip('Browse rooms'));
+    // The progress bar animates forever, so pump a fixed time, not settle.
+    await tester.pump();
+    await tester.pump(const Duration(milliseconds: 500));
+    expect(find.text('Rooms on OFTC'), findsOneWidget);
+    expect(transport.written.last, 'LIST');
+    expect(find.byType(LinearProgressIndicator), findsOneWidget);
+
+    transport.incoming
+      ..add(':s 321 me Channel :Users Name')
+      ..add(':s 322 me #debian 1200 :[+nt] Debian help')
+      ..add(':s 322 me #tor 800 :Tor project')
+      ..add(':s 322 me #quiet 3 :Shh')
+      ..add(':s 323 me :End of /LIST');
+    await tester.pumpAndSettle();
+
+    expect(find.text('3 of 3 rooms'), findsOneWidget);
+    expect(find.text('#debian'), findsOneWidget);
+    expect(find.text('Debian help'), findsOneWidget);
+    expect(find.text('1.2k'), findsOneWidget);
+
+    await tester.tap(find.text('10+ people'));
+    await tester.pumpAndSettle();
+    expect(find.text('#quiet'), findsNothing);
+
+    await tester.enterText(
+      find.widgetWithText(TextField, 'Search rooms and topics'),
+      'tor',
+    );
+    await tester.pumpAndSettle();
+    expect(find.text('#debian'), findsNothing);
+    expect(find.text('1 of 3 rooms'), findsOneWidget);
+
+    await tester.tap(find.widgetWithText(FilledButton, 'Join'));
+    await tester.pumpAndSettle();
+    expect(transport.written.last, 'JOIN #tor');
+    expect(find.text('Rooms on OFTC'), findsNothing);
+
+    transport.incoming.add(':me!u@h JOIN #tor');
+    await tester.pumpAndSettle();
+    expect(find.text('#tor'), findsOneWidget);
+
+    // Opening the browser again reuses the cached list.
+    final sent = transport.written.length;
+    await tester.tap(find.byTooltip('Browse rooms'));
+    await tester.pumpAndSettle();
+    expect(transport.written.length, sent);
+    expect(find.text('3 of 3 rooms'), findsOneWidget);
+
+    await tester.pumpWidget(const SizedBox());
+    await tester.pump(const Duration(seconds: 1));
+  });
 }

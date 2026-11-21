@@ -53,6 +53,10 @@ class ChatState {
     this.buffers = const {},
     this.active = statusBuffer,
     this.revision = 0,
+    this.rooms = const [],
+    this.roomsLoading = false,
+    this.roomsFetchedAt,
+    this.roomsError,
   });
 
   final IrcConnectionStatus status;
@@ -66,6 +70,16 @@ class ChatState {
   /// Bumped on every change so listeners rebuild.
   final int revision;
 
+  /// Rooms from the last LIST on this network (the room browser's data).
+  final List<ChannelListEntry> rooms;
+  final bool roomsLoading;
+
+  /// When [rooms] was fetched, or null if never.
+  final DateTime? roomsFetchedAt;
+
+  /// Why the last LIST failed, if it did.
+  final String? roomsError;
+
   ChatBuffer? get activeBuffer => buffers[active.toLowerCase()];
 
   ChatState copyWith({
@@ -74,6 +88,11 @@ class ChatState {
     String? nick,
     Map<String, ChatBuffer>? buffers,
     String? active,
+    List<ChannelListEntry>? rooms,
+    bool? roomsLoading,
+    DateTime? roomsFetchedAt,
+    String? roomsError,
+    bool clearRoomsError = false,
   }) => ChatState(
     status: status ?? this.status,
     network: network ?? this.network,
@@ -81,6 +100,10 @@ class ChatState {
     buffers: buffers ?? this.buffers,
     active: active ?? this.active,
     revision: revision + 1,
+    rooms: rooms ?? this.rooms,
+    roomsLoading: roomsLoading ?? this.roomsLoading,
+    roomsFetchedAt: roomsFetchedAt ?? this.roomsFetchedAt,
+    roomsError: clearRoomsError ? null : (roomsError ?? this.roomsError),
   );
 }
 
@@ -138,6 +161,31 @@ class ChatController extends Notifier<ChatState> {
 
   Future<void> disconnect() async {
     await _client?.disconnect();
+  }
+
+  /// Asks the server for its room list. Results land in [ChatState.rooms].
+  ///
+  /// Returns false when not connected yet.
+  bool fetchRooms() {
+    final client = _client;
+    if (client == null || state.status != IrcConnectionStatus.connected) {
+      return false;
+    }
+    if (state.roomsLoading) return true;
+    state = state.copyWith(roomsLoading: true, clearRoomsError: true);
+    client.list();
+    return true;
+  }
+
+  /// Joins a room from the browser and makes it the open conversation.
+  void joinRoom(String name) {
+    final client = _client;
+    if (client == null) return;
+    if (client.channel(name) != null) {
+      selectBuffer(name);
+      return;
+    }
+    client.join(name);
   }
 
   void selectBuffer(String name) {
@@ -222,7 +270,10 @@ class ChatController extends Notifier<ChatState> {
       case RawLineEvent():
         return;
       case StatusChangedEvent(:final status, :final reason):
-        state = state.copyWith(status: status);
+        state = state.copyWith(
+          status: status,
+          roomsLoading: status == IrcConnectionStatus.connected ? null : false,
+        );
         final label = switch (status) {
           IrcConnectionStatus.connecting => 'Connecting…',
           IrcConnectionStatus.registering => 'Logging in…',
@@ -240,6 +291,20 @@ class ChatController extends Notifier<ChatState> {
         );
       case RegisteredEvent(:final nick, :final network):
         state = state.copyWith(nick: nick, network: network);
+        _addLine(
+          statusBuffer,
+          ChatLine(
+            text:
+                'Welcome, $nick! Tap "Browse rooms" (the compass) to find '
+                'a room, or type /join #room.',
+            kind: ChatLineKind.event,
+          ),
+          countUnread: false,
+        );
+      case ServerInfoEvent(:final network):
+        if (network != state.network) {
+          state = state.copyWith(network: network);
+        }
       case SaslEvent(:final outcome):
         _addLine(
           statusBuffer,
@@ -329,27 +394,26 @@ class ChatController extends Notifier<ChatState> {
       case MembersChangedEvent():
         state = state.copyWith();
       case ChannelListEvent(:final entries):
-        final sorted = [...entries]
-          ..sort((a, b) => b.userCount.compareTo(a.userCount));
+        state = state.copyWith(
+          rooms: entries,
+          roomsLoading: false,
+          roomsFetchedAt: DateTime.now(),
+        );
         _addLine(
           statusBuffer,
           ChatLine(
-            text: '${entries.length} rooms found. Biggest:',
+            text:
+                '${entries.length} rooms found. Open "Browse rooms" to '
+                'search them.',
             kind: ChatLineKind.event,
           ),
+          countUnread: false,
         );
-        for (final entry in sorted.take(50)) {
-          _addLine(
-            statusBuffer,
-            ChatLine(
-              text:
-                  '${entry.name} (${entry.userCount}) '
-                  '${stripFormatting(entry.topic)}',
-              kind: ChatLineKind.notice,
-            ),
-          );
-        }
       case ServerErrorEvent(:final text, :final target, :final code):
+        // 416: list too large / not allowed; LIST errors end the request.
+        if (state.roomsLoading && (code == '416' || target == 'LIST')) {
+          state = state.copyWith(roomsLoading: false, roomsError: text);
+        }
         final buffer =
             target != null && state.buffers.containsKey(target.toLowerCase())
             ? target
@@ -361,7 +425,11 @@ class ChatController extends Notifier<ChatState> {
             kind: ChatLineKind.error,
           ),
         );
-      case ServerNoticeEvent(:final text):
+      case ServerNoticeEvent(:final message, :final text):
+        // 263 RPL_TRYAGAIN: the server refused LIST for now.
+        if (state.roomsLoading && message.command == '263') {
+          state = state.copyWith(roomsLoading: false, roomsError: text);
+        }
         _addLine(
           statusBuffer,
           ChatLine(text: stripFormatting(text), kind: ChatLineKind.notice),

@@ -91,6 +91,7 @@ void main() {
     expect(transport.written, contains('JOIN #start'));
     expect(client.status, IrcConnectionStatus.connected);
     expect(client.networkName, 'TestNet');
+    expect(events.whereType<ServerInfoEvent>().last.network, 'TestNet');
     expect(client.capabilities, containsAll(['server-time', 'multi-prefix']));
     expect(events.whereType<RegisteredEvent>().single.nick, 'me');
   });

@@ -443,6 +443,7 @@ class IrcClient {
       case '005':
         if (m.params.length > 2) {
           _isupport.apply(m.params.sublist(1, m.params.length - 1));
+          _emit(ServerInfoEvent(network: networkName));
         }
       case '432' || '433' || '436'
           when _status == IrcConnectionStatus.registering:

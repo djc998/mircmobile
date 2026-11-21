@@ -3,6 +3,7 @@ import 'package:go_router/go_router.dart';
 import 'package:irc_client/core/theme/app_theme.dart';
 import 'package:irc_client/features/chat/presentation/chat_screen.dart';
 import 'package:irc_client/features/connection/presentation/network_picker_screen.dart';
+import 'package:irc_client/features/discovery/presentation/room_browser_screen.dart';
 import 'package:material_ui/material_ui.dart';
 
 /// Working name until the final app name is chosen.
@@ -15,7 +16,16 @@ final routerProvider = Provider<GoRouter>(
         path: '/',
         builder: (context, state) => const NetworkPickerScreen(),
       ),
-      GoRoute(path: '/chat', builder: (context, state) => const ChatScreen()),
+      GoRoute(
+        path: '/chat',
+        builder: (context, state) => const ChatScreen(),
+        routes: [
+          GoRoute(
+            path: 'rooms',
+            builder: (context, state) => const RoomBrowserScreen(),
+          ),
+        ],
+      ),
     ],
   ),
 );
