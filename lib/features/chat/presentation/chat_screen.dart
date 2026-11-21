@@ -104,6 +104,8 @@ class ChatScreen extends ConsumerWidget {
                   await controller.clearHistory(buffer!.key);
                 case 'add':
                   context.go('/');
+                case 'appearance':
+                  await context.push('/appearance');
                 case 'create':
                   await showCreateRoomDialog(context, ref);
                 case 'settings':
@@ -666,11 +668,10 @@ class _MessageTileState extends State<_MessageTile> {
     final line = widget.line;
     final time = TimeOfDay.fromDateTime(line.time.toLocal()).format(context);
     final sender = line.sender;
+    final chatColors = ChatColors.of(context);
     final nickStyle = TextStyle(
       fontWeight: FontWeight.bold,
-      color: sender == null
-          ? null
-          : AppTheme.nickColor(sender, theme.brightness),
+      color: sender == null ? null : chatColors.nickColor(sender),
     );
     final InlineSpan body = switch (line.kind) {
       ChatLineKind.message || ChatLineKind.own => TextSpan(
@@ -680,10 +681,7 @@ class _MessageTileState extends State<_MessageTile> {
         ],
       ),
       ChatLineKind.action => TextSpan(
-        style: const TextStyle(
-          fontStyle: FontStyle.italic,
-          color: Color(0xFF9C009C),
-        ),
+        style: TextStyle(fontStyle: FontStyle.italic, color: chatColors.action),
         children: [
           const TextSpan(text: '* '),
           TextSpan(text: sender, recognizer: _nickTap),
@@ -691,7 +689,7 @@ class _MessageTileState extends State<_MessageTile> {
         ],
       ),
       ChatLineKind.notice => TextSpan(
-        style: const TextStyle(color: Color(0xFF7F0000)),
+        style: TextStyle(color: chatColors.notice),
         children: [
           if (sender != null)
             TextSpan(text: '-$sender- ', recognizer: _nickTap),
@@ -700,7 +698,7 @@ class _MessageTileState extends State<_MessageTile> {
       ),
       ChatLineKind.event => TextSpan(
         text: '• ${line.text}',
-        style: const TextStyle(color: Color(0xFF009300)),
+        style: TextStyle(color: chatColors.event),
       ),
       ChatLineKind.error => TextSpan(
         text: '⚠ ${line.text}',
@@ -942,7 +940,6 @@ class _NickList extends StatelessWidget {
             ? rank
             : a.nick.toLowerCase().compareTo(b.nick.toLowerCase());
       });
-    final brightness = Theme.of(context).brightness;
     return Column(
       crossAxisAlignment: CrossAxisAlignment.stretch,
       children: [
@@ -968,7 +965,7 @@ class _NickList extends StatelessWidget {
                 title: Text(
                   '${m.topPrefix}${m.nick}',
                   style: TextStyle(
-                    color: AppTheme.nickColor(m.nick, brightness),
+                    color: ChatColors.of(context).nickColor(m.nick),
                   ),
                 ),
               );

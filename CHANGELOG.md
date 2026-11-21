@@ -7,6 +7,10 @@ and the project uses [Semantic Versioning](https://semver.org/).
 ## [Unreleased]
 
 ### Added
+- Appearance settings (iOS, Android, macOS): System/Light/Dark mode, four
+  themes (Classic, Midnight, Solarized, High contrast) with live previews,
+  and text size. Open from the palette button on the start screen or the
+  chat menu. See [docs/features/appearance.md](docs/features/appearance.md).
 - Reply to someone in a room (iOS, Android, macOS): a Reply button on each
   message (brighter on hover on Mac), swipe right or long-press on phones,
   and **Reply to … here** in the name menu. A "Replying to bob" bar shows
@@ -47,6 +51,9 @@ and the project uses [Semantic Versioning](https://semver.org/).
   server tab. See [docs/features/private-messages.md](docs/features/private-messages.md).
 
 ### Fixed
+- Join/part (green), notice (dark red) and action (purple) lines were hard
+  to read on dark backgrounds. Chat colours now come from the theme, with
+  light and dark versions that all meet a 4.5:1 contrast ratio (tested).
 - Mentions now match whole words, so a short nickname like "al" is no
   longer alerted by words such as "also".
 - Logging in again without retyping the password no longer deletes the
