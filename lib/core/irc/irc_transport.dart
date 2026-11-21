@@ -169,6 +169,10 @@ class SocketIrcTransport implements IrcTransport {
   Socket? _socket;
   final StreamController<String> _lines = StreamController<String>();
 
+  /// Set once the connection has failed or been closed. After that,
+  /// writes are dropped instead of hitting a dead socket.
+  bool _closed = false;
+
   @override
   Stream<String> get lines => _lines.stream;
 
@@ -198,28 +202,53 @@ class SocketIrcTransport implements IrcTransport {
       rethrow;
     }
     _socket = socket..setOption(SocketOption.tcpNoDelay, true);
+    // Write errors (broken pipe, connection reset) are reported on
+    // `done`, not where the write happened. Without this handler they
+    // become unhandled exceptions and the client never hears about them.
+    unawaited(socket.done.then<void>((_) => _fail(null), onError: _fail));
     const IrcLineDecoder()
         .bind(socket)
         .listen(
           _lines.add,
-          onError: _lines.addError,
-          onDone: _lines.close,
+          onError: _fail,
+          onDone: () => _fail(null),
           cancelOnError: true,
         );
   }
 
+  /// Reports the end of the connection to [lines] exactly once.
+  void _fail(Object? error) {
+    if (_closed) return;
+    _closed = true;
+    if (_lines.isClosed) return;
+    if (error != null) _lines.addError(error);
+    unawaited(_lines.close());
+  }
+
   @override
   void writeLine(String line) {
-    _socket?.add(utf8.encode('$line\r\n'));
+    final socket = _socket;
+    if (socket == null || _closed) return;
+    try {
+      socket.add(utf8.encode('$line\r\n'));
+    } on Object catch (e) {
+      _fail(e);
+    }
   }
 
   @override
   Future<void> close() async {
     final socket = _socket;
     _socket = null;
+    final alreadyDead = _closed;
+    _closed = true;
     if (socket == null) return;
     try {
-      await socket.flush();
+      // Flushing a dead socket never finishes, so only flush a live one,
+      // and never wait long (the QUIT line is a courtesy).
+      if (!alreadyDead) {
+        await socket.flush().timeout(const Duration(seconds: 2));
+      }
     } on Object {
       // The socket may already be gone; closing below is what matters.
     }

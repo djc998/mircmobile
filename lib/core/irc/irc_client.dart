@@ -330,7 +330,14 @@ class IrcClient {
   void _write(String line) {
     final transport = _transport;
     if (transport == null) return;
-    transport.writeLine(line);
+    try {
+      transport.writeLine(line);
+    } on Object catch (e) {
+      // A dead connection: reconnect now instead of waiting for the
+      // ping timeout.
+      _handleClosed(reason: 'Connection lost: $e');
+      return;
+    }
     _emit(RawLineEvent(line, outgoing: true));
   }
 

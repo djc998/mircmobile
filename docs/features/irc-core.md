@@ -26,6 +26,11 @@ Status: done (v0.1, unreleased). Platforms: iOS, Android, macOS.
 - Sends a keepalive PING after 90 s of silence and reconnects if nothing
   comes back within 60 s. Reconnects back off 2 s, 4 s, 8 s ... up to 5 min
   and rejoin every channel that was open.
+- A dropped connection (broken pipe, connection reset) is noticed on the
+  first failed write or read and starts the reconnect right away. The
+  socket transport catches errors reported on `Socket.done`, stops writing
+  once the connection has failed, and doesn't wait to flush a dead socket
+  when closing.
 - Limits outgoing lines to a burst of 5, then one every 1.5 s, so networks
   don't disconnect the user for flooding.
 

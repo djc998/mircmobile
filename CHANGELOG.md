@@ -51,6 +51,12 @@ and the project uses [Semantic Versioning](https://semver.org/).
   server tab. See [docs/features/private-messages.md](docs/features/private-messages.md).
 
 ### Fixed
+- Dropped connections (iOS, Android, macOS). When the network blips (for
+  example after sleep or a Wi-Fi change), the app now notices straight away
+  and reconnects, instead of logging "Broken pipe" / "Connection reset by
+  peer" errors and waiting up to a minute for the ping timeout. Closing a
+  dead connection no longer hangs. See
+  [docs/features/irc-core.md](docs/features/irc-core.md).
 - Join/part (green), notice (dark red) and action (purple) lines were hard
   to read on dark backgrounds. Chat colours now come from the theme, with
   light and dark versions that all meet a 4.5:1 contrast ratio (tested).
