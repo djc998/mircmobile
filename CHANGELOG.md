@@ -7,6 +7,19 @@ and the project uses [Semantic Versioning](https://semver.org/).
 ## [Unreleased]
 
 ### Added
+- Share temporary pictures in private chats (iOS, Android, macOS). Tap the
+  picture button next to the message box, choose or take a photo, pick how
+  long it lasts (1 hour, 12 hours, 1 day, 3 days) and optionally **View
+  once**. The photo is shrunk to 2048 px, its location and other metadata
+  are removed, and it is encrypted on the device before upload, so the
+  server only stores scrambled bytes. The other person sees it in the chat;
+  people on other IRC apps get a link that opens in a browser. Pictures
+  from people you haven't written to stay hidden until tapped. Each
+  picture has **Report picture** and **Block**; reports land on your own
+  server for review. **Block / Unblock** is also in the people menu.
+  The picture server is a small Cloudflare Worker with R2 storage in
+  `server/picture-host`. See
+  [docs/features/picture-sharing.md](docs/features/picture-sharing.md).
 - Change your nickname without commands (iOS, Android, macOS): **Change
   nickname** in the chat menu, or tap your name on a network in the
   conversation list. Optionally change it on all networks; the new name is

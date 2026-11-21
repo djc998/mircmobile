@@ -11,6 +11,8 @@ import 'package:irc_client/core/theme/app_theme.dart';
 import 'package:irc_client/features/chat/application/chat_controller.dart';
 import 'package:irc_client/features/chat/presentation/change_nick_dialog.dart';
 import 'package:irc_client/features/favorites/application/room_prefs_controller.dart';
+import 'package:irc_client/features/pictures/domain/picture_link.dart';
+import 'package:irc_client/features/pictures/presentation/picture_widgets.dart';
 import 'package:irc_client/features/rooms/presentation/room_dialogs.dart';
 import 'package:material_ui/material_ui.dart';
 
@@ -240,6 +242,14 @@ class ChatScreen extends ConsumerWidget {
                     child: _MessageList(
                       lines: buffer?.lines ?? [],
                       ownNick: net?.nick ?? '',
+                      networkId: net?.id ?? '',
+                      // Pictures load on their own only in a private chat
+                      // where you've written to the other person.
+                      autoShowPictures:
+                          buffer != null &&
+                          !buffer.isStatus &&
+                          !isChannel &&
+                          buffer.lines.any((l) => l.kind == ChatLineKind.own),
                       onReply: isChannel ? controller.startReply : null,
                       onNickTap: (nick) => unawaited(
                         showUserActions(
@@ -265,6 +275,11 @@ class ChatScreen extends ConsumerWidget {
                     onSubmit: controller.submit,
                     replyTo: buffer?.replyTo,
                     onCancelReply: controller.cancelReply,
+                    uploading: (buffer?.uploading ?? 0) > 0,
+                    // Pictures are for private chats.
+                    onAttach: buffer != null && !buffer.isStatus && !isChannel
+                        ? () => unawaited(sendPicture(context, ref))
+                        : null,
                     nicks: [
                       if (channel != null)
                         for (final m in channel.members.values)
@@ -528,6 +543,26 @@ Future<void> showUserActions(
                 _copyNick(nick);
               },
             ),
+            if (!isMe)
+              ListTile(
+                leading: Icon(
+                  controller.isBlocked(nick) ? Icons.undo : Icons.block,
+                ),
+                title: Text(
+                  controller.isBlocked(nick) ? 'Unblock $nick' : 'Block $nick',
+                ),
+                subtitle: controller.isBlocked(nick)
+                    ? null
+                    : const Text('Hide their messages and pictures'),
+                onTap: () {
+                  Navigator.pop(sheet);
+                  if (controller.isBlocked(nick)) {
+                    controller.unblockUser(nick);
+                  } else {
+                    controller.blockUser(nick);
+                  }
+                },
+              ),
             for (final c in inviteTo)
               ListTile(
                 leading: const Icon(Icons.person_add_alt),
@@ -584,11 +619,15 @@ class _MessageList extends StatelessWidget {
     required this.lines,
     required this.ownNick,
     required this.onNickTap,
+    this.networkId = '',
+    this.autoShowPictures = false,
     this.onReply,
   });
 
   final List<ChatLine> lines;
   final String ownNick;
+  final String networkId;
+  final bool autoShowPictures;
   final void Function(String nick) onNickTap;
 
   /// Null where replies don't apply (server tab, private chats).
@@ -608,12 +647,32 @@ class _MessageList extends StatelessWidget {
             line.kind != ChatLineKind.own &&
             line.kind != ChatLineKind.event &&
             line.kind != ChatLineKind.error;
-        return _MessageTile(
+        final tile = _MessageTile(
           key: ObjectKey(line),
           line: line,
           ownNick: ownNick,
           onNickTap: onNickTap,
           onReply: canReply ? () => onReply!(line) : null,
+        );
+        final isOwn = line.kind == ChatLineKind.own;
+        final link =
+            line.sender != null && (isOwn || line.kind == ChatLineKind.message)
+            ? PictureLink.find(line.text)
+            : null;
+        if (link == null) return tile;
+        return Column(
+          key: ValueKey(link),
+          crossAxisAlignment: CrossAxisAlignment.start,
+          children: [
+            tile,
+            PictureBubble(
+              link: link,
+              sender: line.sender!,
+              networkId: networkId,
+              isOwn: isOwn,
+              autoShow: isOwn || autoShowPictures,
+            ),
+          ],
         );
       },
     );
@@ -820,10 +879,18 @@ class _InputBar extends StatefulWidget {
     required this.onCancelReply,
     this.replyTo,
     this.nicks = const [],
+    this.onAttach,
+    this.uploading = false,
     super.key,
   });
 
   final void Function(String text) onSubmit;
+
+  /// Shows the picture button when set.
+  final VoidCallback? onAttach;
+
+  /// A picture is being uploaded.
+  final bool uploading;
   final ChatLine? replyTo;
   final VoidCallback onCancelReply;
 
@@ -878,6 +945,27 @@ class _InputBarState extends State<_InputBar> {
     return Column(
       mainAxisSize: MainAxisSize.min,
       children: [
+        if (widget.uploading)
+          Semantics(
+            liveRegion: true,
+            child: Padding(
+              padding: const EdgeInsets.fromLTRB(12, 6, 12, 0),
+              child: Row(
+                children: [
+                  const SizedBox(
+                    width: 14,
+                    height: 14,
+                    child: CircularProgressIndicator(strokeWidth: 2),
+                  ),
+                  const SizedBox(width: 8),
+                  Text(
+                    'Encrypting and sending picture…',
+                    style: theme.textTheme.bodySmall,
+                  ),
+                ],
+              ),
+            ),
+          ),
         if (reply != null)
           Container(
             color: theme.colorScheme.surfaceContainerHighest,
@@ -915,6 +1003,12 @@ class _InputBarState extends State<_InputBar> {
           padding: const EdgeInsets.fromLTRB(12, 8, 8, 8),
           child: Row(
             children: [
+              if (widget.onAttach != null)
+                IconButton(
+                  tooltip: 'Send a picture',
+                  onPressed: widget.uploading ? null : widget.onAttach,
+                  icon: const Icon(Icons.add_photo_alternate_outlined),
+                ),
               Expanded(
                 child: CallbackShortcuts(
                   bindings: {

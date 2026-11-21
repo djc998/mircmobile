@@ -3,6 +3,7 @@ library;
 
 import 'dart:async';
 import 'dart:convert';
+import 'dart:typed_data';
 
 import 'package:flutter_riverpod/flutter_riverpod.dart';
 import 'package:irc_client/core/irc/cap_negotiator.dart';
@@ -18,6 +19,8 @@ import 'package:irc_client/features/chat/data/chat_history_store.dart';
 import 'package:irc_client/features/connection/data/certificate_trust.dart';
 import 'package:irc_client/features/connection/data/saved_connection.dart';
 import 'package:irc_client/features/favorites/application/room_prefs_controller.dart';
+import 'package:irc_client/features/pictures/data/picture_service.dart';
+import 'package:irc_client/features/pictures/domain/picture_link.dart';
 import 'package:irc_client/features/rooms/domain/room_modes.dart';
 
 /// Name of the server/status buffer.
@@ -84,6 +87,9 @@ class ChatBuffer {
 
   /// Unique across networks; see [ChatState.bufferKey].
   String get key => ChatState.bufferKey(networkId, name);
+
+  /// Pictures being uploaded to this conversation right now.
+  int uploading = 0;
 
   bool get isStatus => name == statusBuffer;
   bool get isChannel => name.startsWith('#') || name.startsWith('&');
@@ -266,10 +272,103 @@ class ChatController extends Notifier<ChatState> {
   }
 
   static const _saveHistoryKey = 'saveHistory';
+  static const _blockedKey = 'blockedNicks';
   static const _openConversationsKey = 'openConversations';
 
   KeyValueStore get _store => ref.read(keyValueStoreProvider);
   ChatHistoryStore get _history => ref.read(chatHistoryStoreProvider);
+
+  Set<String>? _blocked;
+
+  /// Lower-cased nicknames whose messages, pictures and invitations are
+  /// hidden, on every network.
+  Set<String> get blockedNicks => _blocked ??= _loadBlocked();
+
+  Set<String> _loadBlocked() {
+    final raw = _store.getString(_blockedKey);
+    if (raw == null) return {};
+    try {
+      return {...(jsonDecode(raw) as List<Object?>).whereType<String>()};
+    } on Object {
+      return {};
+    }
+  }
+
+  bool isBlocked(String? nick) =>
+      nick != null && blockedNicks.contains(nick.toLowerCase());
+
+  /// Hides everything [nick] sends from now on (all networks).
+  void blockUser(String nick) => _setBlocked(nick, blocked: true);
+
+  void unblockUser(String nick) => _setBlocked(nick, blocked: false);
+
+  void _setBlocked(String nick, {required bool blocked}) {
+    final set = {...blockedNicks};
+    if (blocked) {
+      set.add(nick.toLowerCase());
+    } else {
+      set.remove(nick.toLowerCase());
+    }
+    _blocked = set;
+    _touch();
+    unawaited(_store.setString(_blockedKey, jsonEncode(set.toList()..sort())));
+  }
+
+  /// Encrypts and uploads [picture], then sends its link in the open
+  /// conversation. Returns a message to show when it fails.
+  Future<String?> sendPicture(
+    Uint8List picture, {
+    PictureExpiry expiry = PictureExpiry.day,
+    bool viewOnce = false,
+  }) async {
+    final session = state.activeNetwork;
+    final buffer = state.activeBuffer;
+    if (session == null || buffer == null || buffer.isStatus) {
+      return 'Open a conversation first.';
+    }
+    if (session.status != IrcConnectionStatus.connected) {
+      return 'Not connected to ${session.label}.';
+    }
+    final service = ref.read(pictureServiceProvider);
+    if (!service.isConfigured) return "Picture sharing isn't set up yet.";
+    buffer.uploading++;
+    _touch();
+    try {
+      final link = await service.upload(
+        picture,
+        expiry: expiry,
+        viewOnce: viewOnce,
+      );
+      if (session.status != IrcConnectionStatus.connected) {
+        return 'Not connected to ${session.label}.';
+      }
+      runInput(session.client, link.message(expiry), target: buffer.name);
+      return null;
+    } on PictureException catch (e) {
+      return e.message;
+    } finally {
+      buffer.uploading--;
+      _touch();
+    }
+  }
+
+  /// Reports a picture to the server that holds it and blocks its sender.
+  Future<String?> reportPicture(
+    PictureLink link, {
+    required String sender,
+    required String networkId,
+    required String reason,
+  }) async {
+    blockUser(sender);
+    try {
+      await ref
+          .read(pictureServiceProvider)
+          .report(link, sender: sender, network: networkId, reason: reason);
+      return null;
+    } on PictureException catch (e) {
+      return e.message;
+    }
+  }
 
   /// Whether conversations are saved on this device (on by default).
   bool get saveHistory => _store.getString(_saveHistoryKey) != 'false';
@@ -968,6 +1067,9 @@ class ChatController extends Notifier<ChatState> {
             kind: ChatLineKind.event,
           ),
         );
+      case MessageEvent(:final sender, :final isOwn)
+          when !isOwn && isBlocked(sender):
+        return;
       case MessageEvent():
         add(
           e.target,
@@ -1062,6 +1164,8 @@ class ChatController extends Notifier<ChatState> {
         _touch();
       case ChannelModeEvent(:final channel, :final change, :final setBy):
         _onChannelModes(session, channel, change, setBy);
+      case InviteEvent(:final from) when isBlocked(from):
+        return;
       case InviteEvent(:final from, :final channel):
         session.invites
           ..removeWhere((i) => i.channel.toLowerCase() == channel.toLowerCase())
