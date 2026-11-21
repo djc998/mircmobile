@@ -1,6 +1,7 @@
 import 'dart:async';
 import 'dart:io';
 
+import 'package:flutter/services.dart';
 import 'package:flutter_riverpod/flutter_riverpod.dart';
 import 'package:flutter_test/flutter_test.dart';
 import 'package:irc_client/app/app.dart';
@@ -845,6 +846,110 @@ void main() {
       find.textContaining('someone else runs it', findRichText: true),
       findsOneWidget,
     );
+
+    await tester.pumpWidget(const SizedBox());
+    await tester.pump(const Duration(seconds: 1));
+  });
+
+  testWidgets('reply to someone so they are notified', (tester) async {
+    tester.view.physicalSize = const Size(800, 1800);
+    tester.view.devicePixelRatio = 1;
+    addTearDown(tester.view.reset);
+    final transport = FakeTransport();
+    await tester.pumpWidget(
+      ProviderScope(
+        overrides: [
+          transportFactoryProvider.overrideWithValue(
+            (host, port, {required useTls, trustedFingerprints = const {}}) =>
+                transport,
+          ),
+        ],
+        child: const IrcApp(),
+      ),
+    );
+    await tester.enterText(find.widgetWithText(TextField, 'Nickname'), 'me');
+    await tester.tap(find.text('Libera.Chat'));
+    await tester.pumpAndSettle();
+    transport.incoming
+      ..add(':s 001 me :Welcome')
+      ..add(':me!u@h JOIN #chat')
+      ..add(':s 353 me = #chat :alice bob me')
+      ..add(':s 366 me #chat :End')
+      ..add(':alice!a@h PRIVMSG #chat :anyone tried the beta?')
+      ..add(':bob!b@h PRIVMSG #chat :me: look at this');
+    await tester.pumpAndSettle();
+
+    // The Reply button on alice's line starts a reply.
+    await tester.tap(find.byTooltip('Reply to alice'));
+    await tester.pumpAndSettle();
+    expect(
+      find.textContaining('Replying to alice', findRichText: true),
+      findsOneWidget,
+    );
+    await tester.enterText(
+      find.widgetWithText(TextField, 'Reply to alice'),
+      'yes, it works',
+    );
+    await tester.tap(find.byTooltip('Send'));
+    await tester.pumpAndSettle();
+    expect(transport.written.last, 'PRIVMSG #chat :alice: yes, it works');
+    expect(
+      find.textContaining('Replying to', findRichText: true),
+      findsNothing,
+    );
+
+    // Swiping a line right also replies; the X cancels.
+    await tester.drag(
+      find.textContaining('look at this', findRichText: true),
+      const Offset(300, 0),
+    );
+    await tester.pumpAndSettle();
+    expect(
+      find.textContaining('Replying to bob', findRichText: true),
+      findsOneWidget,
+    );
+    await tester.tap(find.byTooltip('Cancel reply'));
+    await tester.pumpAndSettle();
+    expect(
+      find.textContaining('Replying to', findRichText: true),
+      findsNothing,
+    );
+
+    // The name menu offers Reply too.
+    await tester.tap(find.byTooltip('People'));
+    await tester.pumpAndSettle();
+    await tester.tap(find.text('bob'));
+    await tester.pumpAndSettle();
+    await tester.tap(find.text('Reply to bob here'));
+    await tester.pumpAndSettle();
+    expect(
+      find.textContaining(
+        'Replying to bob: me: look at this',
+        findRichText: true,
+      ),
+      findsOneWidget,
+    );
+    await tester.tap(find.byTooltip('Cancel reply'));
+    await tester.pumpAndSettle();
+
+    // Tab completes a name, addressed at the start of the line.
+    await tester.enterText(
+      find.widgetWithText(TextField, 'Message or /command'),
+      'al',
+    );
+    await tester.sendKeyEvent(LogicalKeyboardKey.tab);
+    await tester.pumpAndSettle();
+    expect(find.widgetWithText(TextField, 'alice: '), findsOneWidget);
+
+    // Your own line can't be replied to; private chats have no reply button.
+    expect(find.byTooltip('Reply to me'), findsNothing);
+    transport.incoming.add(':carol!c@h PRIVMSG me :hello there');
+    await tester.pumpAndSettle();
+    await tester.tap(find.byTooltip('Open navigation menu'));
+    await tester.pumpAndSettle();
+    await tester.tap(find.text('carol'));
+    await tester.pumpAndSettle();
+    expect(find.byTooltip('Reply to carol'), findsNothing);
 
     await tester.pumpWidget(const SizedBox());
     await tester.pump(const Duration(seconds: 1));

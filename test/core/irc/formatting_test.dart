@@ -27,4 +27,26 @@ void main() {
     expect(isValidNick(''), isFalse);
     expect(isValidNick('a' * 31), isFalse);
   });
+
+  group('mentions', () {
+    test('matches whole words only, ignoring case', () {
+      expect(mentions('hi Al!', 'al'), isTrue);
+      expect(mentions('al: you there?', 'al'), isTrue);
+      expect(mentions('also, totally', 'al'), isFalse);
+      expect(mentions('ping dennis_', 'dennis'), isFalse);
+      expect(mentions('[x] wants dennis|away', 'dennis|away'), isTrue);
+      expect(mentions('anything', ''), isFalse);
+    });
+  });
+
+  group('completeNick', () {
+    const nicks = ['bob', 'Alice', 'albert'];
+    test('completes the last word, addressing at line start', () {
+      expect(completeNick('al', nicks), 'albert: ');
+      expect(completeNick('ali', nicks), 'Alice: ');
+      expect(completeNick('thanks bo', nicks), 'thanks bob ');
+      expect(completeNick('thanks zz', nicks), isNull);
+      expect(completeNick('', nicks), isNull);
+    });
+  });
 }

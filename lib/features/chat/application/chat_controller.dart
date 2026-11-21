@@ -73,6 +73,10 @@ class ChatBuffer {
   int unread = 0;
   bool mentioned = false;
 
+  /// The message the user is replying to, shown above the input. Sending
+  /// puts `nick: ` in front so that person is notified.
+  ChatLine? replyTo;
+
   /// True while saved history is being read; new lines wait in
   /// [pendingSave] so they aren't saved twice.
   bool restoring = false;
@@ -759,8 +763,35 @@ class ChatController extends Notifier<ChatState> {
     _saveOpenConversations(buffer.networkId);
   }
 
+  /// Starts a reply to [line] in the open conversation.
+  void startReply(ChatLine line) {
+    final buffer = state.activeBuffer;
+    if (buffer == null || buffer.isStatus || line.sender == null) return;
+    buffer.replyTo = line;
+    _touch();
+  }
+
+  void cancelReply() {
+    state.activeBuffer?.replyTo = null;
+    _touch();
+  }
+
+  /// [text] addressed to [nick] the usual IRC way (`nick: text`), unless it
+  /// already starts with their name or is a command.
+  static String addressTo(String nick, String text) {
+    final trimmed = text.trimLeft();
+    if (trimmed.startsWith('/') && !trimmed.startsWith('//')) return text;
+    if (trimmed.toLowerCase().startsWith(nick.toLowerCase())) return text;
+    return '$nick: $trimmed';
+  }
+
   /// Runs what the user typed in the open conversation.
-  void submit(String text) {
+  void submit(String input) {
+    final reply = state.activeBuffer?.replyTo;
+    final text = reply != null && (state.activeBuffer?.isChannel ?? false)
+        ? addressTo(reply.sender!, input)
+        : input;
+    state.activeBuffer?.replyTo = null;
     final session = state.activeNetwork;
     final buffer = state.activeBuffer;
     if (session == null || buffer == null) return;
@@ -825,7 +856,7 @@ class ChatController extends Notifier<ChatState> {
       buffer.unread++;
       if (session.nick.isNotEmpty &&
           line.kind == ChatLineKind.message &&
-          line.text.toLowerCase().contains(session.nick.toLowerCase())) {
+          mentions(line.text, session.nick)) {
         buffer.mentioned = true;
       }
     }
