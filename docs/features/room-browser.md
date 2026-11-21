@@ -33,7 +33,9 @@ every public room on the connected network.
   and unit tested.
 - `lib/features/discovery/presentation/room_browser_screen.dart`: the screen,
   route `/chat/rooms`.
-- `ChatController.fetchRooms()` / `joinRoom()` and `ChatState.rooms`.
+- `ChatController.fetchRooms()` / `fetchMissingRooms()` / `joinRoom()`,
+  `NetworkSession.rooms` and `ChatState.allRooms` (rooms from every
+  connected network; see [multi-network.md](multi-network.md)).
 
 ## Tests
 - `test/features/discovery/room_filter_test.dart`

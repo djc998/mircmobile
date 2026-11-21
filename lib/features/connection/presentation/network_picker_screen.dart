@@ -5,16 +5,19 @@ import 'package:go_router/go_router.dart';
 import 'package:irc_client/core/irc/cap_negotiator.dart';
 import 'package:irc_client/core/irc/formatting.dart';
 import 'package:irc_client/core/irc/irc_client.dart';
+import 'package:irc_client/core/irc/irc_events.dart';
 import 'package:irc_client/core/irc/networks.dart';
 import 'package:irc_client/features/chat/application/chat_controller.dart';
 import 'package:irc_client/features/connection/data/saved_connection.dart';
 import 'package:irc_client/features/favorites/application/room_prefs_controller.dart';
 import 'package:material_ui/material_ui.dart';
 
-/// First screen: pick a nickname and a network, then connect.
+/// First screen: pick a nickname and one or more networks, then connect.
 ///
-/// Remembers the nickname, last network and account, and offers a one-tap
-/// "Continue" card for the last network.
+/// Remembers the nickname, open networks and account, and offers a one-tap
+/// "Continue" card that reconnects every network that was open. Opened
+/// again from the chat screen, it adds another network; networks that are
+/// already connected stay connected.
 class NetworkPickerScreen extends ConsumerStatefulWidget {
   const NetworkPickerScreen({super.key});
 
@@ -72,76 +75,115 @@ class _NetworkPickerScreenState extends ConsumerState<NetworkPickerScreen> {
     super.dispose();
   }
 
-  IrcNetwork? get _lastNetwork {
-    final host = _saved?.networkHost;
-    if (host == null) return null;
+  static IrcNetwork? _networkFor(String host) {
     for (final n in builtInNetworks) {
-      if (n.host == host) return n;
+      if (n.host.toLowerCase() == host.toLowerCase()) return n;
     }
     return null;
   }
 
-  Future<void> _connect(IrcNetwork network) async {
-    final nick = _nick.text.trim();
-    if (!isValidNick(nick)) {
-      ScaffoldMessenger.of(context).showSnackBar(
-        const SnackBar(
-          content: Text(
-            'Pick a nickname: letters, numbers and _-[]{}|^ only, '
-            'starting with a letter.',
-          ),
-        ),
-      );
-      return;
-    }
-    final typed = _channels.text
-        .split(RegExp(r'[\s,]+'))
-        .where((c) => c.isNotEmpty)
-        .map((c) => c.startsWith('#') ? c : '#$c');
-    final favorites = _rejoinFavorites
-        ? ref.read(roomPrefsProvider).favoritesFor(network.host)
-        : const <String>[];
-    final autoJoin = <String>[];
-    for (final room in [...favorites, ...typed]) {
-      if (!autoJoin.any((r) => r.toLowerCase() == room.toLowerCase())) {
-        autoJoin.add(room);
-      }
-    }
+  /// Networks that were open last time and aren't open now.
+  List<IrcNetwork> _lastNetworks(ChatState chat) => [
+    for (final host in _saved?.openNetworks ?? const <String>[])
+      if (_networkFor(host) case final n?)
+        if (!chat.networks.containsKey(n.host.toLowerCase())) n,
+  ];
 
+  bool _checkNick() {
+    if (isValidNick(_nick.text.trim())) return true;
+    ScaffoldMessenger.of(context).showSnackBar(
+      const SnackBar(
+        content: Text(
+          'Pick a nickname: letters, numbers and _-[]{}|^ only, '
+          'starting with a letter.',
+        ),
+      ),
+    );
+    return false;
+  }
+
+  /// Connects to [networks], keeping any network that is already open.
+  ///
+  /// Rooms typed in the form only apply when connecting to one network.
+  /// The account login is used for the one network picked, or for any
+  /// network that has a saved password for that account.
+  Future<void> _connect(List<IrcNetwork> networks) async {
+    if (networks.isEmpty || !_checkNick()) return;
+    final nick = _nick.text.trim();
+    final single = networks.length == 1;
+    final typed = single
+        ? _channels.text
+              .split(RegExp(r'[\s,]+'))
+              .where((c) => c.isNotEmpty)
+              .map((c) => c.startsWith('#') ? c : '#$c')
+              .toList()
+        : const <String>[];
     final repo = ref.read(savedConnectionRepositoryProvider);
+    final chat = ref.read(chatControllerProvider);
     final account = _useAccount ? _account.text.trim() : '';
-    var password = _password.text;
-    if (account.isNotEmpty && password.isEmpty) {
-      password = await repo.loadPassword(network.host, account) ?? '';
-    }
+
+    // Every network open after this, so the next launch can reopen them.
+    final open = <String>[
+      for (final n in chat.networks.values) n.config.host,
+      for (final n in networks)
+        if (!chat.networks.containsKey(n.host.toLowerCase())) n.host,
+    ];
     unawaited(
       repo.save(
         SavedConnection(
           nick: nick,
-          networkHost: network.host,
+          networkHost: networks.first.host,
           account: account.isEmpty ? null : account,
           rememberPassword: _rememberPassword,
           rejoinFavorites: _rejoinFavorites,
           username: _username.text.trim().isEmpty ? null : _username.text,
           realname: _realname.text.trim().isEmpty ? null : _realname.text,
+          networkHosts: open,
         ),
-        password: password,
+        password: single ? _password.text : null,
       ),
     );
 
-    final config = IrcConnectionConfig(
-      host: network.host,
-      port: network.port,
-      useTls: network.useTls,
-      nick: nick,
-      autoJoin: autoJoin,
-      username: _username.text,
-      realname: _realname.text,
-      sasl: account.isNotEmpty
-          ? SaslCredentials(account: account, password: password)
-          : null,
-    );
-    unawaited(ref.read(chatControllerProvider.notifier).connect(config));
+    final controller = ref.read(chatControllerProvider.notifier);
+    for (final network in networks) {
+      final id = network.host.toLowerCase();
+      final existing = chat.networks[id];
+      if (existing != null &&
+          existing.status != IrcConnectionStatus.disconnected) {
+        // Already open: just switch to it.
+        controller.selectBuffer(ChatState.bufferKey(id, statusBuffer));
+        continue;
+      }
+      final favorites = _rejoinFavorites
+          ? ref.read(roomPrefsProvider).favoritesFor(network.host)
+          : const <String>[];
+      final autoJoin = <String>[];
+      for (final room in [...favorites, ...typed]) {
+        if (!autoJoin.any((r) => r.toLowerCase() == room.toLowerCase())) {
+          autoJoin.add(room);
+        }
+      }
+      var password = '';
+      if (account.isNotEmpty) {
+        password = single && _password.text.isNotEmpty
+            ? _password.text
+            : await repo.loadPassword(network.host, account) ?? '';
+      }
+      final useSasl = account.isNotEmpty && (single || password.isNotEmpty);
+      final config = IrcConnectionConfig(
+        host: network.host,
+        port: network.port,
+        useTls: network.useTls,
+        nick: nick,
+        autoJoin: autoJoin,
+        username: _username.text,
+        realname: _realname.text,
+        sasl: useSasl
+            ? SaslCredentials(account: account, password: password)
+            : null,
+      );
+      unawaited(controller.connect(config));
+    }
     if (mounted) context.go('/chat');
   }
 
@@ -149,23 +191,38 @@ class _NetworkPickerScreenState extends ConsumerState<NetworkPickerScreen> {
   Widget build(BuildContext context) {
     final theme = Theme.of(context);
     final prefs = ref.watch(roomPrefsProvider);
-    final last = _lastNetwork;
-    final lastFavorites = last == null
-        ? const <String>[]
-        : prefs.favoritesFor(last.host);
+    final chat = ref.watch(chatControllerProvider);
+    final adding = chat.networks.isNotEmpty;
+    final last = _lastNetworks(chat);
+    final lastFavorites = [for (final n in last) ...prefs.favoritesFor(n.host)];
+    final notOpen = [
+      for (final n in builtInNetworks)
+        if (!chat.networks.containsKey(n.host.toLowerCase())) n,
+    ];
 
     return Scaffold(
-      appBar: AppBar(title: const Text('Choose a network')),
+      appBar: AppBar(
+        leading: adding
+            ? IconButton(
+                tooltip: 'Back to chat',
+                icon: const Icon(Icons.arrow_back),
+                onPressed: () => context.go('/chat'),
+              )
+            : null,
+        title: Text(adding ? 'Add a network' : 'Choose a network'),
+      ),
       body: SafeArea(
         child: ListView(
           padding: const EdgeInsets.all(16),
           children: [
-            if (last != null && _saved!.nick.isNotEmpty) ...[
+            if (last.isNotEmpty && _saved!.nick.isNotEmpty) ...[
               Card(
                 color: theme.colorScheme.primaryContainer,
                 child: ListTile(
                   leading: const Icon(Icons.bolt),
-                  title: Text('Continue on ${last.name}'),
+                  title: Text(
+                    'Continue on ${last.map((n) => n.name).join(' and ')}',
+                  ),
                   subtitle: Text(
                     lastFavorites.isEmpty || !_rejoinFavorites
                         ? 'as ${_saved!.nick}'
@@ -266,7 +323,19 @@ class _NetworkPickerScreenState extends ConsumerState<NetworkPickerScreen> {
               ],
             ),
             const SizedBox(height: 24),
-            Text('Networks', style: theme.textTheme.titleMedium),
+            Row(
+              children: [
+                Expanded(
+                  child: Text('Networks', style: theme.textTheme.titleMedium),
+                ),
+                if (notOpen.length > 1)
+                  TextButton.icon(
+                    icon: const Icon(Icons.hub_outlined),
+                    label: const Text('Connect to all'),
+                    onPressed: () => _connect(notOpen),
+                  ),
+              ],
+            ),
             const SizedBox(height: 8),
             for (final network in builtInNetworks)
               Card(
@@ -274,8 +343,17 @@ class _NetworkPickerScreenState extends ConsumerState<NetworkPickerScreen> {
                   leading: const Icon(Icons.public),
                   title: Text(network.name),
                   subtitle: Text(network.description),
-                  trailing: const Icon(Icons.chevron_right),
-                  onTap: () => _connect(network),
+                  trailing: switch (chat.networks[network.host.toLowerCase()]) {
+                    null => const Icon(Icons.chevron_right),
+                    final n => Chip(
+                      label: Text(
+                        n.status == IrcConnectionStatus.disconnected
+                            ? 'Disconnected'
+                            : 'Connected',
+                      ),
+                    ),
+                  },
+                  onTap: () => _connect([network]),
                 ),
               ),
           ],

@@ -20,21 +20,19 @@ class ChatScreen extends ConsumerWidget {
     final state = ref.watch(chatControllerProvider);
     final controller = ref.read(chatControllerProvider.notifier);
     final buffer = state.activeBuffer;
+    final net = state.activeNetwork;
     final isChannel = buffer?.isChannel ?? false;
-    final channel = isChannel ? controller.client?.channel(buffer!.name) : null;
+    final channel = isChannel ? net?.client.channel(buffer!.name) : null;
     final wide = MediaQuery.sizeOf(context).width >= 900;
     final prefs = ref.watch(roomPrefsProvider);
-    final host = controller.host;
-    final favorites = host == null
-        ? const <String>[]
-        : prefs.favoritesFor(host);
+    final host = net?.id;
     final isFavorite =
         channel != null && host != null && prefs.isFavorite(host, channel.name);
 
     final list = _BufferList(
       state: state,
-      favorites: {for (final f in favorites) f.toLowerCase()},
-      onSelect: controller.selectBuffer,
+      prefs: prefs,
+      controller: controller,
     );
 
     return Scaffold(
@@ -43,13 +41,19 @@ class ChatScreen extends ConsumerWidget {
           crossAxisAlignment: CrossAxisAlignment.start,
           children: [
             Text(
-              buffer == null || buffer.isStatus ? state.network : buffer.name,
+              buffer == null || buffer.isStatus
+                  ? net?.label ?? ''
+                  : buffer.name,
               overflow: TextOverflow.ellipsis,
             ),
             Text(
               channel != null && channel.topic.isNotEmpty
                   ? channel.topic
-                  : _statusLabel(state),
+                  : net == null
+                  ? 'Not connected'
+                  : state.networks.length > 1 && !(buffer?.isStatus ?? true)
+                  ? '${net.label} · ${_statusLabel(net)}'
+                  : _statusLabel(net),
               style: Theme.of(context).textTheme.bodySmall,
               overflow: TextOverflow.ellipsis,
             ),
@@ -93,10 +97,19 @@ class ChatScreen extends ConsumerWidget {
             onSelected: (v) async {
               switch (v) {
                 case 'close':
-                  controller.closeBuffer(buffer!.name);
+                  controller.closeBuffer(buffer!.key);
+                case 'add':
+                  context.go('/');
                 case 'disconnect':
                   await controller.disconnect();
-                  if (context.mounted) context.go('/');
+                case 'reconnect':
+                  await controller.reconnect();
+                case 'remove':
+                  await controller.removeNetwork(net!.id);
+                  if (context.mounted &&
+                      ref.read(chatControllerProvider).networks.isEmpty) {
+                    context.go('/');
+                  }
               }
             },
             itemBuilder: (_) => [
@@ -105,10 +118,22 @@ class ChatScreen extends ConsumerWidget {
                   value: 'close',
                   child: Text(isChannel ? 'Leave room' : 'Close chat'),
                 ),
-              const PopupMenuItem(
-                value: 'disconnect',
-                child: Text('Disconnect'),
-              ),
+              const PopupMenuItem(value: 'add', child: Text('Add a network')),
+              if (net != null && net.status == IrcConnectionStatus.disconnected)
+                PopupMenuItem(
+                  value: 'reconnect',
+                  child: Text('Reconnect to ${net.label}'),
+                )
+              else if (net != null)
+                PopupMenuItem(
+                  value: 'disconnect',
+                  child: Text('Disconnect from ${net.label}'),
+                ),
+              if (net != null)
+                PopupMenuItem(
+                  value: 'remove',
+                  child: Text('Close ${net.label}'),
+                ),
             ],
           ),
         ],
@@ -121,7 +146,7 @@ class ChatScreen extends ConsumerWidget {
                 child: _NickList(
                   channel: channel,
                   onNickTap: (nick) => unawaited(
-                    showUserActions(context, controller, state.nick, nick),
+                    showUserActions(context, controller, net!.nick, nick),
                   ),
                 ),
               ),
@@ -134,16 +159,21 @@ class ChatScreen extends ConsumerWidget {
             Expanded(
               child: Column(
                 children: [
-                  if (state.hasConnectionProblem)
+                  if (net != null && net.hasConnectionProblem)
                     _ConnectionProblemBanner(
-                      state: state,
+                      network: net,
                       controller: controller,
                     ),
                   Expanded(
                     child: _MessageList(
                       lines: buffer?.lines ?? [],
                       onNickTap: (nick) => unawaited(
-                        showUserActions(context, controller, state.nick, nick),
+                        showUserActions(
+                          context,
+                          controller,
+                          net?.nick ?? '',
+                          nick,
+                        ),
                       ),
                     ),
                   ),
@@ -158,7 +188,7 @@ class ChatScreen extends ConsumerWidget {
     );
   }
 
-  static String _statusLabel(ChatState s) => switch (s.status) {
+  static String _statusLabel(NetworkSession s) => switch (s.status) {
     IrcConnectionStatus.connected => 'Connected as ${s.nick}',
     IrcConnectionStatus.connecting => 'Connecting…',
     IrcConnectionStatus.registering => 'Logging in…',
@@ -201,53 +231,107 @@ class ChatScreen extends ConsumerWidget {
   }
 }
 
+/// Conversations grouped by network. Favorite rooms that aren't open are
+/// listed under their network so they can be joined with one tap.
 class _BufferList extends StatelessWidget {
   const _BufferList({
     required this.state,
-    required this.favorites,
-    required this.onSelect,
+    required this.prefs,
+    required this.controller,
   });
 
   final ChatState state;
+  final RoomPrefs prefs;
+  final ChatController controller;
 
-  /// Lower-cased names of favorite rooms, shown with a star.
-  final Set<String> favorites;
-  final void Function(String name) onSelect;
+  void _closeDrawer(BuildContext context) {
+    if (Scaffold.maybeOf(context)?.isDrawerOpen ?? false) {
+      Navigator.pop(context);
+    }
+  }
 
   @override
   Widget build(BuildContext context) {
-    final buffers = state.buffers.values.toList();
+    final theme = Theme.of(context);
     return ListView(
       children: [
-        for (final b in buffers)
-          ListTile(
-            dense: true,
-            selected: b.name.toLowerCase() == state.active.toLowerCase(),
-            leading: Icon(
-              b.isStatus
-                  ? Icons.dns_outlined
-                  : favorites.contains(b.name.toLowerCase())
-                  ? Icons.star
-                  : b.isChannel
-                  ? Icons.tag
-                  : Icons.person_outline,
-            ),
-            title: Text(b.isStatus ? state.network : b.name),
-            trailing: b.unread == 0
-                ? null
-                : Badge(
-                    label: Text('${b.unread}'),
-                    backgroundColor: b.mentioned
-                        ? Theme.of(context).colorScheme.error
-                        : Theme.of(context).colorScheme.primary,
+        for (final net in state.networks.values) ...[
+          Padding(
+            padding: const EdgeInsets.fromLTRB(16, 12, 16, 4),
+            child: Row(
+              children: [
+                Icon(
+                  Icons.circle,
+                  size: 10,
+                  color: switch (net.status) {
+                    IrcConnectionStatus.connected => Colors.green,
+                    IrcConnectionStatus.disconnected =>
+                      theme.colorScheme.outline,
+                    _ => Colors.orange,
+                  },
+                ),
+                const SizedBox(width: 8),
+                Expanded(
+                  child: Text(
+                    net.label,
+                    style: theme.textTheme.labelLarge,
+                    overflow: TextOverflow.ellipsis,
                   ),
-            onTap: () {
-              onSelect(b.name);
-              if (Scaffold.maybeOf(context)?.isDrawerOpen ?? false) {
-                Navigator.pop(context);
-              }
-            },
+                ),
+              ],
+            ),
           ),
+          for (final b in state.buffersFor(net.id))
+            ListTile(
+              dense: true,
+              selected: b.key == state.activeKey,
+              leading: Icon(
+                b.isStatus
+                    ? Icons.dns_outlined
+                    : prefs.isFavorite(net.id, b.name)
+                    ? Icons.star
+                    : b.isChannel
+                    ? Icons.tag
+                    : Icons.person_outline,
+              ),
+              title: Text(b.isStatus ? 'Server messages' : b.name),
+              trailing: b.unread == 0
+                  ? null
+                  : Badge(
+                      label: Text('${b.unread}'),
+                      backgroundColor: b.mentioned
+                          ? theme.colorScheme.error
+                          : theme.colorScheme.primary,
+                    ),
+              onTap: () {
+                controller.selectBuffer(b.key);
+                _closeDrawer(context);
+              },
+            ),
+          for (final room in prefs.favoritesFor(net.id))
+            if (!state.buffers.containsKey(ChatState.bufferKey(net.id, room)))
+              ListTile(
+                dense: true,
+                leading: Icon(Icons.star_border, color: theme.disabledColor),
+                title: Text(room, style: TextStyle(color: theme.hintColor)),
+                trailing: Text('Join', style: theme.textTheme.labelSmall),
+                enabled: net.isConnected,
+                onTap: () {
+                  controller.joinRoom(room, networkId: net.id);
+                  _closeDrawer(context);
+                },
+              ),
+          const Divider(),
+        ],
+        ListTile(
+          dense: true,
+          leading: const Icon(Icons.add),
+          title: const Text('Add a network'),
+          onTap: () {
+            _closeDrawer(context);
+            context.go('/');
+          },
+        ),
       ],
     );
   }
@@ -538,21 +622,22 @@ class _NickList extends StatelessWidget {
 /// unverified certificate, or fall back to an unencrypted connection.
 class _ConnectionProblemBanner extends StatelessWidget {
   const _ConnectionProblemBanner({
-    required this.state,
+    required this.network,
     required this.controller,
   });
 
-  final ChatState state;
+  final NetworkSession network;
   final ChatController controller;
 
   @override
   Widget build(BuildContext context) {
-    final cert = state.untrustedCertificate;
+    final cert = network.untrustedCertificate;
+    final id = network.id;
     final String message;
     final List<Widget> actions;
     if (cert != null) {
       message =
-          "This server's security certificate can't be verified "
+          "${network.label}'s security certificate can't be verified "
           '(${cert.isExpired
               ? 'expired'
               : cert.isSelfSigned
@@ -564,26 +649,26 @@ class _ConnectionProblemBanner extends StatelessWidget {
           'Issued to: ${cert.subject}\nFingerprint: ${cert.sha256}';
       actions = [
         TextButton(
-          onPressed: controller.dismissConnectionProblem,
+          onPressed: () => controller.dismissConnectionProblem(id),
           child: const Text('Cancel'),
         ),
         FilledButton(
-          onPressed: controller.trustCertificateAndReconnect,
+          onPressed: () => controller.trustCertificateAndReconnect(id),
           child: const Text('Trust and connect'),
         ),
       ];
     } else {
       message =
-          "Couldn't open a secure connection to this network. You can "
+          "Couldn't open a secure connection to ${network.label}. You can "
           'try an unencrypted connection instead. Others on the network '
           'path could read your messages and password.';
       actions = [
         TextButton(
-          onPressed: controller.dismissConnectionProblem,
+          onPressed: () => controller.dismissConnectionProblem(id),
           child: const Text('Keep trying'),
         ),
         TextButton(
-          onPressed: controller.connectWithoutEncryption,
+          onPressed: () => controller.connectWithoutEncryption(id),
           child: const Text('Connect without encryption'),
         ),
       ];

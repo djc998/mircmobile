@@ -487,6 +487,139 @@ void main() {
     await tester.pumpWidget(const SizedBox());
     await tester.pump(const Duration(seconds: 1));
   });
+
+  testWidgets('stay on several networks; rooms and favorites span them all', (
+    tester,
+  ) async {
+    tester.view.physicalSize = const Size(800, 1800);
+    tester.view.devicePixelRatio = 1;
+    addTearDown(tester.view.reset);
+    final transports = <String, FakeTransport>{};
+    final store = MemoryKeyValueStore(
+      // #fav is a favorite on OFTC from an earlier launch.
+      {'roomPrefs': '{"favorites":{"irc.oftc.net":["#fav"]},"recents":{}}'},
+    );
+    await tester.pumpWidget(
+      ProviderScope(
+        overrides: [
+          keyValueStoreProvider.overrideWithValue(store),
+          transportFactoryProvider.overrideWithValue(
+            (host, port, {required useTls, trustedFingerprints = const {}}) =>
+                transports[host] = FakeTransport(),
+          ),
+        ],
+        child: const IrcApp(),
+      ),
+    );
+    await tester.enterText(find.widgetWithText(TextField, 'Nickname'), 'me');
+    await tester.tap(
+      find.widgetWithText(SwitchListTile, 'Rejoin my favorite rooms'),
+    );
+    await tester.pumpAndSettle();
+    await tester.tap(find.text('Libera.Chat'));
+    await tester.pumpAndSettle();
+    transports['irc.libera.chat']!.incoming
+      ..add(':s 001 me :Welcome')
+      ..add(':s 005 me NETWORK=Libera.Chat :are supported')
+      ..add(':me!u@h JOIN #lib')
+      ..add(':bob!b@h PRIVMSG #lib :hello from libera');
+    await tester.pumpAndSettle();
+
+    // Add a second network from the menu; the first stays connected.
+    await tester.tap(find.byType(PopupMenuButton<String>));
+    await tester.pumpAndSettle();
+    await tester.tap(find.text('Add a network'));
+    await tester.pumpAndSettle();
+    expect(find.text('Add a network'), findsOneWidget);
+    expect(find.widgetWithText(Chip, 'Connected'), findsOneWidget);
+    await tester.tap(find.text('OFTC'));
+    await tester.pumpAndSettle();
+    final oftc = transports['irc.oftc.net']!;
+    oftc.incoming
+      ..add(':s 001 me :Welcome')
+      ..add(':s 005 me NETWORK=OFTC :are supported');
+    await tester.pumpAndSettle();
+    expect(
+      transports['irc.libera.chat']!.written,
+      isNot(contains(startsWith('QUIT'))),
+    );
+
+    // The conversation list groups both networks and shows OFTC's favorite.
+    await tester.tap(find.byTooltip('Open navigation menu'));
+    await tester.pumpAndSettle();
+    expect(find.text('Libera.Chat'), findsWidgets);
+    expect(find.text('#lib'), findsOneWidget);
+    expect(find.text('#fav'), findsOneWidget);
+    await tester.tap(find.text('#fav'));
+    await tester.pumpAndSettle();
+    expect(oftc.written.last, 'JOIN #fav');
+    oftc.incoming.add(':me!u@h JOIN #fav');
+    await tester.pumpAndSettle();
+    expect(find.widgetWithText(AppBar, '#fav'), findsOneWidget);
+
+    // The room browser asks both networks and labels each room.
+    await tester.tap(find.byTooltip('Browse rooms'));
+    await tester.pump();
+    await tester.pump(const Duration(milliseconds: 500));
+    expect(find.text('Rooms on 2 networks'), findsOneWidget);
+    expect(transports['irc.libera.chat']!.written.last, 'LIST');
+    expect(oftc.written.last, 'LIST');
+    transports['irc.libera.chat']!.incoming
+      ..add(':s 322 me #libroom 50 :Libera room')
+      ..add(':s 323 me :End');
+    oftc.incoming
+      ..add(':s 322 me #oftcroom 40 :OFTC room')
+      ..add(':s 323 me :End');
+    await tester.pumpAndSettle();
+    expect(find.text('2 of 2 rooms'), findsOneWidget);
+    expect(
+      find.textContaining('OFTC · OFTC room', findRichText: true),
+      findsOneWidget,
+    );
+
+    await tester.tap(find.widgetWithText(ChoiceChip, 'Libera.Chat'));
+    await tester.pumpAndSettle();
+    expect(find.text('#oftcroom'), findsNothing);
+    expect(find.text('1 of 1 rooms'), findsOneWidget);
+    await tester.tap(find.widgetWithText(ChoiceChip, 'All networks'));
+    await tester.pumpAndSettle();
+
+    await tester.tap(find.text('#oftcroom'));
+    await tester.pumpAndSettle();
+    expect(oftc.written.last, 'JOIN #oftcroom');
+
+    // Disconnecting and reconnecting keeps the conversation.
+    await tester.tap(find.byTooltip('Open navigation menu'));
+    await tester.pumpAndSettle();
+    await tester.tap(find.text('#lib'));
+    await tester.pumpAndSettle();
+    await tester.tap(find.byType(PopupMenuButton<String>));
+    await tester.pumpAndSettle();
+    await tester.tap(find.text('Disconnect from Libera.Chat'));
+    await tester.runAsync(
+      () => Future<void>.delayed(const Duration(milliseconds: 50)),
+    );
+    await tester.pumpAndSettle();
+    expect(
+      transports['irc.libera.chat']!.written,
+      contains(startsWith('QUIT')),
+    );
+    await tester.tap(find.byType(PopupMenuButton<String>));
+    await tester.pumpAndSettle();
+    await tester.tap(find.text('Reconnect to Libera.Chat'));
+    await tester.runAsync(
+      () => Future<void>.delayed(const Duration(milliseconds: 50)),
+    );
+    await tester.pumpAndSettle();
+    expect(transports['irc.libera.chat']!.written, contains('NICK me'));
+    expect(
+      find.textContaining('hello from libera', findRichText: true),
+      findsOneWidget,
+    );
+
+    await tester.pumpWidget(const SizedBox());
+    await tester.pump(const Duration(seconds: 1));
+  });
 }
 
 class _FailingTransport implements IrcTransport {

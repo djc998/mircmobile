@@ -1,4 +1,4 @@
-/// Remembers the last nickname, network and account between launches.
+/// Remembers the nickname, open networks and account between launches.
 library;
 
 import 'dart:convert';
@@ -15,6 +15,7 @@ class SavedConnection {
     this.rejoinFavorites = true,
     this.username,
     this.realname,
+    this.networkHosts = const [],
   });
 
   factory SavedConnection.fromJson(Map<String, Object?> json) =>
@@ -26,6 +27,9 @@ class SavedConnection {
         rejoinFavorites: json['rejoinFavorites'] as bool? ?? true,
         username: json['username'] as String?,
         realname: json['realname'] as String?,
+        networkHosts: [
+          for (final h in json['networkHosts'] as List? ?? const []) '$h',
+        ],
       );
 
   final String nick;
@@ -44,6 +48,26 @@ class SavedConnection {
   final String? username;
   final String? realname;
 
+  /// Every network that was open, so "Continue" can reconnect them all.
+  /// Older saves only have [networkHost].
+  final List<String> networkHosts;
+
+  /// [networkHosts], or just [networkHost] for older saves.
+  List<String> get openNetworks => networkHosts.isNotEmpty
+      ? networkHosts
+      : [if (networkHost.isNotEmpty) networkHost];
+
+  SavedConnection copyWith({List<String>? networkHosts}) => SavedConnection(
+    nick: nick,
+    networkHost: networkHost,
+    account: account,
+    rememberPassword: rememberPassword,
+    rejoinFavorites: rejoinFavorites,
+    username: username,
+    realname: realname,
+    networkHosts: networkHosts ?? this.networkHosts,
+  );
+
   Map<String, Object?> toJson() => {
     'nick': nick,
     'networkHost': networkHost,
@@ -52,6 +76,7 @@ class SavedConnection {
     'rejoinFavorites': rejoinFavorites,
     'username': username,
     'realname': realname,
+    'networkHosts': networkHosts,
   };
 }
 
@@ -77,22 +102,41 @@ class SavedConnectionRepository {
     }
   }
 
+  /// Forgets [host] as an open network, after the user closed it.
+  Future<void> removeNetwork(String host) async {
+    final saved = load();
+    if (saved == null) return;
+    final key = host.toLowerCase();
+    await _store.setString(
+      _key,
+      jsonEncode(
+        saved
+            .copyWith(
+              networkHosts: [
+                for (final h in saved.openNetworks)
+                  if (h.toLowerCase() != key) h,
+              ],
+            )
+            .toJson(),
+      ),
+    );
+  }
+
   Future<String?> loadPassword(String host, String account) =>
       _secrets.read(_passwordKey(host, account));
 
-  /// Saves settings. The password is stored only when
-  /// [SavedConnection.rememberPassword] is on, and deleted otherwise.
+  /// Saves settings. A non-empty password is stored when
+  /// [SavedConnection.rememberPassword] is on (an empty one keeps the saved
+  /// password); with it off, the saved password is deleted.
   Future<void> save(SavedConnection connection, {String? password}) async {
     await _store.setString(_key, jsonEncode(connection.toJson()));
     final account = connection.account;
     if (account == null || account.isEmpty) return;
     final key = _passwordKey(connection.networkHost, account);
-    if (connection.rememberPassword &&
-        password != null &&
-        password.isNotEmpty) {
-      await _secrets.write(key, password);
-    } else {
+    if (!connection.rememberPassword) {
       await _secrets.delete(key);
+    } else if (password != null && password.isNotEmpty) {
+      await _secrets.write(key, password);
     }
   }
 }
