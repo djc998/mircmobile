@@ -41,6 +41,11 @@ class ChatScreen extends ConsumerWidget {
         ),
         actions: [
           IconButton(
+            tooltip: 'Browse rooms',
+            icon: const Icon(Icons.travel_explore),
+            onPressed: () => context.go('/chat/rooms'),
+          ),
+          IconButton(
             tooltip: 'Join a room',
             icon: const Icon(Icons.add_comment_outlined),
             onPressed: () => _promptJoin(context, controller),

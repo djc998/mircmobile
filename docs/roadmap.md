@@ -3,7 +3,7 @@
 ## v1 (MVP)
 - [x] IRC core: TLS, CAP/SASL, registration, channels, messages, commands
 - [x] Network picker and basic chat screen
-- [ ] Room browser: search and sort LIST results, one-tap join
+- [x] Room browser: search and sort LIST results, one-tap join
 - [ ] mIRC colour and style rendering
 - [ ] Favorites and recent rooms; saved networks and nick (shared_preferences)
 - [ ] Passwords in flutter_secure_storage

@@ -7,6 +7,14 @@ and the project uses [Semantic Versioning](https://semver.org/).
 ## [Unreleased]
 
 ### Added
+- Room browser (iOS, Android, macOS): tap the compass in the chat screen to
+  see every room on the network. Search by name or topic, filter by size
+  (any, 10+, 50+, 200+ people), sort by most people or A–Z, and join with
+  one tap. The list is fetched once per connection and can be refreshed.
+  See [docs/features/room-browser.md](docs/features/room-browser.md).
+- A welcome line after connecting that points new users to the browser.
+- `ServerInfoEvent`, so the app shows the network's real name (from
+  ISUPPORT `NETWORK=`) instead of the server's host name.
 - Flutter project for iOS, Android and macOS (`com.djc998.irc_client`),
   working display name "mIRC Mobile".
 - IRC core in pure Dart (`lib/core/irc/`), identical on every platform:
@@ -27,7 +35,7 @@ and the project uses [Semantic Versioning](https://semver.org/).
     STATUSMSG, `echo-message` support, and splitting long messages so every
     line fits in 512 bytes without breaking a character.
   - LIST with the ELIST `>n` user filter, or a local filter when the server
-    lacks it (the base for the room browser).
+    lacks it.
   - Outgoing flood control (token bucket).
   - Slash commands: /join, /part, /msg, /query, /me, /notice, /nick, /topic,
     /whois, /list, /quote, /quit, and `//` to send a literal slash.
@@ -37,4 +45,5 @@ and the project uses [Semantic Versioning](https://semver.org/).
   nick list and a message box. Wide layouts (iPad, Mac) show the
   conversation list beside the chat.
 - Android INTERNET permission and the macOS network-client entitlement.
-- 68 unit and widget tests, GitHub Actions CI (format, analyze, test).
+- Unit and widget tests (75 in total), GitHub Actions CI (format, analyze,
+  test).

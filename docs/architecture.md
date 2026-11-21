@@ -22,6 +22,7 @@ lib/
   core/theme/                Material 3 theme, nick colours
   features/connection/       Network picker screen
   features/chat/             ChatController (Riverpod) and chat screen
+  features/discovery/        Room browser: filterRooms() and its screen
 ```
 
 ## Data flow
@@ -35,7 +36,11 @@ lib/
    state (channels, members, nick) and re-emitted as an `IrcEvent`.
 4. `ChatController` (a Riverpod `Notifier`) turns events into conversation
    buffers (`*status`, channels, private chats) with unread counts.
-5. The chat screen watches the controller. Typed text goes through
+5. The room browser calls `ChatController.fetchRooms`, which sends `LIST`.
+   The client collects the replies into one `ChannelListEvent`, the
+   controller stores them in `ChatState.rooms`, and the screen filters and
+   sorts them locally with `filterRooms`.
+6. The chat screen watches the controller. Typed text goes through
    `runInput`, which maps `/commands` to client calls.
 
 ## Why the transport is an interface

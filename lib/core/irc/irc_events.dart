@@ -45,6 +45,13 @@ class RegisteredEvent extends IrcEvent {
   final String network;
 }
 
+/// The server sent RPL_ISUPPORT (005); [network] is the network's name.
+class ServerInfoEvent extends IrcEvent {
+  ServerInfoEvent({required this.network});
+
+  final String network;
+}
+
 class SaslEvent extends IrcEvent {
   SaslEvent(this.outcome);
 
