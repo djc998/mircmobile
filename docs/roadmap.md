@@ -8,7 +8,7 @@
 - [ ] mIRC colour and style rendering
 - [x] Favorites and recent rooms; saved networks and nick (shared_preferences)
 - [x] Passwords in flutter_secure_storage
-- [ ] Saved chat history on the device
+- [x] Saved chat history on the device
 - [ ] Private rooms without commands: create, settings, invite/kick/ban,
       keep permanently (ChanServ)
 - [ ] App Store safety: ignore/block, report, content filter, terms on

@@ -41,7 +41,9 @@ lib/
    (with its own `IrcClient`) per open network and turns each client's
    events into conversation buffers (`*status`, channels, private chats)
    with unread counts. Buffers are keyed by network and name. See
-   [features/multi-network.md](features/multi-network.md).
+   [features/multi-network.md](features/multi-network.md). Chat lines are
+   also saved through `ChatHistoryStore` and loaded into new conversations
+   (see [features/chat-history.md](features/chat-history.md)).
 5. The room browser calls `ChatController.fetchRooms`, which sends `LIST`
    to every connected network. Each client collects the replies into one
    `ChannelListEvent`, the controller stores them on that network's

@@ -46,6 +46,7 @@ class IrcConnectionConfig {
     int? port,
     bool? useTls,
     Set<String>? trustedFingerprints,
+    List<String>? autoJoin,
   }) => IrcConnectionConfig(
     host: host,
     nick: nick,
@@ -55,7 +56,7 @@ class IrcConnectionConfig {
     realname: realname,
     serverPassword: serverPassword,
     sasl: sasl,
-    autoJoin: autoJoin,
+    autoJoin: autoJoin ?? this.autoJoin,
     autoReconnect: autoReconnect,
     trustedFingerprints: trustedFingerprints ?? this.trustedFingerprints,
   );

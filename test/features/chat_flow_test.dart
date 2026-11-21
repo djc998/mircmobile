@@ -7,6 +7,7 @@ import 'package:irc_client/app/app.dart';
 import 'package:irc_client/core/irc/irc_transport.dart';
 import 'package:irc_client/core/storage/app_storage.dart';
 import 'package:irc_client/features/chat/application/chat_controller.dart';
+import 'package:irc_client/features/chat/data/chat_history_store.dart';
 import 'package:material_ui/material_ui.dart';
 
 class FakeTransport implements IrcTransport {
@@ -248,7 +249,8 @@ void main() {
       ..add(':s 903 me :SASL authentication successful')
       ..add(':s 001 me :Welcome');
     await tester.pumpAndSettle();
-    expect(transport.written, contains('JOIN #second'));
+    // Favorites first, then the other rooms that were open last time.
+    expect(transport.written, contains('JOIN #second,#first'));
     expect(
       transport.written.where((l) => l.startsWith('AUTHENTICATE ')).length,
       2,
@@ -616,6 +618,97 @@ void main() {
       find.textContaining('hello from libera', findRichText: true),
       findsOneWidget,
     );
+
+    await tester.pumpWidget(const SizedBox());
+    await tester.pump(const Duration(seconds: 1));
+  });
+
+  testWidgets('chat history survives disconnects and app restarts', (
+    tester,
+  ) async {
+    tester.view.physicalSize = const Size(800, 1800);
+    tester.view.devicePixelRatio = 1;
+    addTearDown(tester.view.reset);
+    final store = MemoryKeyValueStore();
+    final history = MemoryChatHistoryStore();
+    var transport = FakeTransport();
+
+    Future<void> launch() async {
+      await tester.pumpWidget(const SizedBox());
+      await tester.pumpWidget(
+        ProviderScope(
+          overrides: [
+            keyValueStoreProvider.overrideWithValue(store),
+            chatHistoryStoreProvider.overrideWithValue(history),
+            transportFactoryProvider.overrideWithValue(
+              (host, port, {required useTls, trustedFingerprints = const {}}) =>
+                  transport,
+            ),
+          ],
+          child: const IrcApp(),
+        ),
+      );
+      await tester.pumpAndSettle();
+    }
+
+    await launch();
+    await tester.enterText(find.widgetWithText(TextField, 'Nickname'), 'me');
+    await tester.tap(find.text('Libera.Chat'));
+    await tester.pumpAndSettle();
+    transport.incoming
+      ..add(':s 001 me :Welcome')
+      ..add(':me!u@h JOIN #room')
+      ..add(':bob!b@h PRIVMSG #room :remember this')
+      ..add(':bob!b@h JOIN #room')
+      ..add(':alice!a@h PRIVMSG me :secret hello');
+    await tester.pumpAndSettle();
+    expect(history.conversations.keys, {
+      'irc.libera.chat/#room',
+      'irc.libera.chat/alice',
+    });
+    // Join/quit noise isn't saved.
+    expect(history.conversations['irc.libera.chat/#room']!.length, 1);
+
+    // Next launch: Continue rejoins #room and reopens the chat with alice,
+    // both with their saved messages.
+    transport = FakeTransport();
+    await launch();
+    await tester.tap(find.text('Continue on Libera.Chat'));
+    await tester.pumpAndSettle();
+    transport.incoming.add(':s 001 me :Welcome');
+    await tester.pumpAndSettle();
+    expect(transport.written, contains('JOIN #room'));
+    transport.incoming.add(':me!u@h JOIN #room');
+    await tester.pumpAndSettle();
+    expect(find.widgetWithText(AppBar, '#room'), findsOneWidget);
+    expect(
+      find.textContaining('remember this', findRichText: true),
+      findsOneWidget,
+    );
+    expect(
+      find.textContaining('Saved messages above', findRichText: true),
+      findsOneWidget,
+    );
+
+    await tester.tap(find.byTooltip('Open navigation menu'));
+    await tester.pumpAndSettle();
+    await tester.tap(find.text('alice'));
+    await tester.pumpAndSettle();
+    expect(
+      find.textContaining('secret hello', findRichText: true),
+      findsOneWidget,
+    );
+
+    // Clear history removes it on screen and on the device.
+    await tester.tap(find.byType(PopupMenuButton<String>));
+    await tester.pumpAndSettle();
+    await tester.tap(find.text('Clear history'));
+    await tester.pumpAndSettle();
+    expect(
+      find.textContaining('secret hello', findRichText: true),
+      findsNothing,
+    );
+    expect(history.conversations.containsKey('irc.libera.chat/alice'), false);
 
     await tester.pumpWidget(const SizedBox());
     await tester.pump(const Duration(seconds: 1));

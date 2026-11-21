@@ -7,6 +7,13 @@ and the project uses [Semantic Versioning](https://semver.org/).
 ## [Unreleased]
 
 ### Added
+- Saved chat history (iOS, Android, macOS). Rooms and private chats keep
+  their messages after a disconnect or an app restart, marked **Saved
+  messages above**. **Continue** rejoins the rooms and reopens the private
+  chats that were open. **Save chat history on this device** and **Delete
+  saved history** are under **More options** on the start screen, and
+  **Clear history** in the chat menu clears one conversation.
+  See [docs/features/chat-history.md](docs/features/chat-history.md).
 - Several networks at once (iOS, Android, macOS). Adding a network keeps the
   others connected. The conversation list is grouped by network and lists
   each network's favorite rooms for one-tap join. The room browser fetches

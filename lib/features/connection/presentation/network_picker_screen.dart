@@ -36,6 +36,9 @@ class _NetworkPickerScreenState extends ConsumerState<NetworkPickerScreen> {
   bool _useAccount = false;
   bool _rememberPassword = true;
   bool _rejoinFavorites = true;
+  late bool _saveHistory = ref
+      .read(chatControllerProvider.notifier)
+      .saveHistory;
   SavedConnection? _saved;
 
   @override
@@ -88,6 +91,36 @@ class _NetworkPickerScreenState extends ConsumerState<NetworkPickerScreen> {
       if (_networkFor(host) case final n?)
         if (!chat.networks.containsKey(n.host.toLowerCase())) n,
   ];
+
+  Future<void> _confirmDeleteHistory() async {
+    final ok = await showDialog<bool>(
+      context: context,
+      builder: (dialog) => AlertDialog(
+        title: const Text('Delete saved history?'),
+        content: const Text(
+          'This deletes the saved messages of every room and private chat '
+          'on this device. It cannot be undone.',
+        ),
+        actions: [
+          TextButton(
+            onPressed: () => Navigator.pop(dialog, false),
+            child: const Text('Cancel'),
+          ),
+          FilledButton(
+            onPressed: () => Navigator.pop(dialog, true),
+            child: const Text('Delete'),
+          ),
+        ],
+      ),
+    );
+    if (ok != true) return;
+    await ref.read(chatControllerProvider.notifier).clearAllHistory();
+    if (mounted) {
+      ScaffoldMessenger.of(
+        context,
+      ).showSnackBar(const SnackBar(content: Text('Saved history deleted.')));
+    }
+  }
 
   bool _checkNick() {
     if (isValidNick(_nick.text.trim())) return true;
@@ -299,7 +332,7 @@ class _NetworkPickerScreenState extends ConsumerState<NetworkPickerScreen> {
             ExpansionTile(
               tilePadding: EdgeInsets.zero,
               title: const Text('More options'),
-              subtitle: const Text('Username and real name'),
+              subtitle: const Text('Username, real name and chat history'),
               children: [
                 TextField(
                   controller: _username,
@@ -317,6 +350,31 @@ class _NetworkPickerScreenState extends ConsumerState<NetworkPickerScreen> {
                     labelText: 'Real name (optional, shown to others)',
                     hintText: IrcClient.defaultRealname,
                     border: OutlineInputBorder(),
+                  ),
+                ),
+                SwitchListTile.adaptive(
+                  contentPadding: EdgeInsets.zero,
+                  title: const Text('Save chat history on this device'),
+                  subtitle: const Text(
+                    'Rooms and private chats keep their messages after you '
+                    'disconnect or close the app',
+                  ),
+                  value: _saveHistory,
+                  onChanged: (v) {
+                    setState(() => _saveHistory = v);
+                    unawaited(
+                      ref
+                          .read(chatControllerProvider.notifier)
+                          .setSaveHistory(enabled: v),
+                    );
+                  },
+                ),
+                Align(
+                  alignment: Alignment.centerLeft,
+                  child: TextButton.icon(
+                    icon: const Icon(Icons.delete_outline),
+                    label: const Text('Delete saved history'),
+                    onPressed: _confirmDeleteHistory,
                   ),
                 ),
                 const SizedBox(height: 12),
