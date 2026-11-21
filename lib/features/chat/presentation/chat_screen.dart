@@ -98,6 +98,8 @@ class ChatScreen extends ConsumerWidget {
               switch (v) {
                 case 'close':
                   controller.closeBuffer(buffer!.key);
+                case 'clear':
+                  await controller.clearHistory(buffer!.key);
                 case 'add':
                   context.go('/');
                 case 'disconnect':
@@ -117,6 +119,11 @@ class ChatScreen extends ConsumerWidget {
                 PopupMenuItem(
                   value: 'close',
                   child: Text(isChannel ? 'Leave room' : 'Close chat'),
+                ),
+              if (buffer != null && !buffer.isStatus)
+                const PopupMenuItem(
+                  value: 'clear',
+                  child: Text('Clear history'),
                 ),
               const PopupMenuItem(value: 'add', child: Text('Add a network')),
               if (net != null && net.status == IrcConnectionStatus.disconnected)

@@ -2,6 +2,7 @@
 library;
 
 import 'dart:async';
+import 'dart:convert';
 
 import 'package:flutter_riverpod/flutter_riverpod.dart';
 import 'package:irc_client/core/irc/formatting.dart';
@@ -9,6 +10,8 @@ import 'package:irc_client/core/irc/input_commands.dart';
 import 'package:irc_client/core/irc/irc_client.dart';
 import 'package:irc_client/core/irc/irc_events.dart';
 import 'package:irc_client/core/irc/irc_transport.dart';
+import 'package:irc_client/core/storage/app_storage.dart';
+import 'package:irc_client/features/chat/data/chat_history_store.dart';
 import 'package:irc_client/features/connection/data/certificate_trust.dart';
 import 'package:irc_client/features/connection/data/saved_connection.dart';
 import 'package:irc_client/features/favorites/application/room_prefs_controller.dart';
@@ -29,10 +32,29 @@ class ChatLine {
     DateTime? time,
   }) : time = time ?? DateTime.now();
 
+  factory ChatLine.fromStored(StoredLine line) => ChatLine(
+    text: line.text,
+    sender: line.sender,
+    time: line.time.toLocal(),
+    kind: ChatLineKind.values.asNameMap()[line.kind] ?? ChatLineKind.message,
+  );
+
   final DateTime time;
   final String? sender;
   final String text;
   final ChatLineKind kind;
+
+  /// Whether this kind of line is kept in saved history.
+  bool get isSaved => switch (kind) {
+    ChatLineKind.message ||
+    ChatLineKind.action ||
+    ChatLineKind.notice ||
+    ChatLineKind.own => true,
+    ChatLineKind.event || ChatLineKind.error => false,
+  };
+
+  StoredLine toStored() =>
+      StoredLine(time: time, kind: kind.name, text: text, sender: sender);
 }
 
 /// One conversation on one network: its status window, a channel or a
@@ -46,6 +68,11 @@ class ChatBuffer {
   final List<ChatLine> lines = [];
   int unread = 0;
   bool mentioned = false;
+
+  /// True while saved history is being read; new lines wait in
+  /// [pendingSave] so they aren't saved twice.
+  bool restoring = false;
+  final List<StoredLine> pendingSave = [];
 
   /// Unique across networks; see [ChatState.bufferKey].
   String get key => ChatState.bufferKey(networkId, name);
@@ -209,6 +236,104 @@ class ChatController extends Notifier<ChatState> {
     return const ChatState();
   }
 
+  static const _saveHistoryKey = 'saveHistory';
+  static const _openConversationsKey = 'openConversations';
+
+  KeyValueStore get _store => ref.read(keyValueStoreProvider);
+  ChatHistoryStore get _history => ref.read(chatHistoryStoreProvider);
+
+  /// Whether conversations are saved on this device (on by default).
+  bool get saveHistory => _store.getString(_saveHistoryKey) != 'false';
+
+  Future<void> setSaveHistory({required bool enabled}) =>
+      _store.setString(_saveHistoryKey, '$enabled');
+
+  /// Deletes a conversation's saved history and clears it on screen.
+  Future<void> clearHistory(String key) async {
+    final buffer = state.buffers[key];
+    if (buffer == null) return;
+    buffer.lines.clear();
+    _touch();
+    await _history.clear(buffer.networkId, buffer.name);
+  }
+
+  /// Deletes all saved history on this device.
+  Future<void> clearAllHistory() async {
+    for (final b in state.buffers.values) {
+      b.lines.removeWhere((l) => l.isSaved);
+    }
+    _touch();
+    await _history.clearAll();
+  }
+
+  Map<String, List<String>> _loadOpenConversations() {
+    final raw = _store.getString(_openConversationsKey);
+    if (raw == null) return {};
+    try {
+      return {
+        for (final e in (jsonDecode(raw) as Map<String, Object?>).entries)
+          e.key: [for (final n in e.value! as List) '$n'],
+      };
+    } on Object {
+      return {};
+    }
+  }
+
+  /// Remembers which rooms and private chats are open on [networkId], so
+  /// the next launch can reopen them.
+  void _saveOpenConversations(String networkId) {
+    final all = _loadOpenConversations();
+    final names = [
+      for (final b in state.buffersFor(networkId))
+        if (!b.isStatus) b.name,
+    ];
+    if (names.isEmpty) {
+      all.remove(networkId);
+    } else {
+      all[networkId] = names;
+    }
+    unawaited(_store.setString(_openConversationsKey, jsonEncode(all)));
+  }
+
+  /// Loads saved lines into a new conversation, above anything already
+  /// received.
+  void _restoreHistory(ChatBuffer buffer) {
+    if (!saveHistory) return;
+    buffer.restoring = true;
+    unawaited(
+      _history.load(buffer.networkId, buffer.name).then((saved) {
+        buffer.restoring = false;
+        for (final line in buffer.pendingSave) {
+          _history.append(buffer.networkId, buffer.name, line);
+        }
+        buffer.pendingSave.clear();
+        if (saved.isEmpty || state.buffers[buffer.key] != buffer) return;
+        final restored = [
+          for (final l in saved) ChatLine.fromStored(l),
+          ChatLine(
+            text: 'Saved messages above',
+            kind: ChatLineKind.event,
+            time: saved.last.time.toLocal(),
+          ),
+        ];
+        buffer.lines.insertAll(0, restored);
+        if (buffer.lines.length > maxLinesPerBuffer) {
+          buffer.lines.removeRange(0, buffer.lines.length - maxLinesPerBuffer);
+        }
+        _touch();
+      }),
+    );
+  }
+
+  void _saveLine(ChatBuffer buffer, ChatLine line) {
+    if (buffer.isStatus || !line.isSaved || !saveHistory) return;
+    if (buffer.restoring) {
+      buffer.pendingSave.add(line.toStored());
+    } else {
+      _history.append(buffer.networkId, buffer.name, line.toStored());
+    }
+  }
+
   /// Client of the open conversation's network.
   IrcClient? get client => state.activeNetwork?.client;
 
@@ -220,8 +345,23 @@ class ChatController extends Notifier<ChatState> {
   /// network that is already open replaces its connection but keeps its
   /// conversations.
   Future<void> connect(IrcConnectionConfig requested) async {
-    // Add certificates the user trusted earlier for this server.
+    final id = requested.host.toLowerCase();
+    // Rooms and private chats that were open last time on this network.
+    final reopen = state.networks.containsKey(id)
+        ? const <String>[]
+        : _loadOpenConversations()[id] ?? const <String>[];
+    // Add certificates the user trusted earlier for this server, and rejoin
+    // rooms that were open.
     final config = requested.copyWith(
+      autoJoin: [
+        ...requested.autoJoin,
+        for (final name in reopen)
+          if (_looksLikeChannel(name) &&
+              !requested.autoJoin.any(
+                (r) => r.toLowerCase() == name.toLowerCase(),
+              ))
+            name,
+      ],
       trustedFingerprints: {
         ...requested.trustedFingerprints,
         ...ref
@@ -233,7 +373,6 @@ class ChatController extends Notifier<ChatState> {
       config,
       transportFactory: ref.read(transportFactoryProvider),
     );
-    final id = config.host.toLowerCase();
     var session = state.networks[id];
     final isNew = session == null;
     if (session != null) {
@@ -254,6 +393,9 @@ class ChatController extends Notifier<ChatState> {
       state = state.copyWith(networks: {...state.networks, id: session});
     }
     final status = _ensureBuffer(session, statusBuffer);
+    for (final name in reopen) {
+      _ensureBuffer(session, name);
+    }
     // A new network opens on its server tab; reconnecting stays put.
     if (isNew || state.activeKey == null) {
       state = state.copyWith(activeKey: status.key);
@@ -272,6 +414,9 @@ class ChatController extends Notifier<ChatState> {
     session.subscription = client.events.listen((e) => _onEvent(current, e));
     await client.connect();
   }
+
+  static bool _looksLikeChannel(String name) =>
+      name.startsWith('#') || name.startsWith('&');
 
   NetworkSession? _network(String? id) =>
       id == null ? state.activeNetwork : state.networks[id];
@@ -301,6 +446,8 @@ class ChatController extends Notifier<ChatState> {
           .read(savedConnectionRepositoryProvider)
           .removeNetwork(session.config.host),
     );
+    final open = _loadOpenConversations()..remove(networkId);
+    unawaited(_store.setString(_openConversationsKey, jsonEncode(open)));
     final networks = Map.of(state.networks)..remove(networkId);
     final buffers = Map.of(state.buffers)
       ..removeWhere((_, b) => b.networkId == networkId);
@@ -452,6 +599,7 @@ class ChatController extends Notifier<ChatState> {
           : state.activeKey,
       revision: state.revision + 1,
     );
+    _saveOpenConversations(buffer.networkId);
   }
 
   /// Runs what the user typed in the open conversation.
@@ -497,6 +645,10 @@ class ChatController extends Notifier<ChatState> {
     if (existing != null) return existing;
     final buffer = ChatBuffer(session.id, name);
     state = state.copyWith(buffers: {...state.buffers, key: buffer});
+    if (!buffer.isStatus) {
+      _restoreHistory(buffer);
+      _saveOpenConversations(session.id);
+    }
     return buffer;
   }
 
@@ -508,6 +660,7 @@ class ChatController extends Notifier<ChatState> {
   }) {
     final buffer = _ensureBuffer(session, bufferName);
     buffer.lines.add(line);
+    _saveLine(buffer, line);
     if (buffer.lines.length > maxLinesPerBuffer) {
       buffer.lines.removeRange(0, buffer.lines.length - maxLinesPerBuffer);
     }
