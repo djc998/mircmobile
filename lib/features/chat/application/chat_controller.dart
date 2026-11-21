@@ -241,6 +241,44 @@ class ChatController extends Notifier<ChatState> {
     return true;
   }
 
+  /// Opens (or switches to) a private conversation with [nick].
+  void openPrivateChat(String nick) {
+    final name = nick.trim();
+    if (name.isEmpty || name.contains(' ')) return;
+    _ensureBuffer(name);
+    selectBuffer(name);
+  }
+
+  /// Asks the server about [nick]; replies are shown in the open
+  /// conversation instead of the server tab.
+  void whoisUser(String nick) {
+    final client = _client;
+    if (client == null) return;
+    _whoisBuffer = state.active;
+    client.whois(nick);
+  }
+
+  String? _whoisBuffer;
+
+  /// WHOIS reply numerics (RFC 2812 and common extensions).
+  static const _whoisReplies = {
+    '301',
+    '276',
+    '307',
+    '311',
+    '312',
+    '313',
+    '317',
+    '318',
+    '319',
+    '320',
+    '330',
+    '338',
+    '378',
+    '379',
+    '671',
+  };
+
   /// Joins a room from the browser and makes it the open conversation.
   void joinRoom(String name) {
     final client = _client;
@@ -522,6 +560,19 @@ class ChatController extends Notifier<ChatState> {
         // 263 RPL_TRYAGAIN: the server refused LIST for now.
         if (state.roomsLoading && message.command == '263') {
           state = state.copyWith(roomsLoading: false, roomsError: text);
+        }
+        final whoisTarget = _whoisBuffer;
+        if (whoisTarget != null && _whoisReplies.contains(message.command)) {
+          if (message.command == '318') {
+            _whoisBuffer = null; // End of WHOIS.
+          } else {
+            _addLine(
+              whoisTarget,
+              ChatLine(text: stripFormatting(text), kind: ChatLineKind.notice),
+              countUnread: false,
+            );
+          }
+          return;
         }
         _addLine(
           statusBuffer,
