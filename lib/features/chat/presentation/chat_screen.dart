@@ -1,3 +1,7 @@
+import 'dart:async';
+
+import 'package:flutter/gestures.dart';
+import 'package:flutter/services.dart';
 import 'package:flutter_riverpod/flutter_riverpod.dart';
 import 'package:go_router/go_router.dart';
 import 'package:irc_client/core/irc/irc_client.dart';
@@ -58,6 +62,11 @@ class ChatScreen extends ConsumerWidget {
             onPressed: () => context.go('/chat/rooms'),
           ),
           IconButton(
+            tooltip: 'New private message',
+            icon: const Icon(Icons.mail_outline),
+            onPressed: () => _promptPrivateMessage(context, controller),
+          ),
+          IconButton(
             tooltip: 'Join a room',
             icon: const Icon(Icons.add_comment_outlined),
             onPressed: () => _promptJoin(context, controller),
@@ -108,7 +117,14 @@ class ChatScreen extends ConsumerWidget {
       endDrawer: channel == null
           ? null
           : Drawer(
-              child: SafeArea(child: _NickList(channel: channel)),
+              child: SafeArea(
+                child: _NickList(
+                  channel: channel,
+                  onNickTap: (nick) => unawaited(
+                    showUserActions(context, controller, state.nick, nick),
+                  ),
+                ),
+              ),
             ),
       body: SafeArea(
         child: Row(
@@ -123,7 +139,14 @@ class ChatScreen extends ConsumerWidget {
                       state: state,
                       controller: controller,
                     ),
-                  Expanded(child: _MessageList(lines: buffer?.lines ?? [])),
+                  Expanded(
+                    child: _MessageList(
+                      lines: buffer?.lines ?? [],
+                      onNickTap: (nick) => unawaited(
+                        showUserActions(context, controller, state.nick, nick),
+                      ),
+                    ),
+                  ),
                   const Divider(height: 1),
                   _InputBar(onSubmit: controller.submit),
                 ],
@@ -143,35 +166,35 @@ class ChatScreen extends ConsumerWidget {
     IrcConnectionStatus.disconnected => 'Disconnected',
   };
 
+  Future<void> _promptPrivateMessage(
+    BuildContext context,
+    ChatController controller,
+  ) async {
+    final nick = await showDialog<String>(
+      context: context,
+      builder: (_) => const _TextPromptDialog(
+        title: 'New private message',
+        hint: 'Nickname',
+        action: 'Open chat',
+      ),
+    );
+    if (nick != null && nick.trim().isNotEmpty) {
+      controller.openPrivateChat(nick.trim());
+    }
+  }
+
   Future<void> _promptJoin(
     BuildContext context,
     ChatController controller,
   ) async {
-    final text = TextEditingController();
     final room = await showDialog<String>(
       context: context,
-      builder: (context) => AlertDialog(
-        title: const Text('Join a room'),
-        content: TextField(
-          controller: text,
-          autofocus: true,
-          autocorrect: false,
-          decoration: const InputDecoration(hintText: '#channel'),
-          onSubmitted: (v) => Navigator.pop(context, v),
-        ),
-        actions: [
-          TextButton(
-            onPressed: () => Navigator.pop(context),
-            child: const Text('Cancel'),
-          ),
-          FilledButton(
-            onPressed: () => Navigator.pop(context, text.text),
-            child: const Text('Join'),
-          ),
-        ],
+      builder: (_) => const _TextPromptDialog(
+        title: 'Join a room',
+        hint: '#channel',
+        action: 'Join',
       ),
     );
-    text.dispose();
     if (room != null && room.trim().isNotEmpty) {
       controller.submit('/join ${room.trim()}');
     }
@@ -230,73 +253,166 @@ class _BufferList extends StatelessWidget {
   }
 }
 
+/// Actions for another user: private message, whois, copy nick.
+Future<void> showUserActions(
+  BuildContext context,
+  ChatController controller,
+  String ownNick,
+  String nick,
+) async {
+  final isMe = nick.toLowerCase() == ownNick.toLowerCase();
+  await showModalBottomSheet<void>(
+    context: context,
+    showDragHandle: true,
+    builder: (sheet) => SafeArea(
+      child: Column(
+        mainAxisSize: MainAxisSize.min,
+        children: [
+          ListTile(
+            title: Text(nick, style: Theme.of(sheet).textTheme.titleMedium),
+          ),
+          if (!isMe)
+            ListTile(
+              leading: const Icon(Icons.chat_bubble_outline),
+              title: const Text('Send private message'),
+              onTap: () {
+                Navigator.pop(sheet);
+                controller.openPrivateChat(nick);
+              },
+            ),
+          ListTile(
+            leading: const Icon(Icons.info_outline),
+            title: const Text('Who is this? (whois)'),
+            onTap: () {
+              Navigator.pop(sheet);
+              controller.whoisUser(nick);
+            },
+          ),
+          ListTile(
+            leading: const Icon(Icons.copy),
+            title: const Text('Copy nickname'),
+            onTap: () {
+              Navigator.pop(sheet);
+              _copyNick(nick);
+            },
+          ),
+        ],
+      ),
+    ),
+  );
+}
+
+void _copyNick(String text) {
+  // Clipboard errors are harmless here; nothing to report.
+  Clipboard.setData(ClipboardData(text: text)).ignore();
+}
+
 class _MessageList extends StatelessWidget {
-  const _MessageList({required this.lines});
+  const _MessageList({required this.lines, required this.onNickTap});
 
   final List<ChatLine> lines;
+  final void Function(String nick) onNickTap;
 
   @override
   Widget build(BuildContext context) {
-    final theme = Theme.of(context);
-    final muted = theme.colorScheme.onSurfaceVariant;
     return ListView.builder(
       reverse: true,
       padding: const EdgeInsets.symmetric(horizontal: 12, vertical: 8),
       itemCount: lines.length,
       itemBuilder: (context, i) {
         final line = lines[lines.length - 1 - i];
-        final time = TimeOfDay.fromDateTime(line.time.toLocal())
-            .format(context);
-        final sender = line.sender;
-        final nickStyle = TextStyle(
-          fontWeight: FontWeight.bold,
-          color: sender == null
-              ? null
-              : AppTheme.nickColor(sender, theme.brightness),
-        );
-        final InlineSpan body = switch (line.kind) {
-          ChatLineKind.message || ChatLineKind.own => TextSpan(
-            children: [
-              TextSpan(text: '<$sender> ', style: nickStyle),
-              TextSpan(text: line.text),
-            ],
-          ),
-          ChatLineKind.action => TextSpan(
-            text: '* $sender ${line.text}',
-            style: const TextStyle(
-              fontStyle: FontStyle.italic,
-              color: Color(0xFF9C009C),
-            ),
-          ),
-          ChatLineKind.notice => TextSpan(
-            text: sender == null ? line.text : '-$sender- ${line.text}',
-            style: const TextStyle(color: Color(0xFF7F0000)),
-          ),
-          ChatLineKind.event => TextSpan(
-            text: '• ${line.text}',
-            style: const TextStyle(color: Color(0xFF009300)),
-          ),
-          ChatLineKind.error => TextSpan(
-            text: '⚠ ${line.text}',
-            style: TextStyle(color: theme.colorScheme.error),
-          ),
-        };
-        return Padding(
-          padding: const EdgeInsets.symmetric(vertical: 2),
-          child: SelectableText.rich(
-            TextSpan(
-              style: theme.textTheme.bodyMedium,
-              children: [
-                TextSpan(
-                  text: '$time  ',
-                  style: TextStyle(color: muted, fontSize: 12),
-                ),
-                body,
-              ],
-            ),
-          ),
-        );
+        return _MessageTile(line: line, onNickTap: onNickTap);
       },
+    );
+  }
+}
+
+class _MessageTile extends StatefulWidget {
+  const _MessageTile({required this.line, required this.onNickTap});
+
+  final ChatLine line;
+  final void Function(String nick) onNickTap;
+
+  @override
+  State<_MessageTile> createState() => _MessageTileState();
+}
+
+class _MessageTileState extends State<_MessageTile> {
+  // Owned here so it can be disposed with the row.
+  late final TapGestureRecognizer _nickTap = TapGestureRecognizer()
+    ..onTap = () {
+      final sender = widget.line.sender;
+      if (sender != null) widget.onNickTap(sender);
+    };
+
+  @override
+  void dispose() {
+    _nickTap.dispose();
+    super.dispose();
+  }
+
+  @override
+  Widget build(BuildContext context) {
+    final theme = Theme.of(context);
+    final muted = theme.colorScheme.onSurfaceVariant;
+    final line = widget.line;
+    final time = TimeOfDay.fromDateTime(line.time.toLocal()).format(context);
+    final sender = line.sender;
+    final nickStyle = TextStyle(
+      fontWeight: FontWeight.bold,
+      color: sender == null
+          ? null
+          : AppTheme.nickColor(sender, theme.brightness),
+    );
+    final InlineSpan body = switch (line.kind) {
+      ChatLineKind.message || ChatLineKind.own => TextSpan(
+        children: [
+          TextSpan(text: '<$sender> ', style: nickStyle, recognizer: _nickTap),
+          TextSpan(text: line.text),
+        ],
+      ),
+      ChatLineKind.action => TextSpan(
+        style: const TextStyle(
+          fontStyle: FontStyle.italic,
+          color: Color(0xFF9C009C),
+        ),
+        children: [
+          const TextSpan(text: '* '),
+          TextSpan(text: sender, recognizer: _nickTap),
+          TextSpan(text: ' ${line.text}'),
+        ],
+      ),
+      ChatLineKind.notice => TextSpan(
+        style: const TextStyle(color: Color(0xFF7F0000)),
+        children: [
+          if (sender != null)
+            TextSpan(text: '-$sender- ', recognizer: _nickTap),
+          TextSpan(text: line.text),
+        ],
+      ),
+      ChatLineKind.event => TextSpan(
+        text: '• ${line.text}',
+        style: const TextStyle(color: Color(0xFF009300)),
+      ),
+      ChatLineKind.error => TextSpan(
+        text: '⚠ ${line.text}',
+        style: TextStyle(color: theme.colorScheme.error),
+      ),
+    };
+    return Padding(
+      padding: const EdgeInsets.symmetric(vertical: 2),
+      child: SelectableText.rich(
+        TextSpan(
+          style: theme.textTheme.bodyMedium,
+          children: [
+            TextSpan(
+              text: '$time  ',
+              style: TextStyle(color: muted, fontSize: 12),
+            ),
+            body,
+          ],
+        ),
+      ),
     );
   }
 }
@@ -363,9 +479,10 @@ class _InputBarState extends State<_InputBar> {
 }
 
 class _NickList extends StatelessWidget {
-  const _NickList({required this.channel});
+  const _NickList({required this.channel, required this.onNickTap});
 
   final IrcChannel channel;
+  final void Function(String nick) onNickTap;
 
   @override
   Widget build(BuildContext context) {
@@ -394,6 +511,11 @@ class _NickList extends StatelessWidget {
               final m = members[i];
               return ListTile(
                 dense: true,
+                onTap: () {
+                  Scaffold.of(context).closeEndDrawer();
+                  onNickTap(m.nick);
+                },
+                trailing: const Icon(Icons.more_horiz, size: 18),
                 title: Text(
                   '${m.topPrefix}${m.nick}',
                   style: TextStyle(
@@ -470,6 +592,57 @@ class _ConnectionProblemBanner extends StatelessWidget {
       leading: const Icon(Icons.gpp_maybe_outlined),
       content: Text(message),
       actions: actions,
+    );
+  }
+}
+
+/// A one-field dialog that owns (and disposes) its text controller, so the
+/// controller outlives the dialog's closing animation.
+class _TextPromptDialog extends StatefulWidget {
+  const _TextPromptDialog({
+    required this.title,
+    required this.hint,
+    required this.action,
+  });
+
+  final String title;
+  final String hint;
+  final String action;
+
+  @override
+  State<_TextPromptDialog> createState() => _TextPromptDialogState();
+}
+
+class _TextPromptDialogState extends State<_TextPromptDialog> {
+  final _text = TextEditingController();
+
+  @override
+  void dispose() {
+    _text.dispose();
+    super.dispose();
+  }
+
+  @override
+  Widget build(BuildContext context) {
+    return AlertDialog(
+      title: Text(widget.title),
+      content: TextField(
+        controller: _text,
+        autofocus: true,
+        autocorrect: false,
+        decoration: InputDecoration(hintText: widget.hint),
+        onSubmitted: (v) => Navigator.pop(context, v),
+      ),
+      actions: [
+        TextButton(
+          onPressed: () => Navigator.pop(context),
+          child: const Text('Cancel'),
+        ),
+        FilledButton(
+          onPressed: () => Navigator.pop(context, _text.text),
+          child: Text(widget.action),
+        ),
+      ],
     );
   }
 }

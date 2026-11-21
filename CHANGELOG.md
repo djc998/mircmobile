@@ -6,7 +6,17 @@ and the project uses [Semantic Versioning](https://semver.org/).
 
 ## [Unreleased]
 
+### Added
+- Private messages are easy to start (iOS, Android, macOS): tap a name in
+  the people list, or a nickname in the chat, for **Send private message**,
+  **Who is this? (whois)** and **Copy nickname**. A **New private message**
+  button (envelope) in the chat top bar opens a chat with any nickname.
+  Whois replies now show in the conversation you asked from instead of the
+  server tab. See [docs/features/private-messages.md](docs/features/private-messages.md).
+
 ### Fixed
+- The Join and New private message dialogs no longer use their text field
+  after it was disposed while the dialog closes.
 - EFnet (and other servers with self-signed, mismatched or expired TLS
   certificates) failed with `CERTIFICATE_VERIFY_FAILED`. The app now shows
   the certificate details and lets you **Trust and connect**. It remembers
@@ -74,5 +84,5 @@ and the project uses [Semantic Versioning](https://semver.org/).
   nick list and a message box. Wide layouts (iPad, Mac) show the
   conversation list beside the chat.
 - Android INTERNET permission and the macOS network-client entitlement.
-- Unit and widget tests (90 in total), GitHub Actions CI (format, analyze,
+- Unit and widget tests (92 in total), GitHub Actions CI (format, analyze,
   test).

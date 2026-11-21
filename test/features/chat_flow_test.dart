@@ -374,6 +374,119 @@ void main() {
     await tester.pumpWidget(const SizedBox());
     await tester.pump(const Duration(minutes: 10));
   });
+  testWidgets('start a private message from the people list or button', (
+    tester,
+  ) async {
+    tester.view.physicalSize = const Size(800, 1800);
+    tester.view.devicePixelRatio = 1;
+    addTearDown(tester.view.reset);
+    final transport = FakeTransport();
+    await tester.pumpWidget(
+      ProviderScope(
+        overrides: [
+          transportFactoryProvider.overrideWithValue(
+            (host, port, {required useTls, trustedFingerprints = const {}}) =>
+                transport,
+          ),
+        ],
+        child: const IrcApp(),
+      ),
+    );
+    await tester.enterText(find.widgetWithText(TextField, 'Nickname'), 'me');
+    await tester.tap(find.text('Libera.Chat'));
+    await tester.pumpAndSettle();
+    transport.incoming
+      ..add(':s 001 me :Welcome')
+      ..add(':me!u@h JOIN #chat')
+      ..add(':s 353 me = #chat :@alice me')
+      ..add(':s 366 me #chat :End');
+    await tester.pumpAndSettle();
+
+    // People list -> alice -> Send private message.
+    await tester.tap(find.byTooltip('People'));
+    await tester.pumpAndSettle();
+    await tester.tap(find.text('@alice'));
+    await tester.pumpAndSettle();
+    expect(find.text('Send private message'), findsOneWidget);
+    await tester.tap(find.text('Send private message'));
+    await tester.pumpAndSettle();
+    expect(find.widgetWithText(AppBar, 'alice'), findsOneWidget);
+
+    await tester.enterText(
+      find.widgetWithText(TextField, 'Message or /command'),
+      'hi alice',
+    );
+    await tester.tap(find.byTooltip('Send'));
+    await tester.pumpAndSettle();
+    expect(transport.written.last, 'PRIVMSG alice :hi alice');
+
+    // The New private message button opens a chat by nickname.
+    await tester.tap(find.byTooltip('New private message'));
+    await tester.pumpAndSettle();
+    await tester.enterText(
+      find.widgetWithText(TextField, 'Nickname').last,
+      'bob',
+    );
+    await tester.tap(find.text('Open chat'));
+    await tester.pumpAndSettle();
+    expect(find.widgetWithText(AppBar, 'bob'), findsOneWidget);
+
+    await tester.pumpWidget(const SizedBox());
+    await tester.pump(const Duration(seconds: 1));
+  });
+
+  testWidgets('whois replies appear in the open conversation', (tester) async {
+    tester.view.physicalSize = const Size(800, 1800);
+    tester.view.devicePixelRatio = 1;
+    addTearDown(tester.view.reset);
+    final transport = FakeTransport();
+    await tester.pumpWidget(
+      ProviderScope(
+        overrides: [
+          transportFactoryProvider.overrideWithValue(
+            (host, port, {required useTls, trustedFingerprints = const {}}) =>
+                transport,
+          ),
+        ],
+        child: const IrcApp(),
+      ),
+    );
+    await tester.enterText(find.widgetWithText(TextField, 'Nickname'), 'me');
+    await tester.tap(find.text('Libera.Chat'));
+    await tester.pumpAndSettle();
+    transport.incoming
+      ..add(':s 001 me :Welcome')
+      ..add(':me!u@h JOIN #chat')
+      ..add(':s 353 me = #chat :alice me')
+      ..add(':s 366 me #chat :End');
+    await tester.pumpAndSettle();
+
+    await tester.tap(find.byTooltip('People'));
+    await tester.pumpAndSettle();
+    await tester.tap(find.text('alice'));
+    await tester.pumpAndSettle();
+    await tester.tap(find.text('Who is this? (whois)'));
+    await tester.pumpAndSettle();
+    expect(transport.written.last, 'WHOIS alice');
+
+    transport.incoming
+      ..add(':s 311 me alice ~a host.example * :Alice Example')
+      ..add(':s 318 me alice :End of /WHOIS list.')
+      ..add(':s 372 me :- MOTD line');
+    await tester.pumpAndSettle();
+    expect(
+      find.textContaining(
+        'alice ~a host.example * Alice Example',
+        findRichText: true,
+      ),
+      findsOneWidget,
+    );
+    // Unrelated server lines still go to the server tab.
+    expect(find.textContaining('MOTD line', findRichText: true), findsNothing);
+
+    await tester.pumpWidget(const SizedBox());
+    await tester.pump(const Duration(seconds: 1));
+  });
 }
 
 class _FailingTransport implements IrcTransport {
