@@ -9,6 +9,7 @@ import 'package:irc_client/core/irc/irc_events.dart';
 import 'package:irc_client/core/theme/app_theme.dart';
 import 'package:irc_client/features/chat/application/chat_controller.dart';
 import 'package:irc_client/features/favorites/application/room_prefs_controller.dart';
+import 'package:irc_client/features/rooms/presentation/room_dialogs.dart';
 import 'package:material_ui/material_ui.dart';
 
 /// The main chat view: conversation list, messages, input and nick list.
@@ -102,6 +103,14 @@ class ChatScreen extends ConsumerWidget {
                   await controller.clearHistory(buffer!.key);
                 case 'add':
                   context.go('/');
+                case 'create':
+                  await showCreateRoomDialog(context, ref);
+                case 'settings':
+                  await showRoomSettings(
+                    context,
+                    networkId: net!.id,
+                    channel: channel!.name,
+                  );
                 case 'disconnect':
                   await controller.disconnect();
                 case 'reconnect':
@@ -115,6 +124,15 @@ class ChatScreen extends ConsumerWidget {
               }
             },
             itemBuilder: (_) => [
+              if (channel != null)
+                const PopupMenuItem(
+                  value: 'settings',
+                  child: Text('Room settings'),
+                ),
+              const PopupMenuItem(
+                value: 'create',
+                child: Text('Create a room'),
+              ),
               if (buffer != null && !buffer.isStatus)
                 PopupMenuItem(
                   value: 'close',
@@ -153,7 +171,14 @@ class ChatScreen extends ConsumerWidget {
                 child: _NickList(
                   channel: channel,
                   onNickTap: (nick) => unawaited(
-                    showUserActions(context, controller, net!.nick, nick),
+                    showUserActions(
+                      context,
+                      controller,
+                      net!.nick,
+                      nick,
+                      network: net,
+                      room: channel.name,
+                    ),
                   ),
                 ),
               ),
@@ -171,6 +196,28 @@ class ChatScreen extends ConsumerWidget {
                       network: net,
                       controller: controller,
                     ),
+                  for (final n in state.networks.values)
+                    for (final invite in n.invites.take(1))
+                      MaterialBanner(
+                        leading: const Icon(Icons.mail_lock_outlined),
+                        content: Text(
+                          '${invite.from} invited you to ${invite.channel}'
+                          '${state.networks.length > 1 ? ' on ${n.label}' : ''}'
+                          '.',
+                        ),
+                        actions: [
+                          TextButton(
+                            onPressed: () =>
+                                controller.dismissInvite(n.id, invite),
+                            child: const Text('Ignore'),
+                          ),
+                          FilledButton(
+                            onPressed: () =>
+                                controller.acceptInvite(n.id, invite),
+                            child: const Text('Join'),
+                          ),
+                        ],
+                      ),
                   Expanded(
                     child: _MessageList(
                       lines: buffer?.lines ?? [],
@@ -180,6 +227,8 @@ class ChatScreen extends ConsumerWidget {
                           controller,
                           net?.nick ?? '',
                           nick,
+                          network: net,
+                          room: channel?.name,
                         ),
                       ),
                     ),
@@ -344,50 +393,108 @@ class _BufferList extends StatelessWidget {
   }
 }
 
-/// Actions for another user: private message, whois, copy nick.
+/// Actions for another user: private message, whois, copy nick, invite,
+/// and (for the room's operators) make operator, remove and ban.
 Future<void> showUserActions(
   BuildContext context,
   ChatController controller,
   String ownNick,
-  String nick,
-) async {
+  String nick, {
+  NetworkSession? network,
+  String? room,
+}) async {
   final isMe = nick.toLowerCase() == ownNick.toLowerCase();
+  final client = network?.client;
+  final inRoom =
+      room != null &&
+      (client?.channel(room)?.members.containsKey(nick.toLowerCase()) ?? false);
+  final canModerate =
+      !isMe && room != null && inRoom && (client?.isOperator(room) ?? false);
+  // Rooms we're in that this person isn't in, for "Invite to".
+  final inviteTo = isMe || client == null
+      ? const <String>[]
+      : [
+          for (final c in client.channels.values)
+            if (!c.members.containsKey(nick.toLowerCase())) c.name,
+        ];
   await showModalBottomSheet<void>(
     context: context,
     showDragHandle: true,
+    isScrollControlled: true,
     builder: (sheet) => SafeArea(
-      child: Column(
-        mainAxisSize: MainAxisSize.min,
-        children: [
-          ListTile(
-            title: Text(nick, style: Theme.of(sheet).textTheme.titleMedium),
-          ),
-          if (!isMe)
+      child: SingleChildScrollView(
+        child: Column(
+          mainAxisSize: MainAxisSize.min,
+          children: [
             ListTile(
-              leading: const Icon(Icons.chat_bubble_outline),
-              title: const Text('Send private message'),
+              title: Text(nick, style: Theme.of(sheet).textTheme.titleMedium),
+            ),
+            if (!isMe)
+              ListTile(
+                leading: const Icon(Icons.chat_bubble_outline),
+                title: const Text('Send private message'),
+                onTap: () {
+                  Navigator.pop(sheet);
+                  controller.openPrivateChat(nick);
+                },
+              ),
+            ListTile(
+              leading: const Icon(Icons.info_outline),
+              title: const Text('Who is this? (whois)'),
               onTap: () {
                 Navigator.pop(sheet);
-                controller.openPrivateChat(nick);
+                controller.whoisUser(nick);
               },
             ),
-          ListTile(
-            leading: const Icon(Icons.info_outline),
-            title: const Text('Who is this? (whois)'),
-            onTap: () {
-              Navigator.pop(sheet);
-              controller.whoisUser(nick);
-            },
-          ),
-          ListTile(
-            leading: const Icon(Icons.copy),
-            title: const Text('Copy nickname'),
-            onTap: () {
-              Navigator.pop(sheet);
-              _copyNick(nick);
-            },
-          ),
-        ],
+            ListTile(
+              leading: const Icon(Icons.copy),
+              title: const Text('Copy nickname'),
+              onTap: () {
+                Navigator.pop(sheet);
+                _copyNick(nick);
+              },
+            ),
+            for (final c in inviteTo)
+              ListTile(
+                leading: const Icon(Icons.person_add_alt),
+                title: Text('Invite to $c'),
+                onTap: () {
+                  Navigator.pop(sheet);
+                  controller.inviteUser(nick, c, networkId: network!.id);
+                },
+              ),
+            if (canModerate) ...[
+              const Divider(),
+              ListTile(
+                leading: const Icon(Icons.shield_outlined),
+                title: Text('Make operator of $room'),
+                onTap: () {
+                  Navigator.pop(sheet);
+                  controller.makeOperator(room, nick, networkId: network!.id);
+                },
+              ),
+              ListTile(
+                leading: const Icon(Icons.logout),
+                title: Text('Remove from $room'),
+                onTap: () {
+                  Navigator.pop(sheet);
+                  controller.kickUser(room, nick, networkId: network!.id);
+                },
+              ),
+              ListTile(
+                leading: Icon(
+                  Icons.block,
+                  color: Theme.of(sheet).colorScheme.error,
+                ),
+                title: Text('Ban from $room'),
+                onTap: () {
+                  Navigator.pop(sheet);
+                  controller.banUser(room, nick, networkId: network!.id);
+                },
+              ),
+            ],
+          ],
+        ),
       ),
     ),
   );

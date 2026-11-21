@@ -5,6 +5,7 @@ import 'package:irc_client/core/irc/irc_events.dart';
 import 'package:irc_client/features/chat/application/chat_controller.dart';
 import 'package:irc_client/features/discovery/domain/room_filter.dart';
 import 'package:irc_client/features/favorites/application/room_prefs_controller.dart';
+import 'package:irc_client/features/rooms/presentation/room_dialogs.dart';
 import 'package:material_ui/material_ui.dart';
 
 /// Lists every room on every connected network, with search, sort, a size
@@ -97,6 +98,18 @@ class _RoomBrowserScreenState extends ConsumerState<RoomBrowserScreen> {
     final loading = state.roomsLoading;
 
     return Scaffold(
+      floatingActionButton: connected.isEmpty
+          ? null
+          : FloatingActionButton.extended(
+              icon: const Icon(Icons.add),
+              label: const Text('Create room'),
+              onPressed: () async {
+                final created = await showCreateRoomDialog(context, ref);
+                if (created && context.mounted && context.canPop()) {
+                  context.pop();
+                }
+              },
+            ),
       appBar: AppBar(
         title: Text(
           networks.length == 1

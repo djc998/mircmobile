@@ -713,6 +713,142 @@ void main() {
     await tester.pumpWidget(const SizedBox());
     await tester.pump(const Duration(seconds: 1));
   });
+
+  testWidgets('create a private room, change its settings and keep it', (
+    tester,
+  ) async {
+    tester.view.physicalSize = const Size(800, 1800);
+    tester.view.devicePixelRatio = 1;
+    addTearDown(tester.view.reset);
+    final transport = FakeTransport();
+    // Flood control (which uses the real clock) spaces out lines after a
+    // burst of five, so let real time pass before checking what was sent.
+    Future<void> flush() async {
+      await tester.runAsync(
+        () => Future<void>.delayed(const Duration(milliseconds: 1600)),
+      );
+      await tester.pump(const Duration(seconds: 2));
+      await tester.pumpAndSettle();
+    }
+
+    await tester.pumpWidget(
+      ProviderScope(
+        overrides: [
+          transportFactoryProvider.overrideWithValue(
+            (host, port, {required useTls, trustedFingerprints = const {}}) =>
+                transport,
+          ),
+        ],
+        child: const IrcApp(),
+      ),
+    );
+    await tester.enterText(find.widgetWithText(TextField, 'Nickname'), 'me');
+    await tester.tap(find.text('Libera.Chat'));
+    await tester.pumpAndSettle();
+    transport.incoming.add(':s 001 me :Welcome');
+    await tester.pumpAndSettle();
+
+    // Create a room with a password, private and hidden by default.
+    await tester.tap(find.byType(PopupMenuButton<String>));
+    await tester.pumpAndSettle();
+    await tester.tap(find.text('Create a room'));
+    await tester.pumpAndSettle();
+    await tester.enterText(
+      find.widgetWithText(TextField, 'Room name'),
+      'friends',
+    );
+    await tester.tap(find.widgetWithText(SwitchListTile, 'Password'));
+    await tester.pumpAndSettle();
+    await tester.enterText(
+      find.widgetWithText(TextField, 'Room password'),
+      'pw',
+    );
+    await tester.tap(find.text('Create'));
+    await tester.pumpAndSettle();
+    expect(transport.written.last, 'JOIN #friends pw');
+
+    // The server makes us its operator; the app applies the settings.
+    transport.incoming
+      ..add(':me!u@h JOIN #friends')
+      ..add(':s 353 me = #friends :@me')
+      ..add(':s 366 me #friends :End')
+      ..add(':s 324 me #friends +n');
+    await tester.pumpAndSettle();
+    expect(transport.written, contains('MODE #friends'));
+    expect(transport.written.last, 'MODE #friends +istk pw');
+    expect(find.widgetWithText(AppBar, '#friends'), findsOneWidget);
+    expect(
+      find.textContaining('You created #friends', findRichText: true),
+      findsOneWidget,
+    );
+    transport.incoming.add(':me!u@h MODE #friends +istk pw');
+    await tester.pumpAndSettle();
+    expect(
+      find.textContaining('invite only on', findRichText: true),
+      findsOneWidget,
+    );
+
+    // Room settings: turn Private off, invite bob, keep the room.
+    await tester.tap(find.byType(PopupMenuButton<String>));
+    await tester.pumpAndSettle();
+    await tester.tap(find.text('Room settings'));
+    await tester.pumpAndSettle();
+    expect(find.textContaining('You run this room'), findsOneWidget);
+    await tester.tap(find.widgetWithText(SwitchListTile, 'Private'));
+    await tester.pumpAndSettle();
+    expect(transport.written.last, 'MODE #friends -i');
+
+    await tester.enterText(find.widgetWithText(TextField, 'Nickname'), 'bob');
+    await tester.tap(find.widgetWithText(FilledButton, 'Invite'));
+    await tester.pumpAndSettle();
+    expect(transport.written.last, 'INVITE bob #friends');
+
+    // Let the "Invited bob" snack bar go away.
+    await tester.pump(const Duration(seconds: 5));
+    await tester.pumpAndSettle();
+    await tester.ensureVisible(find.text('Keep this room').last);
+    await tester.pumpAndSettle();
+    await tester.tap(find.widgetWithText(FilledButton, 'Keep this room'));
+    await flush();
+    expect(transport.written.last, 'PRIVMSG ChanServ :REGISTER #friends');
+    expect(find.widgetWithText(AppBar, 'ChanServ'), findsOneWidget);
+
+    // Someone invites us: a banner offers Join.
+    transport.incoming.add(':alice!a@h INVITE me #club');
+    await tester.pumpAndSettle();
+    expect(find.text('alice invited you to #club.'), findsOneWidget);
+    await tester.tap(find.widgetWithText(FilledButton, 'Join'));
+    await flush();
+    expect(transport.written.last, 'JOIN #club');
+    expect(find.text('alice invited you to #club.'), findsNothing);
+
+    // Creating a room someone else already runs changes nothing.
+    await tester.tap(find.byType(PopupMenuButton<String>));
+    await tester.pumpAndSettle();
+    await tester.tap(find.text('Create a room'));
+    await tester.pumpAndSettle();
+    await tester.enterText(
+      find.widgetWithText(TextField, 'Room name'),
+      'taken',
+    );
+    await tester.tap(find.text('Create'));
+    await flush();
+    expect(transport.written.last, 'JOIN #taken');
+    transport.incoming
+      ..add(':me!u@h JOIN #taken')
+      ..add(':s 353 me = #taken :@carol me')
+      ..add(':s 366 me #taken :End')
+      ..add(':s 324 me #taken +nt');
+    await flush();
+    expect(transport.written.last, 'MODE #taken');
+    expect(
+      find.textContaining('someone else runs it', findRichText: true),
+      findsOneWidget,
+    );
+
+    await tester.pumpWidget(const SizedBox());
+    await tester.pump(const Duration(seconds: 1));
+  });
 }
 
 class _FailingTransport implements IrcTransport {

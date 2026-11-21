@@ -7,6 +7,16 @@ and the project uses [Semantic Versioning](https://semver.org/).
 ## [Unreleased]
 
 ### Added
+- Your own rooms without commands (iOS, Android, macOS). **Create a room**
+  (chat menu, or the room browser) with Private, Hidden and Password
+  switches. **Room settings** changes them, sets or removes the password and
+  invites people. The people list adds **Invite to**, and for rooms you run
+  **Make operator**, **Remove** and **Ban**. Invitations show a Join/Ignore
+  banner. **Keep this room** registers the room with ChanServ (Libera.Chat,
+  OFTC, Rizon, DALnet), with a guided nickname registration; Undernet and
+  EFnet explain why they can't. Room setting changes show in words. New
+  commands: `/mode`, `/invite`, `/kick`, `/ban`, `/op`, `/deop`, `/voice`,
+  `/devoice`. See [docs/features/private-rooms.md](docs/features/private-rooms.md).
 - Saved chat history (iOS, Android, macOS). Rooms and private chats keep
   their messages after a disconnect or an app restart, marked **Saved
   messages above**. **Continue** rejoins the rooms and reopens the private

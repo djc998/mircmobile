@@ -85,6 +85,24 @@ class IrcChannel {
 
   /// Members keyed by case-folded nick.
   final Map<String, IrcMember> members = {};
+
+  /// Flag modes without arguments, e.g. `{'n', 't', 'i', 's'}`.
+  final Set<String> modes = {};
+
+  /// Join password (+k), if any.
+  String? key;
+
+  /// User limit (+l), if any.
+  int? limit;
+
+  /// Whether [modes] reflect the server yet (after 324 or a MODE).
+  bool modesKnown = false;
+
+  bool get isInviteOnly => modes.contains('i');
+  bool get isSecret => modes.contains('s');
+  bool get isTopicLocked => modes.contains('t');
+  bool get isModerated => modes.contains('m');
+  bool get hasKey => key != null;
 }
 
 /// A single IRC connection.
@@ -342,6 +360,25 @@ class IrcClient {
 
   void whois(String nick) => sendRaw('WHOIS $nick');
 
+  /// Asks for a channel's modes (reply: 324).
+  void requestModes(String channel) => sendRaw('MODE $channel');
+
+  /// Changes channel modes, e.g. `setModes('#room', '+ik', ['secret'])`.
+  void setModes(String channel, String modes, [List<String> args = const []]) =>
+      sendRaw(['MODE', channel, modes, ...args].join(' '));
+
+  void invite(String nick, String channel) => sendRaw('INVITE $nick $channel');
+
+  void kick(String channel, String nick, {String? reason}) => sendRaw(
+    reason == null || reason.isEmpty
+        ? 'KICK $channel $nick'
+        : 'KICK $channel $nick :$reason',
+  );
+
+  /// Bans [nick] from [channel] by nickname mask (`nick!*@*`).
+  void ban(String channel, String nick) =>
+      setModes(channel, '+b', ['$nick!*@*']);
+
   /// Requests the channel list. Uses the ELIST `>n` filter when supported,
   /// otherwise filters [minUsers] locally when the results arrive.
   void list({int? minUsers, String? mask}) {
@@ -494,6 +531,25 @@ class IrcClient {
         _onQuit(from, m.param(0), time);
       case 'MODE':
         _onMode(m);
+      case '324':
+        // RPL_CHANNELMODEIS: me #chan +modes args
+        final chan = channel(m.param(1) ?? '');
+        if (chan != null) {
+          chan
+            ..modes.clear()
+            ..key = null
+            ..limit = null;
+          _applyChannelModes(chan, m.params.sublist(2));
+          _emit(
+            ChannelModeEvent(
+              channel: chan.name,
+              change: m.params.sublist(2).join(' '),
+              time: time,
+            ),
+          );
+        }
+      case 'INVITE':
+        _emit(InviteEvent(from: from, channel: m.param(1) ?? '', time: time));
       case 'TOPIC':
         _setChannelTopic(m.param(0) ?? '', m.param(1) ?? '', from);
       case '332':
@@ -568,6 +624,8 @@ class IrcClient {
     chan?.members[_isupport.fold(nick)] = IrcMember(nick);
     _emit(JoinEvent(channel: name, nick: nick, isSelf: self, time: time));
     _emit(MembersChangedEvent(name));
+    // Learn the room's settings (invite only, password, ...).
+    if (self) requestModes(name);
   }
 
   void _onPart(
@@ -659,17 +717,36 @@ class IrcClient {
     final target = m.param(0) ?? '';
     final chan = channel(target);
     if (chan == null || m.params.length < 2) return;
-    final modes = m.params[1];
-    final args = m.params.sublist(2);
+    final membersChanged = _applyChannelModes(chan, m.params.sublist(1));
+    _emit(
+      ChannelModeEvent(
+        channel: chan.name,
+        change: m.params.sublist(1).join(' '),
+        setBy: m.prefix?.nick,
+        time: m.serverTime,
+      ),
+    );
+    if (membersChanged) _emit(MembersChangedEvent(chan.name));
+  }
+
+  /// Applies `+modes args...` to [chan]. Returns true when a member's
+  /// prefix (op, voice, ...) changed.
+  bool _applyChannelModes(IrcChannel chan, List<String> params) {
+    if (params.isEmpty) return false;
+    final modes = params.first;
+    final args = params.sublist(1);
     final chanmodes = (_isupport.tokens['CHANMODES'] ?? 'b,k,l,imnpst').split(
       ',',
     );
-    final alwaysArg = chanmodes.isNotEmpty ? chanmodes[0] : '';
-    final listArg = chanmodes.length > 1 ? chanmodes[1] : '';
+    // Type A (lists, e.g. bans), B (always an argument, e.g. key),
+    // C (argument only when set, e.g. limit), D (flags).
+    final listArg = chanmodes.isNotEmpty ? chanmodes[0] : '';
+    final alwaysArg = chanmodes.length > 1 ? chanmodes[1] : '';
     final setArg = chanmodes.length > 2 ? chanmodes[2] : '';
     var adding = true;
     var argIndex = 0;
     var changed = false;
+    String? nextArg() => argIndex < args.length ? args[argIndex++] : null;
     for (final c in modes.split('')) {
       if (c == '+' || c == '-') {
         adding = c == '+';
@@ -677,21 +754,50 @@ class IrcClient {
       }
       final symbol = _isupport.prefixes[c];
       if (symbol != null) {
-        if (argIndex >= args.length) break;
-        final member = chan.members[_isupport.fold(args[argIndex++])];
+        final nick = nextArg();
+        if (nick == null) break;
+        final member = chan.members[_isupport.fold(nick)];
         if (member != null) {
           member.prefixes = adding
               ? _sortPrefixes(member.prefixes + symbol)
               : member.prefixes.replaceAll(symbol, '');
           changed = true;
         }
-      } else if (alwaysArg.contains(c) ||
-          listArg.contains(c) ||
-          (adding && setArg.contains(c))) {
-        argIndex++;
+      } else if (listArg.contains(c)) {
+        nextArg();
+      } else if (alwaysArg.contains(c)) {
+        final arg = nextArg();
+        if (c == 'k') chan.key = adding ? arg : null;
+      } else if (setArg.contains(c)) {
+        if (adding) {
+          final arg = nextArg();
+          if (c == 'l') chan.limit = int.tryParse(arg ?? '');
+        } else if (c == 'l') {
+          chan.limit = null;
+        }
+      } else if (adding) {
+        chan.modes.add(c);
+      } else {
+        chan.modes.remove(c);
       }
     }
-    if (changed) _emit(MembersChangedEvent(chan.name));
+    chan.modesKnown = true;
+    return changed;
+  }
+
+  /// Whether we are an operator (or higher) in [name].
+  bool isOperator(String name) {
+    final me = channel(name)?.members[_isupport.fold(_nick)];
+    if (me == null) return false;
+    // Prefix symbols are ordered highest first; op is the one for 'o'.
+    final order = _isupport.prefixSymbols;
+    final op = _isupport.prefixes['o'] ?? '@';
+    final opRank = order.indexOf(op);
+    if (opRank == -1) return me.prefixes.contains(op);
+    return me.prefixes.split('').any((p) {
+      final rank = order.indexOf(p);
+      return rank >= 0 && rank <= opRank;
+    });
   }
 
   String _sortPrefixes(String prefixes) {

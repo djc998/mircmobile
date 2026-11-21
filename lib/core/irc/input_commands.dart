@@ -40,6 +40,12 @@ const Map<String, String> inputCommandHelp = {
   '/whois nick': 'Look up a user',
   '/notice target message': 'Send a notice',
   '/list [min users]': 'List channels on the network',
+  '/mode [#channel] +modes [args]': 'Change room settings (operators)',
+  '/invite nick [#channel]': 'Invite someone to a room',
+  '/kick nick [reason]': 'Remove someone from the room (operators)',
+  '/ban nick': 'Ban someone from the room (operators)',
+  '/op nick, /deop nick': 'Give or take operator status',
+  '/voice nick, /devoice nick': 'Give or take voice',
   '/quote raw line': 'Send a raw IRC command',
   '/quit [reason]': 'Disconnect',
 };
@@ -129,6 +135,44 @@ InputResult runInput(IrcClient client, String input, {String? target}) {
       client.whois(args[0]);
     case 'list':
       client.list(minUsers: args.isEmpty ? null : int.tryParse(args[0]));
+    case 'mode':
+      var channel = target;
+      var from = 0;
+      if (args.isNotEmpty && client.isChannel(args[0])) {
+        channel = args[0];
+        from = 1;
+      }
+      if (channel == null || !client.isChannel(channel)) {
+        return const InputError('Usage: /mode #channel +modes [args]');
+      }
+      if (args.length <= from) {
+        client.requestModes(channel);
+      } else {
+        client.setModes(channel, args[from], args.sublist(from + 1));
+      }
+    case 'invite':
+      final channel = args.length > 1 ? args[1] : target;
+      if (args.isEmpty || channel == null || !client.isChannel(channel)) {
+        return const InputError('Usage: /invite nick #channel');
+      }
+      client.invite(args[0], channel);
+    case 'kick' || 'k':
+      if (args.isEmpty || target == null || !client.isChannel(target)) {
+        return const InputError('Usage (in a room): /kick nick [reason]');
+      }
+      client.kick(target, args[0], reason: restAfter(1));
+    case 'ban':
+      if (args.isEmpty || target == null || !client.isChannel(target)) {
+        return const InputError('Usage (in a room): /ban nick');
+      }
+      client.ban(target, args[0]);
+    case 'op' || 'deop' || 'voice' || 'devoice':
+      if (args.isEmpty || target == null || !client.isChannel(target)) {
+        return InputError('Usage (in a room): /$command nick');
+      }
+      final mode = command.endsWith('op') ? 'o' : 'v';
+      final sign = command.startsWith('de') ? '-' : '+';
+      client.setModes(target, '$sign${mode * args.length}', args);
     case 'quote' || 'raw':
       if (rest.isEmpty) return const InputError('Usage: /quote RAW LINE');
       client.sendRaw(rest);
