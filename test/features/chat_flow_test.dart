@@ -4,6 +4,7 @@ import 'package:flutter_riverpod/flutter_riverpod.dart';
 import 'package:flutter_test/flutter_test.dart';
 import 'package:irc_client/app/app.dart';
 import 'package:irc_client/core/irc/irc_transport.dart';
+import 'package:irc_client/core/storage/app_storage.dart';
 import 'package:irc_client/features/chat/application/chat_controller.dart';
 import 'package:material_ui/material_ui.dart';
 
@@ -164,6 +165,101 @@ void main() {
     await tester.pumpAndSettle();
     expect(transport.written.length, sent);
     expect(find.text('3 of 3 rooms'), findsOneWidget);
+
+    await tester.pumpWidget(const SizedBox());
+    await tester.pump(const Duration(seconds: 1));
+  });
+
+  testWidgets('favorites and recents are remembered for the next launch', (
+    tester,
+  ) async {
+    // A tall phone screen so the whole start form fits.
+    tester.view.physicalSize = const Size(800, 1800);
+    tester.view.devicePixelRatio = 1;
+    addTearDown(tester.view.reset);
+    final store = MemoryKeyValueStore();
+    final secrets = MemorySecretStore();
+    var transport = FakeTransport();
+
+    Future<void> launch() async {
+      await tester.pumpWidget(const SizedBox());
+      await tester.pumpWidget(
+        ProviderScope(
+          overrides: [
+            keyValueStoreProvider.overrideWithValue(store),
+            secretStoreProvider.overrideWithValue(secrets),
+            transportFactoryProvider.overrideWithValue(
+              (host, port, {required useTls}) => transport,
+            ),
+          ],
+          child: const IrcApp(),
+        ),
+      );
+      await tester.pumpAndSettle();
+    }
+
+    // First launch: log in with an account and join two rooms.
+    await launch();
+    expect(find.textContaining('Continue on'), findsNothing);
+    await tester.enterText(find.widgetWithText(TextField, 'Nickname'), 'me');
+    await tester.tap(find.text('Log in with a registered account'));
+    await tester.pumpAndSettle();
+    await tester.enterText(
+      find.widgetWithText(TextField, 'Account name'),
+      'meacct',
+    );
+    await tester.enterText(find.widgetWithText(TextField, 'Password'), 'pw1');
+    await tester.tap(find.text('Libera.Chat'));
+    await tester.pumpAndSettle();
+    transport.incoming
+      ..add(':s 001 me :Welcome')
+      ..add(':me!u@h JOIN #first')
+      ..add(':me!u@h JOIN #second');
+    await tester.pumpAndSettle();
+
+    // Star #second (the open room).
+    expect(find.text('#second'), findsOneWidget);
+    await tester.tap(find.byTooltip('Add to favorites'));
+    await tester.pumpAndSettle();
+    expect(find.byTooltip('Remove from favorites'), findsOneWidget);
+
+    // Password went to the secret store, not plain settings.
+    expect(secrets.values.values, contains('pw1'));
+    expect(store.values.values.join(), isNot(contains('pw1')));
+
+    // Second launch: settings are prefilled and Continue rejoins favorites.
+    transport = FakeTransport();
+    await launch();
+    expect(find.text('Continue on Libera.Chat'), findsOneWidget);
+    expect(find.textContaining('rejoins #second'), findsOneWidget);
+    expect(find.widgetWithText(TextField, 'me'), findsOneWidget);
+    expect(find.widgetWithText(TextField, 'meacct'), findsOneWidget);
+
+    await tester.tap(find.text('Continue on Libera.Chat'));
+    await tester.pumpAndSettle();
+    transport.incoming
+      ..add(':s CAP * LS :sasl')
+      ..add(':s CAP * ACK :sasl')
+      ..add('AUTHENTICATE +')
+      ..add(':s 903 me :SASL authentication successful')
+      ..add(':s 001 me :Welcome');
+    await tester.pumpAndSettle();
+    expect(transport.written, contains('JOIN #second'));
+    expect(
+      transport.written.where((l) => l.startsWith('AUTHENTICATE ')).length,
+      2,
+    );
+
+    // The room browser shows recent rooms as quick-join chips.
+    await tester.tap(find.byTooltip('Browse rooms'));
+    await tester.pump();
+    await tester.pump(const Duration(milliseconds: 500));
+    expect(find.text('Recent:'), findsOneWidget);
+    expect(find.widgetWithText(ActionChip, '#first'), findsOneWidget);
+    await tester.tap(find.widgetWithText(ActionChip, '#first'));
+    await tester.pump();
+    await tester.pump(const Duration(milliseconds: 500));
+    expect(transport.written.last, 'JOIN #first');
 
     await tester.pumpWidget(const SizedBox());
     await tester.pump(const Duration(seconds: 1));

@@ -1,0 +1,94 @@
+/// Small storage abstractions so features don't depend on plugins directly.
+///
+/// `main.dart` overrides the providers with real storage (shared_preferences
+/// and the platform keychain/keystore). The in-memory defaults keep tests
+/// and previews free of platform channels.
+library;
+
+import 'package:flutter_riverpod/flutter_riverpod.dart';
+import 'package:flutter_secure_storage/flutter_secure_storage.dart';
+import 'package:shared_preferences/shared_preferences.dart';
+
+/// Non-secret settings (nickname, favorites, ...).
+abstract interface class KeyValueStore {
+  String? getString(String key);
+  Future<void> setString(String key, String value);
+  Future<void> remove(String key);
+}
+
+/// Secrets such as account passwords. Backed by the iOS/macOS Keychain and
+/// Android Keystore-encrypted storage.
+abstract interface class SecretStore {
+  Future<String?> read(String key);
+  Future<void> write(String key, String value);
+  Future<void> delete(String key);
+}
+
+class PrefsKeyValueStore implements KeyValueStore {
+  PrefsKeyValueStore(this._prefs);
+
+  final SharedPreferences _prefs;
+
+  @override
+  String? getString(String key) => _prefs.getString(key);
+
+  @override
+  Future<void> setString(String key, String value) =>
+      _prefs.setString(key, value);
+
+  @override
+  Future<void> remove(String key) => _prefs.remove(key);
+}
+
+class MemoryKeyValueStore implements KeyValueStore {
+  MemoryKeyValueStore([Map<String, String>? initial]) : values = {...?initial};
+
+  final Map<String, String> values;
+
+  @override
+  String? getString(String key) => values[key];
+
+  @override
+  Future<void> setString(String key, String value) async => values[key] = value;
+
+  @override
+  Future<void> remove(String key) async => values.remove(key);
+}
+
+class SecureSecretStore implements SecretStore {
+  SecureSecretStore([FlutterSecureStorage? storage])
+    : _storage = storage ?? const FlutterSecureStorage();
+
+  final FlutterSecureStorage _storage;
+
+  @override
+  Future<String?> read(String key) => _storage.read(key: key);
+
+  @override
+  Future<void> write(String key, String value) =>
+      _storage.write(key: key, value: value);
+
+  @override
+  Future<void> delete(String key) => _storage.delete(key: key);
+}
+
+class MemorySecretStore implements SecretStore {
+  final Map<String, String> values = {};
+
+  @override
+  Future<String?> read(String key) async => values[key];
+
+  @override
+  Future<void> write(String key, String value) async => values[key] = value;
+
+  @override
+  Future<void> delete(String key) async => values.remove(key);
+}
+
+/// Overridden in `main.dart` with [PrefsKeyValueStore].
+final keyValueStoreProvider = Provider<KeyValueStore>(
+  (ref) => MemoryKeyValueStore(),
+);
+
+/// Overridden in `main.dart` with [SecureSecretStore].
+final secretStoreProvider = Provider<SecretStore>((ref) => MemorySecretStore());

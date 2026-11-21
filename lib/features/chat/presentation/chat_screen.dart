@@ -4,6 +4,7 @@ import 'package:irc_client/core/irc/irc_client.dart';
 import 'package:irc_client/core/irc/irc_events.dart';
 import 'package:irc_client/core/theme/app_theme.dart';
 import 'package:irc_client/features/chat/application/chat_controller.dart';
+import 'package:irc_client/features/favorites/application/room_prefs_controller.dart';
 import 'package:material_ui/material_ui.dart';
 
 /// The main chat view: conversation list, messages, input and nick list.
@@ -18,8 +19,19 @@ class ChatScreen extends ConsumerWidget {
     final isChannel = buffer?.isChannel ?? false;
     final channel = isChannel ? controller.client?.channel(buffer!.name) : null;
     final wide = MediaQuery.sizeOf(context).width >= 900;
+    final prefs = ref.watch(roomPrefsProvider);
+    final host = controller.host;
+    final favorites = host == null
+        ? const <String>[]
+        : prefs.favoritesFor(host);
+    final isFavorite =
+        channel != null && host != null && prefs.isFavorite(host, channel.name);
 
-    final list = _BufferList(state: state, onSelect: controller.selectBuffer);
+    final list = _BufferList(
+      state: state,
+      favorites: {for (final f in favorites) f.toLowerCase()},
+      onSelect: controller.selectBuffer,
+    );
 
     return Scaffold(
       appBar: AppBar(
@@ -50,6 +62,16 @@ class ChatScreen extends ConsumerWidget {
             icon: const Icon(Icons.add_comment_outlined),
             onPressed: () => _promptJoin(context, controller),
           ),
+          if (channel != null && host != null)
+            IconButton(
+              tooltip: isFavorite
+                  ? 'Remove from favorites'
+                  : 'Add to favorites',
+              icon: Icon(isFavorite ? Icons.star : Icons.star_border),
+              onPressed: () => ref
+                  .read(roomPrefsProvider.notifier)
+                  .toggleFavorite(host, channel.name),
+            ),
           if (channel != null)
             Builder(
               builder: (context) => IconButton(
@@ -152,9 +174,16 @@ class ChatScreen extends ConsumerWidget {
 }
 
 class _BufferList extends StatelessWidget {
-  const _BufferList({required this.state, required this.onSelect});
+  const _BufferList({
+    required this.state,
+    required this.favorites,
+    required this.onSelect,
+  });
 
   final ChatState state;
+
+  /// Lower-cased names of favorite rooms, shown with a star.
+  final Set<String> favorites;
   final void Function(String name) onSelect;
 
   @override
@@ -169,6 +198,8 @@ class _BufferList extends StatelessWidget {
             leading: Icon(
               b.isStatus
                   ? Icons.dns_outlined
+                  : favorites.contains(b.name.toLowerCase())
+                  ? Icons.star
                   : b.isChannel
                   ? Icons.tag
                   : Icons.person_outline,

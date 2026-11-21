@@ -9,6 +9,7 @@ import 'package:irc_client/core/irc/input_commands.dart';
 import 'package:irc_client/core/irc/irc_client.dart';
 import 'package:irc_client/core/irc/irc_events.dart';
 import 'package:irc_client/core/irc/irc_transport.dart';
+import 'package:irc_client/features/favorites/application/room_prefs_controller.dart';
 
 /// Name of the server/status buffer.
 const String statusBuffer = '*status';
@@ -122,6 +123,9 @@ class ChatController extends Notifier<ChatState> {
   StreamSubscription<IrcEvent>? _sub;
 
   IrcClient? get client => _client;
+
+  /// Host of the current network; favorites and recents are keyed by it.
+  String? get host => _client?.config.host;
 
   @override
   ChatState build() {
@@ -339,7 +343,13 @@ class ChatController extends Notifier<ChatState> {
           ),
           countUnread: false,
         );
-        if (isSelf) selectBuffer(channel);
+        if (isSelf) {
+          selectBuffer(channel);
+          final host = this.host;
+          if (host != null) {
+            ref.read(roomPrefsProvider.notifier).addRecent(host, channel);
+          }
+        }
       case PartEvent(:final channel, :final nick, :final isSelf):
         final what = e.kickedBy != null
             ? '$nick was kicked by ${e.kickedBy}'
