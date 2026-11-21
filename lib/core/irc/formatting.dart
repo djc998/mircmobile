@@ -16,3 +16,32 @@ String stripFormatting(String text) => text.replaceAll(_formatting, '');
 bool isValidNick(String nick) =>
     RegExp(r'^[A-Za-z\[\]\\`_^{|}][A-Za-z0-9\[\]\\`_^{|}-]{0,29}$')
         .hasMatch(nick);
+
+/// Characters that can be part of a nickname besides letters and digits.
+const String _nickChars = r'A-Za-z0-9_\-\[\]\\{}|^`';
+
+/// Whether [text] mentions [nick] as a whole word, ignoring case. "al"
+/// matches "hi al!" but not "also".
+bool mentions(String text, String nick) {
+  if (nick.isEmpty) return false;
+  return RegExp(
+    '(^|[^$_nickChars])${RegExp.escape(nick)}(\$|[^$_nickChars])',
+    caseSensitive: false,
+  ).hasMatch(text);
+}
+
+/// Completes the last word of [text] to a nickname from [nicks] (Tab
+/// completion). At the start of the line the name gets `: ` after it, the
+/// usual way to address someone. Returns null when nothing matches.
+String? completeNick(String text, Iterable<String> nicks) {
+  final start = text.lastIndexOf(' ') + 1;
+  final word = text.substring(start).toLowerCase();
+  if (word.isEmpty) return null;
+  final matches = [
+    for (final n in nicks)
+      if (n.toLowerCase().startsWith(word)) n,
+  ]..sort((a, b) => a.toLowerCase().compareTo(b.toLowerCase()));
+  if (matches.isEmpty) return null;
+  return '${text.substring(0, start)}${matches.first}'
+      '${start == 0 ? ': ' : ' '}';
+}

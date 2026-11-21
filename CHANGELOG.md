@@ -7,6 +7,12 @@ and the project uses [Semantic Versioning](https://semver.org/).
 ## [Unreleased]
 
 ### Added
+- Reply to someone in a room (iOS, Android, macOS): a Reply button on each
+  message (brighter on hover on Mac), swipe right or long-press on phones,
+  and **Reply to … here** in the name menu. A "Replying to bob" bar shows
+  above the message box, and sending addresses them as `bob: …` so they are
+  notified. Tab completes nicknames. Lines that mention you are
+  highlighted. See [docs/features/replies-and-mentions.md](docs/features/replies-and-mentions.md).
 - Your own rooms without commands (iOS, Android, macOS). **Create a room**
   (chat menu, or the room browser) with Private, Hidden and Password
   switches. **Room settings** changes them, sets or removes the password and
@@ -41,6 +47,8 @@ and the project uses [Semantic Versioning](https://semver.org/).
   server tab. See [docs/features/private-messages.md](docs/features/private-messages.md).
 
 ### Fixed
+- Mentions now match whole words, so a short nickname like "al" is no
+  longer alerted by words such as "also".
 - Logging in again without retyping the password no longer deletes the
   saved password.
 - The Join and New private message dialogs no longer use their text field

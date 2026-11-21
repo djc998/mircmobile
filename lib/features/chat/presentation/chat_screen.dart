@@ -4,6 +4,7 @@ import 'package:flutter/gestures.dart';
 import 'package:flutter/services.dart';
 import 'package:flutter_riverpod/flutter_riverpod.dart';
 import 'package:go_router/go_router.dart';
+import 'package:irc_client/core/irc/formatting.dart';
 import 'package:irc_client/core/irc/irc_client.dart';
 import 'package:irc_client/core/irc/irc_events.dart';
 import 'package:irc_client/core/theme/app_theme.dart';
@@ -178,6 +179,8 @@ class ChatScreen extends ConsumerWidget {
                       nick,
                       network: net,
                       room: channel.name,
+                      onReply: () =>
+                          controller.startReply(_lastLineFrom(buffer!, nick)),
                     ),
                   ),
                 ),
@@ -221,6 +224,8 @@ class ChatScreen extends ConsumerWidget {
                   Expanded(
                     child: _MessageList(
                       lines: buffer?.lines ?? [],
+                      ownNick: net?.nick ?? '',
+                      onReply: isChannel ? controller.startReply : null,
                       onNickTap: (nick) => unawaited(
                         showUserActions(
                           context,
@@ -229,12 +234,31 @@ class ChatScreen extends ConsumerWidget {
                           nick,
                           network: net,
                           room: channel?.name,
+                          onReply: isChannel
+                              ? () => controller.startReply(
+                                  _lastLineFrom(buffer!, nick),
+                                )
+                              : null,
                         ),
                       ),
                     ),
                   ),
                   const Divider(height: 1),
-                  _InputBar(onSubmit: controller.submit),
+                  _InputBar(
+                    // A new bar per conversation keeps drafts apart.
+                    key: ValueKey(buffer?.key),
+                    onSubmit: controller.submit,
+                    replyTo: buffer?.replyTo,
+                    onCancelReply: controller.cancelReply,
+                    nicks: [
+                      if (channel != null)
+                        for (final m in channel.members.values)
+                          if (m.nick != net?.nick)
+                            m.nick
+                          else if (buffer != null && !buffer.isStatus)
+                            buffer.name,
+                    ],
+                  ),
                 ],
               ),
             ),
@@ -242,6 +266,18 @@ class ChatScreen extends ConsumerWidget {
         ),
       ),
     );
+  }
+
+  /// The latest message from [nick] here, to reply to; a bare line naming
+  /// them when they haven't spoken.
+  static ChatLine _lastLineFrom(ChatBuffer buffer, String nick) {
+    for (final line in buffer.lines.reversed) {
+      if (line.sender?.toLowerCase() == nick.toLowerCase() &&
+          line.kind != ChatLineKind.own) {
+        return line;
+      }
+    }
+    return ChatLine(text: '', sender: nick, kind: ChatLineKind.message);
   }
 
   static String _statusLabel(NetworkSession s) => switch (s.status) {
@@ -402,6 +438,7 @@ Future<void> showUserActions(
   String nick, {
   NetworkSession? network,
   String? room,
+  VoidCallback? onReply,
 }) async {
   final isMe = nick.toLowerCase() == ownNick.toLowerCase();
   final client = network?.client;
@@ -429,6 +466,15 @@ Future<void> showUserActions(
             ListTile(
               title: Text(nick, style: Theme.of(sheet).textTheme.titleMedium),
             ),
+            if (!isMe && onReply != null)
+              ListTile(
+                leading: const Icon(Icons.reply),
+                title: Text('Reply to $nick here'),
+                onTap: () {
+                  Navigator.pop(sheet);
+                  onReply();
+                },
+              ),
             if (!isMe)
               ListTile(
                 leading: const Icon(Icons.chat_bubble_outline),
@@ -506,10 +552,19 @@ void _copyNick(String text) {
 }
 
 class _MessageList extends StatelessWidget {
-  const _MessageList({required this.lines, required this.onNickTap});
+  const _MessageList({
+    required this.lines,
+    required this.ownNick,
+    required this.onNickTap,
+    this.onReply,
+  });
 
   final List<ChatLine> lines;
+  final String ownNick;
   final void Function(String nick) onNickTap;
+
+  /// Null where replies don't apply (server tab, private chats).
+  final void Function(ChatLine line)? onReply;
 
   @override
   Widget build(BuildContext context) {
@@ -519,23 +574,78 @@ class _MessageList extends StatelessWidget {
       itemCount: lines.length,
       itemBuilder: (context, i) {
         final line = lines[lines.length - 1 - i];
-        return _MessageTile(line: line, onNickTap: onNickTap);
+        final canReply =
+            onReply != null &&
+            line.sender != null &&
+            line.kind != ChatLineKind.own &&
+            line.kind != ChatLineKind.event &&
+            line.kind != ChatLineKind.error;
+        return _MessageTile(
+          key: ObjectKey(line),
+          line: line,
+          ownNick: ownNick,
+          onNickTap: onNickTap,
+          onReply: canReply ? () => onReply!(line) : null,
+        );
       },
     );
   }
 }
 
 class _MessageTile extends StatefulWidget {
-  const _MessageTile({required this.line, required this.onNickTap});
+  const _MessageTile({
+    required this.line,
+    required this.ownNick,
+    required this.onNickTap,
+    this.onReply,
+    super.key,
+  });
 
   final ChatLine line;
+  final String ownNick;
   final void Function(String nick) onNickTap;
+  final VoidCallback? onReply;
 
   @override
   State<_MessageTile> createState() => _MessageTileState();
 }
 
 class _MessageTileState extends State<_MessageTile> {
+  bool _hovered = false;
+
+  Future<void> _showLineActions(BuildContext context) {
+    final line = widget.line;
+    final onReply = widget.onReply;
+    return showModalBottomSheet<void>(
+      context: context,
+      showDragHandle: true,
+      builder: (sheet) => SafeArea(
+        child: Column(
+          mainAxisSize: MainAxisSize.min,
+          children: [
+            if (onReply != null)
+              ListTile(
+                leading: const Icon(Icons.reply),
+                title: Text('Reply to ${line.sender}'),
+                onTap: () {
+                  Navigator.pop(sheet);
+                  onReply();
+                },
+              ),
+            ListTile(
+              leading: const Icon(Icons.copy),
+              title: const Text('Copy message'),
+              onTap: () {
+                Navigator.pop(sheet);
+                _copyNick(line.text);
+              },
+            ),
+          ],
+        ),
+      ),
+    );
+  }
+
   // Owned here so it can be disposed with the row.
   late final TapGestureRecognizer _nickTap = TapGestureRecognizer()
     ..onTap = () {
@@ -597,28 +707,104 @@ class _MessageTileState extends State<_MessageTile> {
         style: TextStyle(color: theme.colorScheme.error),
       ),
     };
-    return Padding(
-      padding: const EdgeInsets.symmetric(vertical: 2),
-      child: SelectableText.rich(
+    final mentioned =
+        line.kind != ChatLineKind.own &&
+        line.sender != null &&
+        mentions(line.text, widget.ownNick);
+    final span = TextSpan(
+      style: theme.textTheme.bodyMedium,
+      children: [
         TextSpan(
-          style: theme.textTheme.bodyMedium,
-          children: [
-            TextSpan(
-              text: '$time  ',
-              style: TextStyle(color: muted, fontSize: 12),
+          text: '$time  ',
+          style: TextStyle(color: muted, fontSize: 12),
+        ),
+        body,
+      ],
+    );
+    // Phones: plain text so a swipe can reply; long-press offers Reply and
+    // Copy. Computers: selectable text, reply button on hover.
+    final touch = switch (theme.platform) {
+      TargetPlatform.iOS || TargetPlatform.android => true,
+      _ => false,
+    };
+    final text = touch
+        ? GestureDetector(
+            onLongPress: () => unawaited(_showLineActions(context)),
+            child: Text.rich(span),
+          )
+        : SelectableText.rich(span);
+    final onReply = widget.onReply;
+    Widget row = Container(
+      padding: const EdgeInsets.symmetric(vertical: 2, horizontal: 4),
+      decoration: mentioned
+          ? BoxDecoration(
+              color: theme.colorScheme.tertiaryContainer.withValues(alpha: 0.6),
+              border: Border(
+                left: BorderSide(color: theme.colorScheme.tertiary, width: 3),
+              ),
+            )
+          : null,
+      child: Row(
+        crossAxisAlignment: CrossAxisAlignment.start,
+        children: [
+          Expanded(child: text),
+          if (onReply != null)
+            // Always there for touch and screen readers; brighter on hover.
+            Opacity(
+              opacity: _hovered ? 1 : 0.35,
+              child: IconButton(
+                tooltip: 'Reply to ${line.sender}',
+                visualDensity: VisualDensity.compact,
+                iconSize: 18,
+                icon: const Icon(Icons.reply),
+                onPressed: onReply,
+              ),
             ),
-            body,
-          ],
+        ],
+      ),
+    );
+    if (onReply == null) return row;
+    row = MouseRegion(
+      onEnter: (_) => setState(() => _hovered = true),
+      onExit: (_) => setState(() => _hovered = false),
+      child: row,
+    );
+    // Swipe right on a phone to reply, like other chat apps.
+    return Dismissible(
+      key: ObjectKey(line),
+      direction: DismissDirection.startToEnd,
+      dismissThresholds: const {DismissDirection.startToEnd: 0.25},
+      confirmDismiss: (_) async {
+        onReply();
+        return false;
+      },
+      background: Align(
+        alignment: Alignment.centerLeft,
+        child: Padding(
+          padding: const EdgeInsets.only(left: 8),
+          child: Icon(Icons.reply, color: theme.colorScheme.primary),
         ),
       ),
+      child: row,
     );
   }
 }
 
 class _InputBar extends StatefulWidget {
-  const _InputBar({required this.onSubmit});
+  const _InputBar({
+    required this.onSubmit,
+    required this.onCancelReply,
+    this.replyTo,
+    this.nicks = const [],
+    super.key,
+  });
 
   final void Function(String text) onSubmit;
+  final ChatLine? replyTo;
+  final VoidCallback onCancelReply;
+
+  /// Names Tab completes to.
+  final List<String> nicks;
 
   @override
   State<_InputBar> createState() => _InputBarState();
@@ -629,10 +815,28 @@ class _InputBarState extends State<_InputBar> {
   final _focus = FocusNode();
 
   @override
+  void didUpdateWidget(_InputBar old) {
+    super.didUpdateWidget(old);
+    if (widget.replyTo != null && widget.replyTo != old.replyTo) {
+      _focus.requestFocus();
+    }
+  }
+
+  @override
   void dispose() {
     _controller.dispose();
     _focus.dispose();
     super.dispose();
+  }
+
+  /// Tab completes a nickname, as in mIRC.
+  void _complete() {
+    final done = completeNick(_controller.text, widget.nicks);
+    if (done == null) return;
+    _controller.value = TextEditingValue(
+      text: done,
+      selection: TextSelection.collapsed(offset: done.length),
+    );
   }
 
   void _send() {
@@ -645,33 +849,80 @@ class _InputBarState extends State<_InputBar> {
 
   @override
   Widget build(BuildContext context) {
-    return Padding(
-      padding: const EdgeInsets.fromLTRB(12, 8, 8, 8),
-      child: Row(
-        children: [
-          Expanded(
-            child: TextField(
-              controller: _controller,
-              focusNode: _focus,
-              minLines: 1,
-              maxLines: 5,
-              textInputAction: TextInputAction.send,
-              onSubmitted: (_) => _send(),
-              decoration: const InputDecoration(
-                hintText: 'Message or /command',
-                border: OutlineInputBorder(),
-                isDense: true,
-              ),
+    final theme = Theme.of(context);
+    final reply = widget.replyTo;
+    return Column(
+      mainAxisSize: MainAxisSize.min,
+      children: [
+        if (reply != null)
+          Container(
+            color: theme.colorScheme.surfaceContainerHighest,
+            padding: const EdgeInsets.fromLTRB(12, 4, 4, 4),
+            child: Row(
+              children: [
+                Icon(Icons.reply, size: 18, color: theme.colorScheme.primary),
+                const SizedBox(width: 8),
+                Expanded(
+                  child: Text.rich(
+                    TextSpan(
+                      children: [
+                        TextSpan(
+                          text: 'Replying to ${reply.sender}',
+                          style: const TextStyle(fontWeight: FontWeight.bold),
+                        ),
+                        if (reply.text.isNotEmpty)
+                          TextSpan(text: ': ${reply.text}'),
+                      ],
+                    ),
+                    maxLines: 1,
+                    overflow: TextOverflow.ellipsis,
+                  ),
+                ),
+                IconButton(
+                  tooltip: 'Cancel reply',
+                  visualDensity: VisualDensity.compact,
+                  icon: const Icon(Icons.close, size: 18),
+                  onPressed: widget.onCancelReply,
+                ),
+              ],
             ),
           ),
-          const SizedBox(width: 8),
-          IconButton.filled(
-            tooltip: 'Send',
-            onPressed: _send,
-            icon: const Icon(Icons.send),
+        Padding(
+          padding: const EdgeInsets.fromLTRB(12, 8, 8, 8),
+          child: Row(
+            children: [
+              Expanded(
+                child: CallbackShortcuts(
+                  bindings: {
+                    const SingleActivator(LogicalKeyboardKey.tab): _complete,
+                  },
+                  child: TextField(
+                    controller: _controller,
+                    focusNode: _focus,
+                    minLines: 1,
+                    maxLines: 5,
+                    textInputAction: TextInputAction.send,
+                    onSubmitted: (_) => _send(),
+                    decoration: InputDecoration(
+                      hintText: reply == null
+                          ? 'Message or /command'
+                          : 'Reply to ${reply.sender}',
+                      border: const OutlineInputBorder(),
+                      isDense: true,
+                    ),
+                  ),
+                ),
+              ),
+              const SizedBox(width: 8),
+              IconButton.filled(
+                tooltip: 'Send',
+                onPressed: _send,
+                icon: const Icon(Icons.send),
+              ),
+            ],
           ),
-        ],
-      ),
+        ),
+      ],
     );
   }
 }
