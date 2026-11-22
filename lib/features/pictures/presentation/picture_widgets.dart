@@ -249,7 +249,7 @@ class _PictureBubbleState extends ConsumerState<PictureBubble> {
     final load = _load;
     Widget body;
     if (_reported) {
-      body = _note(context, Icons.flag_outlined, 'Picture reported');
+      body = _note(context, Icons.flag_outlined, 'Photo reported');
     } else if (load == null) {
       body = widget.isOwn && widget.link.viewOnce
           ? _note(context, Icons.visibility_off_outlined, 'View-once picture')
@@ -257,8 +257,8 @@ class _PictureBubbleState extends ConsumerState<PictureBubble> {
               icon: const Icon(Icons.image_outlined),
               label: Text(
                 widget.link.viewOnce
-                    ? 'Open view-once picture from ${widget.sender}'
-                    : 'Show picture from ${widget.sender}',
+                    ? 'Open photo from ${widget.sender}'
+                    : 'Show photo from ${widget.sender}',
               ),
               onPressed: _show,
             );
@@ -293,7 +293,7 @@ class _PictureBubbleState extends ConsumerState<PictureBubble> {
               ),
             ),
             child: Semantics(
-              label: 'Picture from ${widget.sender}. Tap to view full size.',
+              label: 'Photo from ${widget.sender}. Tap to view full size.',
               child: ClipRRect(
                 borderRadius: BorderRadius.circular(8),
                 child: ConstrainedBox(
@@ -318,7 +318,7 @@ class _PictureBubbleState extends ConsumerState<PictureBubble> {
           Flexible(child: body),
           if (!widget.isOwn && !_reported)
             PopupMenuButton<String>(
-              tooltip: 'Picture options',
+              tooltip: 'Photo options',
               icon: Icon(Icons.more_vert, color: theme.hintColor, size: 20),
               onSelected: (v) {
                 if (v == 'report') unawaited(_report());
@@ -327,7 +327,7 @@ class _PictureBubbleState extends ConsumerState<PictureBubble> {
               itemBuilder: (_) => [
                 const PopupMenuItem(
                   value: 'report',
-                  child: Text('Report picture'),
+                  child: Text('Report photo'),
                 ),
                 PopupMenuItem(
                   value: 'block',
@@ -384,7 +384,7 @@ class _ReportDialogState extends State<_ReportDialog> {
   @override
   Widget build(BuildContext context) {
     return AlertDialog(
-      title: const Text('Report picture'),
+      title: const Text('Report photo'),
       content: SingleChildScrollView(
         child: Column(
           mainAxisSize: MainAxisSize.min,

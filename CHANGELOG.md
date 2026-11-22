@@ -6,6 +6,15 @@ and the project uses [Semantic Versioning](https://semver.org/).
 
 ## [Unreleased]
 
+### Changed
+- Photo messages are shorter and name the sender: `📷 Photo from dennis:
+  <link>`, instead of "📷 Picture (view once, disappears in 4 hours): ...".
+  How long it lasts is no longer in the message; opening an expired photo
+  (in the app or the browser) says "This photo has expired." In the app the
+  buttons say **Open photo from bob**, **Report photo** and so on
+  (iOS, Android, macOS). The picture server needs redeploying for the new
+  browser wording.
+
 ### Added
 - Share temporary pictures in private chats (iOS, Android, macOS). Tap the
   picture button next to the message box, choose or take a photo, pick how

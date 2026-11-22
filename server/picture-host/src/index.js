@@ -101,11 +101,11 @@ async function raw(env, id, now) {
   if (!ID_PATTERN.test(id)) return json({ error: 'Not found' }, 404);
   const key = `p/${id}`;
   const object = await env.PICTURES.get(key);
-  if (!object) return json({ error: 'This picture has expired' }, 404);
+  if (!object) return json({ error: 'This photo has expired' }, 404);
   const meta = object.customMetadata ?? {};
   if (Number(meta.expiresAt ?? 0) <= now) {
     await env.PICTURES.delete(key);
-    return json({ error: 'This picture has expired' }, 404);
+    return json({ error: 'This photo has expired' }, 404);
   }
   const bytes = await object.arrayBuffer();
   // Every picture is view-once: gone after the first download.
@@ -235,7 +235,7 @@ const VIEWER_HTML = `<!doctype html>
 <html lang="en"><head><meta charset="utf-8">
 <meta name="viewport" content="width=device-width, initial-scale=1">
 <meta name="robots" content="noindex">
-<title>Shared picture</title>
+<title>Shared photo</title>
 <style>
   :root { color-scheme: light dark; }
   body { margin: 0; min-height: 100vh; display: grid; place-items: center;
@@ -243,7 +243,7 @@ const VIEWER_HTML = `<!doctype html>
   img { max-width: 100vw; max-height: 100vh; object-fit: contain; }
   p { padding: 16px; text-align: center; }
 </style></head>
-<body><p id="msg">Opening picture…</p>
+<body><p id="msg">Opening photo…</p>
 <script>
 (async () => {
   const msg = document.getElementById('msg');
@@ -251,23 +251,23 @@ const VIEWER_HTML = `<!doctype html>
     const key = new URLSearchParams(location.hash.slice(1)).get('k');
     if (!key) throw new Error('This link is missing its key.');
     // Every picture is view-once.
-    if (!confirm('This picture can be viewed only once. Show it now?')) {
+    if (!confirm('This photo can be viewed only once. Show it now?')) {
       msg.textContent = 'Not opened. Reload to view it.';
       return;
     }
     const res = await fetch(location.pathname + '/raw', { cache: 'no-store' });
-    if (!res.ok) throw new Error('This picture has expired or was already viewed.');
+    if (!res.ok) throw new Error('This photo has expired.');
     const data = new Uint8Array(await res.arrayBuffer());
     const b64 = key.replace(/-/g, '+').replace(/_/g, '/');
     const raw = Uint8Array.from(atob(b64 + '='.repeat((4 - b64.length % 4) % 4)), c => c.charCodeAt(0));
     const k = await crypto.subtle.importKey('raw', raw, 'AES-GCM', false, ['decrypt']);
     const plain = await crypto.subtle.decrypt({ name: 'AES-GCM', iv: data.slice(0, 12) }, k, data.slice(12));
     const img = document.createElement('img');
-    img.alt = 'Shared picture';
+    img.alt = 'Shared photo';
     img.src = URL.createObjectURL(new Blob([plain], { type: 'image/jpeg' }));
     msg.replaceWith(img);
   } catch (e) {
-    msg.textContent = e.message || 'Could not open this picture.';
+    msg.textContent = e.message || 'Could not open this photo.';
   }
 })();
 </script></body></html>`;

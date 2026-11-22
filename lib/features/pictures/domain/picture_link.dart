@@ -59,10 +59,9 @@ class PictureLink {
   /// Where the encrypted bytes are downloaded from.
   Uri get raw => page.replace(path: '${page.path}/raw');
 
-  /// The text sent to the other person.
-  String message(PictureExpiry expiry) =>
-      '📷 Picture (${viewOnce ? 'view once, ' : ''}'
-      'disappears in ${expiry.label}): $this';
+  /// The text sent to the other person, e.g. `📷 Photo from dennis: <link>`.
+  /// How long it lasts isn't mentioned; opening an expired photo says so.
+  String message({required String from}) => '📷 Photo from $from: $this';
 
   @override
   String toString() => '$page#k=$key${viewOnce ? '&o=1' : ''}';

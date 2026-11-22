@@ -15,11 +15,12 @@ and delete themselves after a set time.
   server deletes it the first time it is downloaded. The message box shows "Encrypting and sending picture…" while
   it uploads.
 - The message sent looks like
-  `📷 Picture (view once, disappears in 4 hours): https://<host>/p/<id>#k=<key>&o=1`.
+  `📷 Photo from dennis: https://<host>/p/<id>#k=<key>&o=1`. It doesn't
+  say how long it lasts; opening it after that says "This photo has expired."
 - **Receive:** the picture shows under the message.
   - It loads straight away for your own pictures and in private chats where
     you've already written to the person.
-  - Otherwise it shows **Show picture from bob** first, because loading a
+  - Otherwise it shows **Show photo from bob** (or **Open photo from bob**) first, because loading a
     picture tells its server your IP address.
   - View-once pictures always wait for a tap and are deleted from the
     server when opened (the app keeps it on screen until you leave).
@@ -28,7 +29,7 @@ and delete themselves after a set time.
 - **People on other IRC apps** see the link. It opens a page that decrypts
   the picture in their browser.
 - **Report and block:** the ⋮ next to someone else's picture offers
-  **Report picture** (pick a reason, optional details) and **Block bob**.
+  **Report photo** (pick a reason, optional details) and **Block bob**.
   Reporting also blocks the sender. **Block / Unblock** is in the people
   menu too (tap a name). Blocked people's messages, pictures and room
   invitations are hidden on every network.

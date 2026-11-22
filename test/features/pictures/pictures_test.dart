@@ -17,7 +17,7 @@ void main() {
   group('PictureLink', () {
     test('finds a link in a message and keeps its parts', () {
       final link = PictureLink.find(
-        '📷 Picture (disappears in 4 hours): https://pics.test/p/$_id#k=$_key',
+        '📷 Photo from bob: https://pics.test/p/$_id#k=$_key',
       )!;
       expect(link.page, Uri.parse('https://pics.test/p/$_id'));
       expect(link.key, _key);
@@ -32,10 +32,7 @@ void main() {
       final link = PictureLink.find(text)!;
       expect(link.viewOnce, isTrue);
       expect('$link', text);
-      expect(
-        link.message(PictureExpiry.hour),
-        '📷 Picture (view once, disappears in 1 hour): $text',
-      );
+      expect(link.message(from: 'dennis'), '📷 Photo from dennis: $text');
     });
 
     test('ignores ordinary links and links without a key', () {
