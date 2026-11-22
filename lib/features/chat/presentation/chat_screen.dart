@@ -33,7 +33,10 @@ class ChatScreen extends ConsumerWidget {
     final net = state.activeNetwork;
     final isChannel = buffer?.isChannel ?? false;
     final channel = isChannel ? net?.client.channel(buffer!.name) : null;
-    final wide = MediaQuery.sizeOf(context).width >= pinnedPanelsMinWidth;
+    final width = MediaQuery.sizeOf(context).width;
+    final wide = width >= pinnedPanelsMinWidth;
+    // Phone-sized: only the buttons for this chat stay in the title bar.
+    final compact = width < compactTitleBarMaxWidth;
     final panels = ref.watch(panelPrefsProvider);
     // Comfortable shows avatars in the chat and people lists.
     final comfortable =
@@ -53,6 +56,18 @@ class ChatScreen extends ConsumerWidget {
       controller: controller,
       onChangeNick: (id) => showChangeNickDialog(context, ref, networkId: id),
       comfortable: comfortable,
+      // On phones the drawer carries the actions that aren't about the open
+      // chat; wider screens keep them in the top bar and ⋮ menu.
+      actions: compact
+          ? _ListActions(
+              browse: () => context.go('/chat/rooms'),
+              message: () => _promptPrivateMessage(context, controller),
+              join: () => _promptJoin(context, controller),
+              createRoom: () => showCreateRoomDialog(context, ref),
+              appearance: () => context.push('/appearance'),
+              closeNetwork: (id) => _closeNetwork(context, ref, id),
+            )
+          : null,
     );
 
     final people = channel == null
@@ -85,48 +100,71 @@ class ChatScreen extends ConsumerWidget {
                 onPressed: () => unawaited(panelsCtl.toggleChats()),
               )
             : null,
-        title: Column(
-          crossAxisAlignment: CrossAxisAlignment.start,
-          children: [
-            Text(
-              buffer == null || buffer.isStatus
-                  ? net?.label ?? ''
-                  : buffer.name,
-              overflow: TextOverflow.ellipsis,
+        // Tap the name for this chat's info and actions.
+        title: Builder(
+          builder: (titleContext) => Tooltip(
+            message: 'Chat info',
+            child: InkWell(
+              borderRadius: BorderRadius.circular(8),
+              onTap: net == null
+                  ? null
+                  : () => unawaited(
+                      _showChatInfo(titleContext, ref, phone: compact),
+                    ),
+              child: Padding(
+                padding: const EdgeInsets.symmetric(vertical: 4),
+                child: Column(
+                  crossAxisAlignment: CrossAxisAlignment.start,
+                  mainAxisSize: MainAxisSize.min,
+                  children: [
+                    Text(
+                      buffer == null || buffer.isStatus
+                          ? net?.label ?? ''
+                          : buffer.name,
+                      overflow: TextOverflow.ellipsis,
+                    ),
+                    Text(
+                      channel != null && channel.topic.isNotEmpty
+                          ? channel.topic
+                          : net == null
+                          ? 'Not connected'
+                          : state.networks.length > 1 &&
+                                !(buffer?.isStatus ?? true)
+                          ? '${net.label} · ${_statusLabel(net)}'
+                          : _statusLabel(net),
+                      style: Theme.of(context).textTheme.bodySmall,
+                      overflow: TextOverflow.ellipsis,
+                    ),
+                  ],
+                ),
+              ),
             ),
-            Text(
-              channel != null && channel.topic.isNotEmpty
-                  ? channel.topic
-                  : net == null
-                  ? 'Not connected'
-                  : state.networks.length > 1 && !(buffer?.isStatus ?? true)
-                  ? '${net.label} · ${_statusLabel(net)}'
-                  : _statusLabel(net),
-              style: Theme.of(context).textTheme.bodySmall,
-              overflow: TextOverflow.ellipsis,
-            ),
-          ],
+          ),
         ),
         actions: [
-          IconButton(
-            tooltip: 'Browse rooms',
-            icon: const Icon(Icons.travel_explore),
-            onPressed: () => context.go('/chat/rooms'),
-          ),
-          IconButton(
-            tooltip: 'New private message',
-            icon: const Icon(Icons.mail_outline),
-            onPressed: () => _promptPrivateMessage(context, controller),
-          ),
-          IconButton(
-            tooltip: 'Join a room',
-            icon: const Icon(Icons.add_comment_outlined),
-            onPressed: () => _promptJoin(context, controller),
-          ),
+          // On phones these are in the drawer and the chat info sheet, so
+          // the room or person's name has room to show.
+          if (!compact) ...[
+            IconButton(
+              tooltip: 'Browse rooms',
+              icon: const Icon(Icons.travel_explore),
+              onPressed: () => context.go('/chat/rooms'),
+            ),
+            IconButton(
+              tooltip: 'New private message',
+              icon: const Icon(Icons.mail_outline),
+              onPressed: () => _promptPrivateMessage(context, controller),
+            ),
+            IconButton(
+              tooltip: 'Join a room',
+              icon: const Icon(Icons.add_comment_outlined),
+              onPressed: () => _promptJoin(context, controller),
+            ),
+          ],
           // Calls are for private chats.
           if (buffer != null && !buffer.isStatus && !isChannel)
             ...callButtons(context, ref),
-          if (channel != null && host != null)
+          if (channel != null && host != null && !compact)
             IconButton(
               tooltip: isFavorite
                   ? 'Remove from favorites'
@@ -154,86 +192,85 @@ class ChatScreen extends ConsumerWidget {
                       onPressed: () => Scaffold.of(context).openEndDrawer(),
                     ),
             ),
-          PopupMenuButton<String>(
-            onSelected: (v) async {
-              switch (v) {
-                case 'close':
-                  controller.closeBuffer(buffer!.key);
-                case 'clear':
-                  await controller.clearHistory(buffer!.key);
-                case 'add':
-                  context.go('/');
-                case 'nick':
-                  await showChangeNickDialog(context, ref);
-                case 'appearance':
-                  await context.push('/appearance');
-                case 'create':
-                  await showCreateRoomDialog(context, ref);
-                case 'settings':
-                  await showRoomSettings(
-                    context,
-                    networkId: net!.id,
-                    channel: channel!.name,
-                  );
-                case 'disconnect':
-                  await controller.disconnect();
-                case 'reconnect':
-                  await controller.reconnect();
-                case 'remove':
-                  await controller.removeNetwork(net!.id);
-                  if (context.mounted &&
-                      ref.read(chatControllerProvider).networks.isEmpty) {
+          if (compact) const SizedBox(width: 4),
+          if (!compact)
+            PopupMenuButton<String>(
+              onSelected: (v) async {
+                switch (v) {
+                  case 'close':
+                    controller.closeBuffer(buffer!.key);
+                  case 'clear':
+                    await controller.clearHistory(buffer!.key);
+                  case 'add':
                     context.go('/');
-                  }
-              }
-            },
-            itemBuilder: (_) => [
-              if (channel != null)
+                  case 'nick':
+                    await showChangeNickDialog(context, ref);
+                  case 'appearance':
+                    await context.push('/appearance');
+                  case 'create':
+                    await showCreateRoomDialog(context, ref);
+                  case 'settings':
+                    await showRoomSettings(
+                      context,
+                      networkId: net!.id,
+                      channel: channel!.name,
+                    );
+                  case 'disconnect':
+                    await controller.disconnect();
+                  case 'reconnect':
+                    await controller.reconnect();
+                  case 'remove':
+                    await _closeNetwork(context, ref, net!.id);
+                }
+              },
+              itemBuilder: (_) => [
+                if (channel != null)
+                  const PopupMenuItem(
+                    value: 'settings',
+                    child: Text('Room settings'),
+                  ),
                 const PopupMenuItem(
-                  value: 'settings',
-                  child: Text('Room settings'),
+                  value: 'create',
+                  child: Text('Create a room'),
                 ),
-              const PopupMenuItem(
-                value: 'create',
-                child: Text('Create a room'),
-              ),
-              if (buffer != null && !buffer.isStatus)
-                PopupMenuItem(
-                  value: 'close',
-                  child: Text(isChannel ? 'Leave room' : 'Close chat'),
-                ),
-              if (buffer != null && !buffer.isStatus)
+                if (buffer != null && !buffer.isStatus)
+                  PopupMenuItem(
+                    value: 'close',
+                    child: Text(isChannel ? 'Leave room' : 'Close chat'),
+                  ),
+                if (buffer != null && !buffer.isStatus)
+                  const PopupMenuItem(
+                    value: 'clear',
+                    child: Text('Clear history'),
+                  ),
+                const PopupMenuItem(value: 'add', child: Text('Add a network')),
+                if (net != null)
+                  PopupMenuItem(
+                    value: 'nick',
+                    child: Text('Change nickname (${net.nick})'),
+                  ),
                 const PopupMenuItem(
-                  value: 'clear',
-                  child: Text('Clear history'),
+                  value: 'appearance',
+                  child: Text('Appearance'),
                 ),
-              const PopupMenuItem(value: 'add', child: Text('Add a network')),
-              if (net != null)
-                PopupMenuItem(
-                  value: 'nick',
-                  child: Text('Change nickname (${net.nick})'),
-                ),
-              const PopupMenuItem(
-                value: 'appearance',
-                child: Text('Appearance'),
-              ),
-              if (net != null && net.status == IrcConnectionStatus.disconnected)
-                PopupMenuItem(
-                  value: 'reconnect',
-                  child: Text('Reconnect to ${net.label}'),
-                )
-              else if (net != null)
-                PopupMenuItem(
-                  value: 'disconnect',
-                  child: Text('Disconnect from ${net.label}'),
-                ),
-              if (net != null)
-                PopupMenuItem(
-                  value: 'remove',
-                  child: Text('Close ${net.label}'),
-                ),
-            ],
-          ),
+                if (net != null &&
+                    net.status == IrcConnectionStatus.disconnected)
+                  PopupMenuItem(
+                    value: 'reconnect',
+                    child: Text('Reconnect to ${net.label}'),
+                  )
+                else if (net != null)
+                  PopupMenuItem(
+                    value: 'disconnect',
+                    child: Text('Disconnect from ${net.label}'),
+                  ),
+                if (net != null)
+                  PopupMenuItem(
+                    value: 'remove',
+                    child: Text('Close ${net.label}'),
+                  ),
+              ],
+            ),
         ],
       ),
       drawer: wide ? null : Drawer(child: SafeArea(child: list)),
@@ -357,6 +394,161 @@ class ChatScreen extends ConsumerWidget {
     IrcConnectionStatus.disconnected => 'Disconnected',
   };
 
+  Future<void> _closeNetwork(
+    BuildContext context,
+    WidgetRef ref,
+    String networkId,
+  ) async {
+    await ref.read(chatControllerProvider.notifier).removeNetwork(networkId);
+    if (context.mounted && ref.read(chatControllerProvider).networks.isEmpty) {
+      context.go('/');
+    }
+  }
+
+  /// The sheet that opens from the chat's name: details and everything you
+  /// can do with this room, private chat or server. [context] must be under
+  /// the [Scaffold] (it opens the people drawer).
+  Future<void> _showChatInfo(
+    BuildContext context,
+    WidgetRef ref, {
+    required bool phone,
+  }) {
+    final state = ref.read(chatControllerProvider);
+    final controller = ref.read(chatControllerProvider.notifier);
+    final net = state.activeNetwork;
+    final buffer = state.activeBuffer;
+    if (net == null) return Future.value();
+    final isStatus = buffer == null || buffer.isStatus;
+    final channel = !isStatus && buffer.isChannel
+        ? net.client.channel(buffer.name)
+        : null;
+    final isFavorite =
+        channel != null &&
+        ref.read(roomPrefsProvider).isFavorite(net.id, channel.name);
+
+    return showModalBottomSheet<void>(
+      context: context,
+      showDragHandle: true,
+      isScrollControlled: true,
+      builder: (sheet) {
+        final theme = Theme.of(sheet);
+        // Close the sheet, then act.
+        Widget item(
+          IconData icon,
+          String label,
+          FutureOr<void> Function() run,
+        ) => ListTile(
+          leading: Icon(icon),
+          title: Text(label),
+          onTap: () {
+            Navigator.pop(sheet);
+            unawaited(Future.sync(run));
+          },
+        );
+        return SafeArea(
+          child: SingleChildScrollView(
+            child: Column(
+              crossAxisAlignment: CrossAxisAlignment.stretch,
+              children: [
+                Padding(
+                  padding: const EdgeInsets.fromLTRB(24, 0, 24, 12),
+                  child: Column(
+                    crossAxisAlignment: CrossAxisAlignment.start,
+                    children: [
+                      SelectableText(
+                        isStatus ? net.label : buffer.name,
+                        style: theme.textTheme.titleLarge,
+                      ),
+                      if (channel != null && channel.topic.isNotEmpty) ...[
+                        const SizedBox(height: 6),
+                        SelectableText(
+                          channel.topic,
+                          style: theme.textTheme.bodyMedium,
+                        ),
+                      ],
+                      const SizedBox(height: 6),
+                      Text(
+                        isStatus
+                            ? _statusLabel(net)
+                            : '${net.label} · ${_statusLabel(net)}',
+                        style: theme.textTheme.bodySmall,
+                      ),
+                    ],
+                  ),
+                ),
+                const Divider(height: 1),
+                if (channel != null) ...[
+                  item(
+                    isFavorite ? Icons.star : Icons.star_border,
+                    isFavorite ? 'Remove from favorites' : 'Add to favorites',
+                    () => ref
+                        .read(roomPrefsProvider.notifier)
+                        .toggleFavorite(net.id, channel.name),
+                  ),
+                  if (phone)
+                    item(
+                      Icons.people_outline,
+                      'People (${channel.members.length})',
+                      () => Scaffold.of(context).openEndDrawer(),
+                    ),
+                  item(
+                    Icons.tune,
+                    'Room settings',
+                    () => showRoomSettings(
+                      context,
+                      networkId: net.id,
+                      channel: channel.name,
+                    ),
+                  ),
+                ] else if (!isStatus)
+                  item(
+                    Icons.info_outline,
+                    'Who is this? (whois)',
+                    () => controller.whoisUser(buffer.name),
+                  ),
+                if (!isStatus) ...[
+                  item(
+                    Icons.delete_sweep_outlined,
+                    'Clear history',
+                    () => controller.clearHistory(buffer.key),
+                  ),
+                  item(
+                    Icons.logout,
+                    channel != null ? 'Leave room' : 'Close chat',
+                    () => controller.closeBuffer(buffer.key),
+                  ),
+                ] else ...[
+                  item(
+                    Icons.edit,
+                    'Change nickname (${net.nick})',
+                    () => showChangeNickDialog(context, ref, networkId: net.id),
+                  ),
+                  if (net.status == IrcConnectionStatus.disconnected)
+                    item(
+                      Icons.refresh,
+                      'Reconnect to ${net.label}',
+                      () => controller.reconnect(net.id),
+                    )
+                  else
+                    item(
+                      Icons.link_off,
+                      'Disconnect from ${net.label}',
+                      () => controller.disconnect(net.id),
+                    ),
+                  item(
+                    Icons.close,
+                    'Close ${net.label}',
+                    () => _closeNetwork(context, ref, net.id),
+                  ),
+                ],
+              ],
+            ),
+          ),
+        );
+      },
+    );
+  }
+
   Future<void> _promptPrivateMessage(
     BuildContext context,
     ChatController controller,
@@ -392,6 +584,25 @@ class ChatScreen extends ConsumerWidget {
   }
 }
 
+/// Actions the phone drawer offers that aren't about the open chat.
+class _ListActions {
+  const _ListActions({
+    required this.browse,
+    required this.message,
+    required this.join,
+    required this.createRoom,
+    required this.appearance,
+    required this.closeNetwork,
+  });
+
+  final void Function() browse;
+  final Future<void> Function() message;
+  final Future<void> Function() join;
+  final Future<void> Function() createRoom;
+  final Future<void> Function() appearance;
+  final Future<void> Function(String networkId) closeNetwork;
+}
+
 /// Conversations grouped by network. Favorite rooms that aren't open are
 /// listed under their network so they can be joined with one tap.
 class _BufferList extends StatelessWidget {
@@ -401,6 +612,7 @@ class _BufferList extends StatelessWidget {
     required this.controller,
     required this.onChangeNick,
     this.comfortable = false,
+    this.actions,
   });
 
   final ChatState state;
@@ -411,6 +623,10 @@ class _BufferList extends StatelessWidget {
   /// Avatars instead of icons (Comfortable density).
   final bool comfortable;
 
+  /// Shown on phones: Browse / Message / Join at the top, a menu on each
+  /// network, and Create a room and Appearance at the bottom.
+  final _ListActions? actions;
+
   void _closeDrawer(BuildContext context) {
     if (Scaffold.maybeOf(context)?.isDrawerOpen ?? false) {
       Navigator.pop(context);
@@ -420,8 +636,69 @@ class _BufferList extends StatelessWidget {
   @override
   Widget build(BuildContext context) {
     final theme = Theme.of(context);
+    final actions = this.actions;
+    // Close the drawer first; the action's dialogs and pages belong to the
+    // chat screen.
+    void run(FutureOr<void> Function() action) {
+      _closeDrawer(context);
+      unawaited(Future.sync(action));
+    }
+
+    Widget topButton(
+      IconData icon,
+      String label,
+      String tooltip,
+      void Function() onTap,
+    ) => Expanded(
+      child: Tooltip(
+        message: tooltip,
+        child: InkWell(
+          borderRadius: BorderRadius.circular(12),
+          onTap: onTap,
+          child: Padding(
+            padding: const EdgeInsets.symmetric(vertical: 10),
+            child: Column(
+              children: [
+                Icon(icon),
+                const SizedBox(height: 4),
+                Text(label, style: theme.textTheme.labelMedium),
+              ],
+            ),
+          ),
+        ),
+      ),
+    );
+
     return ListView(
       children: [
+        if (actions != null) ...[
+          Padding(
+            padding: const EdgeInsets.fromLTRB(8, 8, 8, 0),
+            child: Row(
+              children: [
+                topButton(
+                  Icons.travel_explore,
+                  'Browse',
+                  'Browse rooms',
+                  () => run(actions.browse),
+                ),
+                topButton(
+                  Icons.mail_outline,
+                  'Message',
+                  'New private message',
+                  () => run(actions.message),
+                ),
+                topButton(
+                  Icons.add_comment_outlined,
+                  'Join',
+                  'Join a room',
+                  () => run(actions.join),
+                ),
+              ],
+            ),
+          ),
+          const Divider(),
+        ],
         for (final net in state.networks.values) ...[
           Padding(
             padding: const EdgeInsets.fromLTRB(16, 12, 16, 4),
@@ -456,6 +733,32 @@ class _BufferList extends StatelessWidget {
                     unawaited(onChangeNick(net.id));
                   },
                 ),
+                if (actions != null)
+                  PopupMenuButton<String>(
+                    tooltip: 'Options for ${net.label}',
+                    icon: const Icon(Icons.more_vert, size: 20),
+                    onSelected: (v) => run(switch (v) {
+                      'reconnect' => () => controller.reconnect(net.id),
+                      'disconnect' => () => controller.disconnect(net.id),
+                      _ => () => actions.closeNetwork(net.id),
+                    }),
+                    itemBuilder: (_) => [
+                      if (net.status == IrcConnectionStatus.disconnected)
+                        PopupMenuItem(
+                          value: 'reconnect',
+                          child: Text('Reconnect to ${net.label}'),
+                        )
+                      else
+                        PopupMenuItem(
+                          value: 'disconnect',
+                          child: Text('Disconnect from ${net.label}'),
+                        ),
+                      PopupMenuItem(
+                        value: 'close',
+                        child: Text('Close ${net.label}'),
+                      ),
+                    ],
+                  ),
               ],
             ),
           ),
@@ -515,6 +818,13 @@ class _BufferList extends StatelessWidget {
               ),
           const Divider(),
         ],
+        if (actions != null)
+          ListTile(
+            dense: true,
+            leading: const Icon(Icons.add_box_outlined),
+            title: const Text('Create a room'),
+            onTap: () => run(actions.createRoom),
+          ),
         ListTile(
           dense: true,
           leading: const Icon(Icons.add),
@@ -524,6 +834,13 @@ class _BufferList extends StatelessWidget {
             context.go('/');
           },
         ),
+        if (actions != null)
+          ListTile(
+            dense: true,
+            leading: const Icon(Icons.palette_outlined),
+            title: const Text('Appearance'),
+            onTap: () => run(actions.appearance),
+          ),
       ],
     );
   }
