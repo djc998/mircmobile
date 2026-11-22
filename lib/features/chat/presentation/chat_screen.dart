@@ -10,6 +10,7 @@ import 'package:irc_client/core/irc/irc_events.dart';
 import 'package:irc_client/core/theme/app_theme.dart';
 import 'package:irc_client/features/calls/presentation/call_widgets.dart';
 import 'package:irc_client/features/chat/application/chat_controller.dart';
+import 'package:irc_client/features/chat/application/panel_prefs.dart';
 import 'package:irc_client/features/chat/presentation/change_nick_dialog.dart';
 import 'package:irc_client/features/favorites/application/room_prefs_controller.dart';
 import 'package:irc_client/features/pictures/domain/picture_link.dart';
@@ -29,7 +30,12 @@ class ChatScreen extends ConsumerWidget {
     final net = state.activeNetwork;
     final isChannel = buffer?.isChannel ?? false;
     final channel = isChannel ? net?.client.channel(buffer!.name) : null;
-    final wide = MediaQuery.sizeOf(context).width >= 900;
+    final wide = MediaQuery.sizeOf(context).width >= pinnedPanelsMinWidth;
+    final panels = ref.watch(panelPrefsProvider);
+    final panelsCtl = ref.read(panelPrefsProvider.notifier);
+    // On wide screens each side panel can be pinned open or hidden.
+    final showChats = wide && panels.chatsPinned;
+    final showPeople = wide && panels.peoplePinned && channel != null;
     final prefs = ref.watch(roomPrefsProvider);
     final host = net?.id;
     final isFavorite =
@@ -42,8 +48,35 @@ class ChatScreen extends ConsumerWidget {
       onChangeNick: (id) => showChangeNickDialog(context, ref, networkId: id),
     );
 
+    final people = channel == null
+        ? null
+        : _NickList(
+            channel: channel,
+            onNickTap: (nick) => unawaited(
+              showUserActions(
+                context,
+                controller,
+                net!.nick,
+                nick,
+                network: net,
+                room: channel.name,
+                onReply: () =>
+                    controller.startReply(_lastLineFrom(buffer!, nick)),
+              ),
+            ),
+          );
+
     return Scaffold(
       appBar: AppBar(
+        leading: wide
+            ? IconButton(
+                tooltip: panels.chatsPinned
+                    ? 'Hide servers and chats'
+                    : 'Show servers and chats',
+                icon: Icon(panels.chatsPinned ? Icons.menu_open : Icons.menu),
+                onPressed: () => unawaited(panelsCtl.toggleChats()),
+              )
+            : null,
         title: Column(
           crossAxisAlignment: CrossAxisAlignment.start,
           children: [
@@ -97,11 +130,21 @@ class ChatScreen extends ConsumerWidget {
             ),
           if (channel != null)
             Builder(
-              builder: (context) => IconButton(
-                tooltip: 'People',
-                icon: const Icon(Icons.people_outline),
-                onPressed: () => Scaffold.of(context).openEndDrawer(),
-              ),
+              builder: (context) => wide
+                  ? IconButton(
+                      tooltip: panels.peoplePinned
+                          ? 'Hide people'
+                          : 'Show people',
+                      isSelected: panels.peoplePinned,
+                      icon: const Icon(Icons.people_outline),
+                      selectedIcon: const Icon(Icons.people),
+                      onPressed: () => unawaited(panelsCtl.togglePeople()),
+                    )
+                  : IconButton(
+                      tooltip: 'People',
+                      icon: const Icon(Icons.people_outline),
+                      onPressed: () => Scaffold.of(context).openEndDrawer(),
+                    ),
             ),
           PopupMenuButton<String>(
             onSelected: (v) async {
@@ -186,32 +229,14 @@ class ChatScreen extends ConsumerWidget {
         ],
       ),
       drawer: wide ? null : Drawer(child: SafeArea(child: list)),
-      endDrawer: channel == null
+      endDrawer: people == null || wide
           ? null
-          : Drawer(
-              child: SafeArea(
-                child: _NickList(
-                  channel: channel,
-                  onNickTap: (nick) => unawaited(
-                    showUserActions(
-                      context,
-                      controller,
-                      net!.nick,
-                      nick,
-                      network: net,
-                      room: channel.name,
-                      onReply: () =>
-                          controller.startReply(_lastLineFrom(buffer!, nick)),
-                    ),
-                  ),
-                ),
-              ),
-            ),
+          : Drawer(child: SafeArea(child: people)),
       body: SafeArea(
         child: Row(
           children: [
-            if (wide) SizedBox(width: 260, child: list),
-            if (wide) const VerticalDivider(width: 1),
+            if (showChats) SizedBox(width: 260, child: list),
+            if (showChats) const VerticalDivider(width: 1),
             Expanded(
               child: Column(
                 children: [
@@ -296,6 +321,8 @@ class ChatScreen extends ConsumerWidget {
                 ],
               ),
             ),
+            if (showPeople) const VerticalDivider(width: 1),
+            if (showPeople) SizedBox(width: 220, child: people),
           ],
         ),
       ),
@@ -1082,6 +1109,8 @@ class _NickList extends StatelessWidget {
               return ListTile(
                 dense: true,
                 onTap: () {
+                  // Closes the slide-out list on phones; does nothing when
+                  // the list is pinned at the side.
                   Scaffold.of(context).closeEndDrawer();
                   onNickTap(m.nick);
                 },

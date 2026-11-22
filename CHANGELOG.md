@@ -7,6 +7,11 @@ and the project uses [Semantic Versioning](https://semver.org/).
 ## [Unreleased]
 
 ### Added
+- Pinned side panels on wide screens (Mac, iPad, tablets): servers and
+  chats stay open on the left and the people in the room on the right.
+  Show or hide each from the top bar; the choice is remembered. Phones
+  keep the slide-out panels. See
+  [docs/features/pinned-panels.md](docs/features/pinned-panels.md).
 - Voice and video calls (iOS, Android, macOS). In a private chat, tap
   **Voice call** or **Video call**. The other person gets a ringing banner
   with **Accept** / **Decline**; people on other IRC apps get a link that
