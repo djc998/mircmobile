@@ -342,7 +342,7 @@ class ChatController extends Notifier<ChatState> {
       if (session.status != IrcConnectionStatus.connected) {
         return 'Not connected to ${session.label}.';
       }
-      runInput(session.client, link.message(expiry), target: buffer.name);
+      runInput(session.client, link.message(session.nick), target: buffer.name);
       return null;
     } on PictureException catch (e) {
       return e.message;

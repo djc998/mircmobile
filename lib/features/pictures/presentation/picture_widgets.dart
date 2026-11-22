@@ -257,8 +257,8 @@ class _PictureBubbleState extends ConsumerState<PictureBubble> {
               icon: const Icon(Icons.image_outlined),
               label: Text(
                 widget.link.viewOnce
-                    ? 'Open view-once picture from ${widget.sender}'
-                    : 'Show picture from ${widget.sender}',
+                    ? 'Open photo from ${widget.sender}'
+                    : 'Show photo from ${widget.sender}',
               ),
               onPressed: _show,
             );

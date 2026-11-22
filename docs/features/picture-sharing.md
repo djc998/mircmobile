@@ -15,11 +15,12 @@ and delete themselves after a set time.
   server deletes it the first time it is downloaded. The message box shows "Encrypting and sending picture…" while
   it uploads.
 - The message sent looks like
-  `📷 Picture (view once, disappears in 4 hours): https://<host>/p/<id>#k=<key>&o=1`.
+  `📷 Photo from dennis: https://<host>/p/<id>#k=<key>&o=1`. How long it
+  lasts isn't shown; opening an expired photo says **This photo has expired.**
 - **Receive:** the picture shows under the message.
   - It loads straight away for your own pictures and in private chats where
     you've already written to the person.
-  - Otherwise it shows **Show picture from bob** first, because loading a
+  - Otherwise it shows **Show photo from bob** first, because loading a
     picture tells its server your IP address.
   - View-once pictures always wait for a tap and are deleted from the
     server when opened (the app keeps it on screen until you leave).

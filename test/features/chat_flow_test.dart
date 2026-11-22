@@ -1154,24 +1154,22 @@ void main() {
     );
     final controller = container.read(chatControllerProvider.notifier);
     final link = 'https://pics.test/p/$id#k=$key';
-    transport.incoming.add(
-      ':bob!b@h PRIVMSG me :📷 Picture (disappears in 4 hours): $link',
-    );
+    transport.incoming.add(':bob!b@h PRIVMSG me :📷 Photo from bob: $link');
     await tester.pumpAndSettle();
     controller.selectBuffer(ChatState.bufferKey('irc.libera.chat', 'bob'));
     await tester.pumpAndSettle();
 
     // From someone you haven't written to: hidden until tapped.
     expect(find.byTooltip('Send a picture'), findsOneWidget);
-    expect(find.text('Show picture from bob'), findsOneWidget);
-    await tester.tap(find.text('Show picture from bob'));
+    expect(find.text('Show photo from bob'), findsOneWidget);
+    await tester.tap(find.text('Show photo from bob'));
     await tester.pump();
     // Download and decrypt run on real time.
     await tester.runAsync(
       () => Future<void>.delayed(const Duration(milliseconds: 200)),
     );
     await tester.pumpAndSettle();
-    expect(find.text('Show picture from bob'), findsNothing);
+    expect(find.text('Show photo from bob'), findsNothing);
     expect(find.bySemanticsLabel(RegExp('Picture from bob')), findsOneWidget);
 
     // Tap for full size (after the image has decoded and has a size).
@@ -1202,13 +1200,9 @@ void main() {
       () => Future<void>.delayed(const Duration(milliseconds: 1600)),
     );
     await tester.pumpAndSettle();
-    expect(
-      transport.written.last,
-      startsWith(
-        'PRIVMSG bob :📷 Picture (view once, disappears in 1 hour): '
-        'https://pics.test/p/$id#k=',
-      ),
-    );
+    expect(transport.written.last, startsWith('PRIVMSG bob :📷 Photo from '));
+    expect(transport.written.last, contains(': https://pics.test/p/$id#k='));
+    expect(transport.written.last, isNot(contains('disappears')));
     expect(transport.written.last, endsWith('&o=1'));
 
     // Report: sent with the full link, and bob is blocked.
