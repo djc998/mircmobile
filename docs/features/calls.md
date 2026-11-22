@@ -27,6 +27,23 @@ macOS. People on other IRC apps can join from a browser.
   person never sees your IP address. If the relay isn't set up on the
   server, the call screen says so and the call connects directly.
 
+## Camera and microphone access
+
+The system asks once for the camera and microphone. If that was missed or
+declined, the call ends with **The camera or microphone is blocked.** and
+buttons that open the right settings page:
+
+- **Mac:** **Open Camera settings** and **Open Microphone settings** open
+  System Settings → Privacy & Security at those pages; switch on
+  **irc_client**.
+- **iPhone / Android:** **Open Settings** opens the app's own settings
+  page with its Camera and Microphone switches.
+
+The same buttons are on the start screen under **More options → Camera and
+microphone**. Code: `lib/core/platform/privacy_settings.dart`
+(`url_launcher` on macOS/iOS, a small `irc_client/settings` channel in
+Android's `MainActivity`).
+
 ## Privacy
 
 - Calls are WebRTC: audio and video are encrypted end to end (DTLS-SRTP)

@@ -82,11 +82,7 @@ class WebRtcCallMedia implements CallMedia {
         'video': video ? {'facingMode': 'user'} : false,
       });
     } on Object {
-      throw CallException(
-        video
-            ? 'The camera or microphone is blocked. Allow them in Settings.'
-            : 'The microphone is blocked. Allow it in Settings.',
-      );
+      throw DevicesBlockedException(video: video);
     }
     _localRenderer.srcObject = _local;
     final pc = await createPeerConnection({

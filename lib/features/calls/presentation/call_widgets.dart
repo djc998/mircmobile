@@ -4,6 +4,7 @@ library;
 import 'dart:async';
 
 import 'package:flutter_riverpod/flutter_riverpod.dart';
+import 'package:irc_client/core/platform/privacy_settings.dart';
 import 'package:irc_client/features/calls/application/call_controller.dart';
 import 'package:material_ui/material_ui.dart';
 
@@ -161,9 +162,11 @@ class _CallScreenState extends ConsumerState<CallScreen> {
   @override
   void didUpdateWidget(CallScreen old) {
     super.didUpdateWidget(old);
-    // The "call ended" note goes away on its own.
+    // The "call ended" note goes away on its own, unless it explains how
+    // to allow the camera and microphone.
     if (widget.call.phase == CallPhase.ended &&
-        old.call.phase != CallPhase.ended) {
+        old.call.phase != CallPhase.ended &&
+        !widget.call.devicesBlocked) {
       Future<void>.delayed(const Duration(seconds: 3), () {
         if (mounted) ref.read(callControllerProvider.notifier).dismiss();
       });
@@ -271,11 +274,16 @@ class _CallScreenState extends ConsumerState<CallScreen> {
               right: 0,
               bottom: 24,
               child: ended
-                  ? Center(
-                      child: TextButton(
-                        onPressed: controller.dismiss,
-                        child: const Text('Close'),
-                      ),
+                  ? Column(
+                      mainAxisSize: MainAxisSize.min,
+                      children: [
+                        if (call.devicesBlocked)
+                          DeviceAccessHelp(video: call.video, dark: true),
+                        TextButton(
+                          onPressed: controller.dismiss,
+                          child: const Text('Close'),
+                        ),
+                      ],
                     )
                   : _Controls(call: call),
             ),
@@ -368,6 +376,84 @@ class _RoundButton extends StatelessWidget {
       ),
       onPressed: onPressed,
       icon: Icon(icon),
+    );
+  }
+}
+
+/// Explains how to allow the camera and microphone, with buttons that open
+/// the right system settings page.
+class DeviceAccessHelp extends ConsumerWidget {
+  const DeviceAccessHelp({this.video = true, this.dark = false, super.key});
+
+  /// Mention the camera too (video calls).
+  final bool video;
+
+  /// Light text, for the black call screen.
+  final bool dark;
+
+  @override
+  Widget build(BuildContext context, WidgetRef ref) {
+    final settings = ref.read(privacySettingsProvider);
+    final messenger = ScaffoldMessenger.maybeOf(context);
+    Future<void> open(PrivacyPage page) async {
+      final opened = await settings.open(page);
+      if (!opened) {
+        messenger?.showSnackBar(
+          const SnackBar(
+            content: Text(
+              "Couldn't open Settings. Open it yourself and allow the "
+              'camera and microphone for this app.',
+            ),
+          ),
+        );
+      }
+    }
+
+    final what = video ? 'camera and microphone' : 'microphone';
+    final style = dark ? const TextStyle(color: Colors.white70) : null;
+    return Padding(
+      padding: const EdgeInsets.symmetric(horizontal: 16, vertical: 8),
+      child: Column(
+        mainAxisSize: MainAxisSize.min,
+        children: [
+          Text(
+            settings.separatePages
+                ? 'Allow the $what for irc_client in System Settings, '
+                      'then call again.'
+                : 'Allow the $what for this app in Settings, then call '
+                      'again.',
+            textAlign: TextAlign.center,
+            style: style,
+          ),
+          const SizedBox(height: 8),
+          Wrap(
+            alignment: WrapAlignment.center,
+            spacing: 8,
+            runSpacing: 8,
+            children: settings.separatePages
+                ? [
+                    if (video)
+                      FilledButton.icon(
+                        icon: const Icon(Icons.videocam_outlined),
+                        label: const Text('Open Camera settings'),
+                        onPressed: () => open(PrivacyPage.camera),
+                      ),
+                    FilledButton.icon(
+                      icon: const Icon(Icons.mic_none),
+                      label: const Text('Open Microphone settings'),
+                      onPressed: () => open(PrivacyPage.microphone),
+                    ),
+                  ]
+                : [
+                    FilledButton.icon(
+                      icon: const Icon(Icons.settings_outlined),
+                      label: const Text('Open Settings'),
+                      onPressed: () => open(PrivacyPage.camera),
+                    ),
+                  ],
+          ),
+        ],
+      ),
     );
   }
 }

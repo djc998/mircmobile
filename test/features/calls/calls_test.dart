@@ -7,6 +7,7 @@ import 'package:http/http.dart' as http;
 import 'package:http/testing.dart';
 import 'package:irc_client/app/app.dart';
 import 'package:irc_client/core/irc/irc_transport.dart';
+import 'package:irc_client/core/platform/privacy_settings.dart';
 import 'package:irc_client/core/storage/app_storage.dart';
 import 'package:irc_client/features/calls/application/call_controller.dart';
 import 'package:irc_client/features/calls/data/call_api.dart';
@@ -52,6 +53,23 @@ class FakeSignaling implements CallSignaling {
   }
 }
 
+class FakePrivacySettings implements PrivacySettings {
+  FakePrivacySettings({this.separatePages = true});
+
+  @override
+  final bool separatePages;
+  final opened = <PrivacyPage>[];
+
+  @override
+  Future<bool> open(PrivacyPage page) async {
+    opened.add(page);
+    return true;
+  }
+}
+
+/// Media whose camera and microphone are blocked by the system.
+bool blockDevices = false;
+
 class FakeMedia implements CallMedia {
   final _candidates = StreamController<Map<String, Object?>>.broadcast();
   final _states = StreamController<CallMediaState>.broadcast();
@@ -78,6 +96,7 @@ class FakeMedia implements CallMedia {
     required List<Map<String, Object?>> iceServers,
     required bool relayOnly,
   }) async {
+    if (blockDevices) throw DevicesBlockedException(video: video);
     openedVideo = video;
     this.relayOnly = relayOnly;
   }
@@ -164,8 +183,14 @@ void main() {
     late FakeMedia media;
     late List<http.Request> requests;
     late ProviderContainer container;
+    late FakePrivacySettings privacy;
 
-    Future<void> pumpApp(WidgetTester tester, {bool relay = true}) async {
+    Future<void> pumpApp(
+      WidgetTester tester, {
+      bool relay = true,
+      bool separatePages = true,
+    }) async {
+      privacy = FakePrivacySettings(separatePages: separatePages);
       transport = FakeTransport();
       signaling = FakeSignaling();
       media = FakeMedia();
@@ -202,6 +227,7 @@ void main() {
         ProviderScope(
           overrides: [
             keyValueStoreProvider.overrideWithValue(MemoryKeyValueStore()),
+            privacySettingsProvider.overrideWithValue(privacy),
             callApiProvider.overrideWithValue(
               CallApi(host: 'https://pics.test', client: client),
             ),
@@ -402,6 +428,45 @@ void main() {
       await settle(tester);
       expect(find.text('No answer'), findsOneWidget);
       await tester.pump(const Duration(seconds: 4));
+      await tester.pumpAndSettle();
+    });
+
+    testWidgets('blocked camera and microphone: open the right settings', (
+      tester,
+    ) async {
+      blockDevices = true;
+      addTearDown(() => blockDevices = false);
+      await pumpApp(tester);
+      container.read(chatControllerProvider.notifier).openPrivateChat('bob');
+      await tester.pumpAndSettle();
+      await tester.tap(find.byTooltip('Video call'));
+      await settle(tester);
+      expect(find.text('The camera or microphone is blocked.'), findsWidgets);
+      // On a Mac: one button per settings page, and the note stays up.
+      await tester.pump(const Duration(seconds: 5));
+      await tester.tap(find.text('Open Camera settings'));
+      await tester.tap(find.text('Open Microphone settings'));
+      await tester.pump();
+      expect(privacy.opened, [PrivacyPage.camera, PrivacyPage.microphone]);
+      await tester.tap(find.text('Close'));
+      await tester.pumpAndSettle();
+      expect(container.read(callControllerProvider).phase, CallPhase.idle);
+    });
+
+    testWidgets('on phones one button opens the app settings', (tester) async {
+      blockDevices = true;
+      addTearDown(() => blockDevices = false);
+      await pumpApp(tester, separatePages: false);
+      container.read(chatControllerProvider.notifier).openPrivateChat('bob');
+      await tester.pumpAndSettle();
+      await tester.tap(find.byTooltip('Voice call'));
+      await settle(tester);
+      expect(find.text('The microphone is blocked.'), findsWidgets);
+      expect(find.text('Open Camera settings'), findsNothing);
+      await tester.tap(find.text('Open Settings'));
+      await tester.pump();
+      expect(privacy.opened, isNotEmpty);
+      await tester.tap(find.text('Close'));
       await tester.pumpAndSettle();
     });
 
