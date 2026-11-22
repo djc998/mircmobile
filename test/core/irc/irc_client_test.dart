@@ -15,6 +15,7 @@ class FakeTransport implements IrcTransport {
   final List<String> written = [];
   bool closed = false;
   Exception? failWith;
+  Exception? writeFailsWith;
 
   @override
   Future<void> connect() async {
@@ -25,7 +26,10 @@ class FakeTransport implements IrcTransport {
   Stream<String> get lines => incoming.stream;
 
   @override
-  void writeLine(String line) => written.add(line);
+  void writeLine(String line) {
+    if (writeFailsWith != null) throw writeFailsWith!;
+    written.add(line);
+  }
 
   @override
   Future<void> close() async {
@@ -462,6 +466,20 @@ void main() {
     expect(IrcClient.reconnectDelay(1, max), const Duration(seconds: 4));
     expect(IrcClient.reconnectDelay(3, max), const Duration(seconds: 16));
     expect(IrcClient.reconnectDelay(20, max), max);
+  });
+
+  test('a failed write is treated as a dropped connection', () async {
+    await setUpClient();
+    await register();
+    expect(client.status, IrcConnectionStatus.connected);
+    transport.writeFailsWith = Exception('Broken pipe');
+    client.sendRaw('PING :keepalive');
+    await pumpEventQueue();
+    expect(client.status, IrcConnectionStatus.disconnected);
+    expect(
+      events.whereType<StatusChangedEvent>().last.reason,
+      contains('Broken pipe'),
+    );
   });
 
   group('input commands', () {

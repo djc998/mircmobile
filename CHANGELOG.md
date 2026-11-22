@@ -70,6 +70,12 @@ and the project uses [Semantic Versioning](https://semver.org/).
   server tab. See [docs/features/private-messages.md](docs/features/private-messages.md).
 
 ### Fixed
+- Dropped connections (iOS, Android, macOS). When the network blips (for
+  example after sleep or a Wi-Fi change), the app now notices straight away
+  and reconnects, instead of logging "Broken pipe" / "Connection reset by
+  peer" errors and waiting up to a minute for the ping timeout. Closing a
+  dead connection no longer hangs. See
+  [docs/features/irc-core.md](docs/features/irc-core.md).
 - The chat menu was missing its **Appearance** item (it was only on the
   start screen).
 - Join/part (green), notice (dark red) and action (purple) lines were hard
