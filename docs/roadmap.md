@@ -3,6 +3,8 @@
 ## v1 (MVP)
 - [x] IRC core: TLS, CAP/SASL, registration, channels, messages, commands
 - [x] Network picker and basic chat screen
+- [x] Modern chat screen: grouped messages, bubbles, dividers, composer chips
+      (redesign Phase 2)
 - [x] Room browser: search and sort LIST results, one-tap join
 - [x] Several networks at once; room browser and favorites across them
 - [ ] mIRC colour and style rendering
@@ -23,5 +25,6 @@
 ## v2
 - [ ] Bouncer support (soju/ZNC) and push notifications
 - [ ] IRCv3 chathistory
+- [ ] IRCv3 typing indicator and read markers ("Seen")
 - [ ] Android foreground service option
 - [x] Themes, including a classic mIRC skin (Classic mIRC theme + Compact density)

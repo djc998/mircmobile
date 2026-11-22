@@ -191,6 +191,19 @@ class AppTokens extends ThemeExtension<AppTokens> {
   /// Corner radius for this theme: [rounded], or 2 when [squareCorners].
   double radius(double rounded) => squareCorners ? 2 : rounded;
 
+  /// [color] adjusted to read as text (4.5:1) on [background], [surface]
+  /// by default. Translucent backgrounds are taken over [surface].
+  Color readable(Color color, [Color? background]) {
+    final bg = background == null
+        ? surface
+        : Color.alphaBlend(background, surface);
+    return readableOn(
+      color,
+      bg,
+      bg.computeLuminance() < 0.5 ? Brightness.dark : Brightness.light,
+    );
+  }
+
   // A lookup like Theme.of, not a constructor.
   // ignore: prefer_constructors_over_static_methods
   static AppTokens of(BuildContext context) {

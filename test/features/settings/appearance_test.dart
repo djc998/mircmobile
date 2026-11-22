@@ -210,7 +210,8 @@ void main() {
     await tester.pumpAndSettle();
 
     // Chat list: room and private chat avatars; people list: role rings.
-    expect(find.byType(RoomAvatar), findsOneWidget);
+    // In the chat list and the header.
+    expect(find.byType(RoomAvatar), findsNWidgets(2));
     expect(
       find.byWidgetPredicate((w) => w is NickAvatar && w.nick == 'carol'),
       findsOneWidget,

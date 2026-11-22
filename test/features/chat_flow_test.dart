@@ -82,13 +82,11 @@ void main() {
 
     expect(transport.written, contains('JOIN #flutter'));
     expect(find.text('#flutter'), findsOneWidget);
-    expect(find.text('Flutter chat'), findsOneWidget);
+    // The header counts people; the topic is in Chat info.
+    expect(find.textContaining('2 people · '), findsOneWidget);
     expect(find.textContaining('hi me!', findRichText: true), findsOneWidget);
 
-    await tester.enterText(
-      find.widgetWithText(TextField, 'Message or /command'),
-      'hello alice',
-    );
+    await tester.enterText(find.byType(TextField), 'hello alice');
     await tester.tap(find.byTooltip('Send'));
     await tester.pumpAndSettle();
     expect(transport.written.last, 'PRIVMSG #flutter :hello alice');
@@ -423,10 +421,7 @@ void main() {
     await tester.pumpAndSettle();
     expect(find.widgetWithText(AppBar, 'alice'), findsOneWidget);
 
-    await tester.enterText(
-      find.widgetWithText(TextField, 'Message or /command'),
-      'hi alice',
-    );
+    await tester.enterText(find.byType(TextField), 'hi alice');
     await tester.tap(find.byTooltip('Send'));
     await tester.pumpAndSettle();
     expect(transport.written.last, 'PRIVMSG alice :hi alice');
@@ -892,8 +887,12 @@ void main() {
       ..add(':bob!b@h PRIVMSG #chat :me: look at this');
     await tester.pumpAndSettle();
 
-    // The Reply button on alice's line starts a reply.
-    await tester.tap(find.byTooltip('Reply to alice'));
+    // Long-press alice's line (phones) and pick Reply.
+    await tester.longPress(
+      find.textContaining('anyone tried the beta?', findRichText: true),
+    );
+    await tester.pumpAndSettle();
+    await tester.tap(find.text('Reply to alice'));
     await tester.pumpAndSettle();
     expect(
       find.textContaining('Replying to alice', findRichText: true),
@@ -931,7 +930,10 @@ void main() {
     // The name menu offers Reply too.
     await tester.tap(find.byTooltip('People'));
     await tester.pumpAndSettle();
-    await tester.tap(find.text('bob'));
+    // bob's name is also on his messages; tap it in the people list.
+    await tester.tap(
+      find.descendant(of: find.byType(Drawer), matching: find.text('bob')),
+    );
     await tester.pumpAndSettle();
     await tester.tap(find.text('Reply to bob here'));
     await tester.pumpAndSettle();
@@ -946,10 +948,7 @@ void main() {
     await tester.pumpAndSettle();
 
     // Tab completes a name, addressed at the start of the line.
-    await tester.enterText(
-      find.widgetWithText(TextField, 'Message or /command'),
-      'al',
-    );
+    await tester.enterText(find.byType(TextField), 'al');
     await tester.sendKeyEvent(LogicalKeyboardKey.tab);
     await tester.pumpAndSettle();
     expect(find.widgetWithText(TextField, 'alice: '), findsOneWidget);
@@ -1061,7 +1060,11 @@ void main() {
     expect(store.values['savedConnection'], contains('"nick":"newme"'));
     transport.incoming.add(':me!u@h NICK :newme');
     await tester.pumpAndSettle();
-    expect(find.text('Connected as newme'), findsOneWidget);
+    await tester.tap(find.byTooltip('Chat info'));
+    await tester.pumpAndSettle();
+    expect(find.textContaining('Connected as newme'), findsOneWidget);
+    await tester.tapAt(const Offset(10, 10));
+    await tester.pumpAndSettle();
     expect(
       find.textContaining('me is now known as newme', findRichText: true),
       findsOneWidget,
@@ -1151,8 +1154,9 @@ void main() {
       ..add(':s 001 me :Welcome')
       ..add(':me!u@h JOIN #chat');
     await tester.pumpAndSettle();
-    // No picture button in rooms.
-    expect(find.byTooltip('Send a picture'), findsNothing);
+    // No pictures in rooms: + only offers commands.
+    expect(find.byTooltip('Add a command'), findsOneWidget);
+    expect(find.byTooltip('Add a picture or command'), findsNothing);
 
     final container = ProviderScope.containerOf(
       tester.element(find.byType(IrcApp)),
@@ -1165,7 +1169,7 @@ void main() {
     await tester.pumpAndSettle();
 
     // From someone you haven't written to: hidden until tapped.
-    expect(find.byTooltip('Send a picture'), findsOneWidget);
+    expect(find.byTooltip('Add a picture or command'), findsOneWidget);
     expect(find.text('Show photo from bob'), findsOneWidget);
     await tester.tap(find.text('Show photo from bob'));
     await tester.pump();

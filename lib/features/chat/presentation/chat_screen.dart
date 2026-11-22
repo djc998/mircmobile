@@ -1,17 +1,22 @@
 import 'dart:async';
 
 import 'package:flutter/gestures.dart';
+import 'package:flutter/semantics.dart';
 import 'package:flutter/services.dart';
 import 'package:flutter_riverpod/flutter_riverpod.dart';
 import 'package:go_router/go_router.dart';
-import 'package:irc_client/core/irc/formatting.dart';
 import 'package:irc_client/core/irc/irc_client.dart';
 import 'package:irc_client/core/irc/irc_events.dart';
 import 'package:irc_client/core/theme/app_theme.dart';
+import 'package:irc_client/core/theme/tokens.dart';
 import 'package:irc_client/core/ui/avatars.dart';
+import 'package:irc_client/core/ui/chat_dividers.dart';
+import 'package:irc_client/core/ui/composer.dart';
+import 'package:irc_client/core/ui/message_group.dart';
 import 'package:irc_client/core/ui/unread_badge.dart';
 import 'package:irc_client/features/calls/presentation/call_widgets.dart';
 import 'package:irc_client/features/chat/application/chat_controller.dart';
+import 'package:irc_client/features/chat/application/chat_layout.dart';
 import 'package:irc_client/features/chat/application/panel_prefs.dart';
 import 'package:irc_client/features/chat/presentation/change_nick_dialog.dart';
 import 'package:irc_client/features/favorites/application/room_prefs_controller.dart';
@@ -113,27 +118,35 @@ class ChatScreen extends ConsumerWidget {
                     ),
               child: Padding(
                 padding: const EdgeInsets.symmetric(vertical: 4),
-                child: Column(
-                  crossAxisAlignment: CrossAxisAlignment.start,
-                  mainAxisSize: MainAxisSize.min,
+                child: Row(
                   children: [
-                    Text(
-                      buffer == null || buffer.isStatus
-                          ? net?.label ?? ''
-                          : buffer.name,
-                      overflow: TextOverflow.ellipsis,
-                    ),
-                    Text(
-                      channel != null && channel.topic.isNotEmpty
-                          ? channel.topic
-                          : net == null
-                          ? 'Not connected'
-                          : state.networks.length > 1 &&
-                                !(buffer?.isStatus ?? true)
-                          ? '${net.label} · ${_statusLabel(net)}'
-                          : _statusLabel(net),
-                      style: Theme.of(context).textTheme.bodySmall,
-                      overflow: TextOverflow.ellipsis,
+                    if (comfortable && buffer != null && !buffer.isStatus) ...[
+                      if (isChannel)
+                        RoomAvatar(name: buffer.name, size: 36)
+                      else
+                        NickAvatar(nick: buffer.name, size: 36),
+                      const SizedBox(width: 10),
+                    ],
+                    Flexible(
+                      child: Column(
+                        crossAxisAlignment: CrossAxisAlignment.start,
+                        mainAxisSize: MainAxisSize.min,
+                        children: [
+                          Text(
+                            buffer == null || buffer.isStatus
+                                ? net?.label ?? ''
+                                : buffer.name,
+                            overflow: TextOverflow.ellipsis,
+                          ),
+                          Text(
+                            _subtitle(state, net, buffer, channel),
+                            style: TypeScale.meta.copyWith(
+                              color: AppTokens.of(context).textMuted,
+                            ),
+                            overflow: TextOverflow.ellipsis,
+                          ),
+                        ],
+                      ),
                     ),
                   ],
                 ),
@@ -314,9 +327,26 @@ class ChatScreen extends ConsumerWidget {
                       ),
                   Expanded(
                     child: _MessageList(
+                      // A new list per conversation: scroll and the "new"
+                      // pill start fresh.
+                      key: ValueKey(buffer?.key),
                       lines: buffer?.lines ?? [],
                       ownNick: net?.nick ?? '',
                       networkId: net?.id ?? '',
+                      style: buffer == null || buffer.isStatus || !comfortable
+                          ? _ChatStyle.lines
+                          : isChannel
+                          ? _ChatStyle.groups
+                          : _ChatStyle.bubbles,
+                      unreadMarker: buffer?.unreadMarker,
+                      roleOf: channel == null
+                          ? null
+                          : (nick) {
+                              final m = channel.members[nick.toLowerCase()];
+                              return m == null
+                                  ? NickRole.member
+                                  : nickRoleOf(m);
+                            },
                       // Pictures load on their own only in a private chat
                       // where you've written to the other person.
                       autoShowPictures:
@@ -342,13 +372,20 @@ class ChatScreen extends ConsumerWidget {
                       ),
                     ),
                   ),
-                  const Divider(height: 1),
-                  _InputBar(
-                    // A new bar per conversation keeps drafts apart.
+                  Composer(
+                    // A new composer per conversation keeps drafts apart.
                     key: ValueKey(buffer?.key),
                     onSubmit: controller.submit,
-                    replyTo: buffer?.replyTo,
+                    hint: buffer == null || buffer.isStatus
+                        ? 'Message or /command'
+                        : 'Message ${buffer.name}',
+                    replyTo: buffer?.replyTo?.sender,
+                    replyText: buffer?.replyTo?.text ?? '',
                     onCancelReply: controller.cancelReply,
+                    rooms: [
+                      for (final b in state.buffers.values)
+                        if (b.networkId == net?.id && b.isChannel) b.name,
+                    ],
                     uploading: (buffer?.uploading ?? 0) > 0,
                     // Pictures are for private chats.
                     onAttach: buffer != null && !buffer.isStatus && !isChannel
@@ -384,6 +421,27 @@ class ChatScreen extends ConsumerWidget {
       }
     }
     return ChatLine(text: '', sender: nick, kind: ChatLineKind.message);
+  }
+
+  /// Under the chat's name: "142 people · Libera.Chat" in a room, the
+  /// network in a private chat, the connection on the server tab. While
+  /// not connected, the connection status instead.
+  static String _subtitle(
+    ChatState state,
+    NetworkSession? net,
+    ChatBuffer? buffer,
+    IrcChannel? channel,
+  ) {
+    if (net == null) return 'Not connected';
+    if (buffer == null || buffer.isStatus) return _statusLabel(net);
+    if (net.status != IrcConnectionStatus.connected) {
+      return '${net.label} · ${_statusLabel(net)}';
+    }
+    if (channel != null) {
+      final n = channel.members.length;
+      return '$n ${n == 1 ? 'person' : 'people'} · ${net.label}';
+    }
+    return net.label;
   }
 
   static String _statusLabel(NetworkSession s) => switch (s.status) {
@@ -1027,71 +1085,504 @@ void _copyNick(String text) {
   Clipboard.setData(ClipboardData(text: text)).ignore();
 }
 
-class _MessageList extends StatelessWidget {
+/// How the open conversation's messages are drawn.
+enum _ChatStyle {
+  /// `HH:MM <nick> text`: Compact density and the server tab.
+  lines,
+
+  /// Grouped under one avatar: rooms in Comfortable.
+  groups,
+
+  /// Bubbles: private chats in Comfortable.
+  bubbles,
+}
+
+/// Lines that count towards the "3 new" pill.
+bool _countsAsNew(ChatLine l) => switch (l.kind) {
+  ChatLineKind.message || ChatLineKind.action || ChatLineKind.notice => true,
+  _ => false,
+};
+
+class _MessageList extends StatefulWidget {
   const _MessageList({
     required this.lines,
     required this.ownNick,
     required this.onNickTap,
+    this.style = _ChatStyle.lines,
     this.networkId = '',
     this.autoShowPictures = false,
+    this.unreadMarker,
+    this.roleOf,
     this.onReply,
+    super.key,
   });
 
   final List<ChatLine> lines;
   final String ownNick;
   final String networkId;
   final bool autoShowPictures;
+  final _ChatStyle style;
+  final ChatLine? unreadMarker;
+  final NickRole Function(String nick)? roleOf;
   final void Function(String nick) onNickTap;
 
   /// Null where replies don't apply (server tab, private chats).
   final void Function(ChatLine line)? onReply;
 
   @override
+  State<_MessageList> createState() => _MessageListState();
+}
+
+class _MessageListState extends State<_MessageList> {
+  final _scroll = ScrollController();
+
+  /// Within this many pixels of the newest message counts as at the bottom.
+  static const double _bottomSlack = 48;
+  bool _atBottom = true;
+
+  /// The newest line seen while at the bottom; later ones are "new".
+  ChatLine? _lastSeen;
+
+  @override
+  void initState() {
+    super.initState();
+    _scroll.addListener(() {
+      final at = !_scroll.hasClients || _scroll.offset <= _bottomSlack;
+      if (at != _atBottom) setState(() => _atBottom = at);
+    });
+  }
+
+  @override
+  void dispose() {
+    _scroll.dispose();
+    super.dispose();
+  }
+
+  void _jumpToLatest() {
+    final d = Motion.of(context, Motion.slow);
+    if (d == Duration.zero) {
+      _scroll.jumpTo(0);
+    } else {
+      _scroll.animateTo(0, duration: d, curve: Motion.curve);
+    }
+  }
+
+  @override
   Widget build(BuildContext context) {
-    return ListView.builder(
+    final lines = widget.lines;
+    if (_atBottom || _lastSeen == null) {
+      _lastSeen = lines.isEmpty ? null : lines.last;
+    }
+    final seen = lines.lastIndexWhere((l) => identical(l, _lastSeen));
+    final fresh = _atBottom || seen < 0
+        ? const <ChatLine>[]
+        : lines.skip(seen + 1).where(_countsAsNew).toList();
+
+    final items = layoutChat(
+      lines,
+      grouped: widget.style != _ChatStyle.lines,
+      ownNick: widget.ownNick,
+      unreadMarker: widget.unreadMarker,
+    );
+    final list = ListView.builder(
+      controller: _scroll,
       reverse: true,
-      padding: const EdgeInsets.symmetric(horizontal: 12, vertical: 8),
-      itemCount: lines.length,
-      itemBuilder: (context, i) {
-        final line = lines[lines.length - 1 - i];
-        final canReply =
-            onReply != null &&
-            line.sender != null &&
-            line.kind != ChatLineKind.own &&
-            line.kind != ChatLineKind.event &&
-            line.kind != ChatLineKind.error;
+      padding: EdgeInsets.symmetric(
+        horizontal: widget.style == _ChatStyle.lines ? 12 : 10,
+        vertical: 8,
+      ),
+      itemCount: items.length,
+      itemBuilder: (context, i) => _item(context, items[items.length - 1 - i]),
+    );
+    return Stack(
+      children: [
+        Positioned.fill(child: list),
+        if (fresh.isNotEmpty)
+          PositionedDirectional(
+            end: 16,
+            bottom: 12,
+            child: JumpPill(
+              count: fresh.length,
+              mention: fresh.any((l) => lineMentions(l, widget.ownNick)),
+              onTap: _jumpToLatest,
+            ),
+          ),
+      ],
+    );
+  }
+
+  bool _canReply(ChatLine line) =>
+      widget.onReply != null &&
+      line.sender != null &&
+      line.kind != ChatLineKind.own &&
+      line.kind != ChatLineKind.event &&
+      line.kind != ChatLineKind.error;
+
+  VoidCallback? _replyTo(ChatLine line) =>
+      _canReply(line) ? () => widget.onReply!(line) : null;
+
+  PictureLink? _pictureIn(ChatLine line) =>
+      line.sender != null &&
+          (line.kind == ChatLineKind.own || line.kind == ChatLineKind.message)
+      ? PictureLink.find(line.text)
+      : null;
+
+  Widget? _picture(ChatLine line, {double indent = 48}) {
+    final link = _pictureIn(line);
+    if (link == null) return null;
+    final isOwn = line.kind == ChatLineKind.own;
+    return PictureBubble(
+      key: ValueKey(link),
+      link: link,
+      sender: line.sender!,
+      networkId: widget.networkId,
+      isOwn: isOwn,
+      autoShow: isOwn || widget.autoShowPictures,
+      indent: indent,
+    );
+  }
+
+  Widget _item(BuildContext context, ChatItem item) {
+    switch (item) {
+      case DayItem(:final day):
+        return DayDivider(key: ValueKey(day), day: day);
+      case UnreadItem():
+        return const UnreadDivider(key: ValueKey('unread'));
+      case PresenceItem(:final lines):
+        return SystemEventLine(
+          key: ObjectKey(lines.first),
+          text: presenceSummary(lines),
+          details: [for (final l in lines) l.text],
+        );
+      case SystemItem(:final line):
+        return SystemEventLine(
+          key: ObjectKey(line),
+          text: line.text,
+          error: line.kind == ChatLineKind.error,
+        );
+      case LineItem(:final line):
         final tile = _MessageTile(
           key: ObjectKey(line),
           line: line,
-          ownNick: ownNick,
-          onNickTap: onNickTap,
-          onReply: canReply ? () => onReply!(line) : null,
+          ownNick: widget.ownNick,
+          onNickTap: widget.onNickTap,
+          onReply: _replyTo(line),
         );
-        final isOwn = line.kind == ChatLineKind.own;
-        final link =
-            line.sender != null && (isOwn || line.kind == ChatLineKind.message)
-            ? PictureLink.find(line.text)
-            : null;
-        if (link == null) return tile;
+        final picture = _picture(line);
+        if (picture == null) return tile;
         return Column(
-          key: ValueKey(link),
+          key: ObjectKey(line),
           crossAxisAlignment: CrossAxisAlignment.start,
-          children: [
-            tile,
-            PictureBubble(
-              link: link,
-              sender: line.sender!,
-              networkId: networkId,
-              isOwn: isOwn,
-              autoShow: isOwn || autoShowPictures,
-            ),
-          ],
+          children: [tile, picture],
         );
-      },
+      case GroupItem():
+        return widget.style == _ChatStyle.bubbles
+            ? _bubbles(context, item)
+            : _group(context, item);
+    }
+  }
+
+  Widget _group(BuildContext context, GroupItem group) {
+    final sender = group.sender;
+    return Padding(
+      key: ObjectKey(group.lines.first),
+      padding: const EdgeInsets.only(top: 2),
+      child: MessageGroup(
+        nick: sender,
+        time: _time(context, group.time),
+        role: widget.roleOf?.call(sender) ?? NickRole.member,
+        own: group.own,
+        mentioned: group.mentioned,
+        onNickTap: () => widget.onNickTap(sender),
+        children: [
+          for (final line in group.lines) ...[
+            _LineActions(
+              key: ObjectKey(line),
+              line: line,
+              onReply: _replyTo(line),
+              child: _LineBody(line: line, ownNick: widget.ownNick),
+            ),
+            ?_picture(line, indent: 0),
+          ],
+        ],
+      ),
+    );
+  }
+
+  Widget _bubbles(BuildContext context, GroupItem group) {
+    final tokens = AppTokens.of(context);
+    final own = group.own;
+    return Padding(
+      key: ObjectKey(group.lines.first),
+      padding: const EdgeInsets.only(top: 6),
+      child: Column(
+        crossAxisAlignment: own
+            ? CrossAxisAlignment.end
+            : CrossAxisAlignment.start,
+        children: [
+          for (final (i, line) in group.lines.indexed) ...[
+            if (i > 0) const SizedBox(height: 2),
+            _LineActions(
+              key: ObjectKey(line),
+              line: line,
+              onReply: _replyTo(line),
+              child: MessageBubble(
+                own: own,
+                continued: i > 0,
+                child: _LineBody(
+                  line: line,
+                  ownNick: widget.ownNick,
+                  bubble: true,
+                ),
+              ),
+            ),
+            ?_picture(line, indent: 0),
+          ],
+          Padding(
+            padding: const EdgeInsets.fromLTRB(6, 2, 6, 0),
+            child: Text(
+              _time(context, group.lines.last.time),
+              style: TypeScale.meta.copyWith(
+                color: tokens.textMuted,
+                fontSize: 11,
+              ),
+            ),
+          ),
+        ],
+      ),
     );
   }
 }
 
+String _time(BuildContext context, DateTime t) =>
+    TimeOfDay.fromDateTime(t.toLocal()).format(context);
+
+/// One message's text inside a group or bubble: no time or nick, since the
+/// group shows them. Your nick is highlighted where it mentions you.
+class _LineBody extends StatelessWidget {
+  const _LineBody({
+    required this.line,
+    required this.ownNick,
+    this.bubble = false,
+  });
+
+  final ChatLine line;
+  final String ownNick;
+
+  /// Inside a bubble: colours come from the bubble.
+  final bool bubble;
+
+  @override
+  Widget build(BuildContext context) {
+    final tokens = AppTokens.of(context);
+    final chat = ChatColors.of(context);
+    final mentioned = lineMentions(line, ownNick);
+    final base = bubble
+        ? DefaultTextStyle.of(context).style
+        : TypeScale.body.copyWith(color: tokens.textPrimary);
+    final span = switch (line.kind) {
+      ChatLineKind.action => TextSpan(
+        text: '${line.sender} ${line.text}',
+        style: TextStyle(
+          fontStyle: FontStyle.italic,
+          color: bubble ? null : chat.action,
+        ),
+      ),
+      ChatLineKind.notice => TextSpan(
+        text: line.text,
+        style: TextStyle(color: bubble ? null : chat.notice),
+      ),
+      _ => TextSpan(
+        children: mentioned
+            ? _highlight(
+                line.text,
+                ownNick,
+                TextStyle(
+                  fontWeight: FontWeight.w600,
+                  color: bubble
+                      ? null
+                      : tokens.readable(tokens.mention, tokens.mentionSoft),
+                ),
+              )
+            : [TextSpan(text: line.text)],
+      ),
+    };
+    final full = TextSpan(style: base, children: [span]);
+    final time = _time(context, line.time);
+    final kind = switch (line.kind) {
+      ChatLineKind.action => 'action',
+      ChatLineKind.notice => 'notice',
+      _ => 'message',
+    };
+    return MergeSemantics(
+      child: Semantics(
+        label:
+            '${line.sender}, $time, $kind${mentioned ? ', mentions you' : ''}',
+        child: _isTouch(context) ? Text.rich(full) : SelectableText.rich(full),
+      ),
+    );
+  }
+
+  /// [text] split so each whole-word [nick] gets [style].
+  static List<InlineSpan> _highlight(
+    String text,
+    String nick,
+    TextStyle style,
+  ) {
+    final pattern = RegExp(
+      '(?<![\\w\\[\\]\\\\`^{}|-])${RegExp.escape(nick)}(?![\\w\\[\\]\\\\`^{}|-])',
+      caseSensitive: false,
+    );
+    final spans = <InlineSpan>[];
+    var at = 0;
+    for (final m in pattern.allMatches(text)) {
+      if (m.start > at) spans.add(TextSpan(text: text.substring(at, m.start)));
+      spans.add(TextSpan(text: m[0], style: style));
+      at = m.end;
+    }
+    if (at < text.length) spans.add(TextSpan(text: text.substring(at)));
+    return spans;
+  }
+}
+
+/// Phones and tablets: plain text so a swipe can reply; computers:
+/// selectable text with a reply button on hover.
+bool _isTouch(BuildContext context) => switch (Theme.of(context).platform) {
+  TargetPlatform.iOS || TargetPlatform.android => true,
+  _ => false,
+};
+
+/// Reply and copy for one message: swipe right or the reply button to
+/// reply, long-press (touch) for Reply and Copy.
+class _LineActions extends StatefulWidget {
+  const _LineActions({
+    required this.line,
+    required this.child,
+    this.onReply,
+    super.key,
+  });
+
+  final ChatLine line;
+  final Widget child;
+  final VoidCallback? onReply;
+
+  @override
+  State<_LineActions> createState() => _LineActionsState();
+}
+
+class _LineActionsState extends State<_LineActions> {
+  bool _hovered = false;
+
+  @override
+  Widget build(BuildContext context) {
+    final onReply = widget.onReply;
+    if (_isTouch(context)) {
+      // Phones: swipe or long-press; screen readers get a Reply action.
+      final pressable = GestureDetector(
+        onLongPress: () =>
+            unawaited(_showLineActions(context, widget.line, onReply)),
+        child: widget.child,
+      );
+      if (onReply == null) return pressable;
+      return _swipeToReply(
+        context,
+        widget.line,
+        onReply,
+        Semantics(
+          customSemanticsActions: {
+            CustomSemanticsAction(label: 'Reply to ${widget.line.sender}'):
+                onReply,
+          },
+          child: pressable,
+        ),
+      );
+    }
+    if (onReply == null) return widget.child;
+    // Computers: a reply button that shows on hover or keyboard focus.
+    return MouseRegion(
+      onEnter: (_) => setState(() => _hovered = true),
+      onExit: (_) => setState(() => _hovered = false),
+      child: Row(
+        crossAxisAlignment: CrossAxisAlignment.start,
+        children: [
+          Expanded(child: widget.child),
+          Focus(
+            canRequestFocus: false,
+            onFocusChange: (f) => setState(() => _hovered = f),
+            child: Opacity(
+              opacity: _hovered ? 1 : 0,
+              child: IconButton(
+                tooltip: 'Reply to ${widget.line.sender}',
+                visualDensity: VisualDensity.compact,
+                iconSize: 18,
+                icon: const Icon(Icons.reply),
+                onPressed: onReply,
+              ),
+            ),
+          ),
+        ],
+      ),
+    );
+  }
+}
+
+Widget _swipeToReply(
+  BuildContext context,
+  ChatLine line,
+  VoidCallback onReply,
+  Widget child,
+) => Dismissible(
+  key: ObjectKey(line),
+  direction: DismissDirection.startToEnd,
+  dismissThresholds: const {DismissDirection.startToEnd: 0.25},
+  confirmDismiss: (_) async {
+    onReply();
+    return false;
+  },
+  background: Align(
+    alignment: AlignmentDirectional.centerStart,
+    child: Padding(
+      padding: const EdgeInsetsDirectional.only(start: 8),
+      child: Icon(Icons.reply, color: AppTokens.of(context).accent),
+    ),
+  ),
+  child: child,
+);
+
+Future<void> _showLineActions(
+  BuildContext context,
+  ChatLine line,
+  VoidCallback? onReply,
+) => showModalBottomSheet<void>(
+  context: context,
+  showDragHandle: true,
+  builder: (sheet) => SafeArea(
+    child: Column(
+      mainAxisSize: MainAxisSize.min,
+      children: [
+        if (onReply != null)
+          ListTile(
+            leading: const Icon(Icons.reply),
+            title: Text('Reply to ${line.sender}'),
+            onTap: () {
+              Navigator.pop(sheet);
+              onReply();
+            },
+          ),
+        ListTile(
+          leading: const Icon(Icons.copy),
+          title: const Text('Copy message'),
+          onTap: () {
+            Navigator.pop(sheet);
+            _copyNick(line.text);
+          },
+        ),
+      ],
+    ),
+  ),
+);
+
+/// One line as `HH:MM <nick> text`, for Compact and the server tab.
 class _MessageTile extends StatefulWidget {
   const _MessageTile({
     required this.line,
@@ -1111,41 +1602,6 @@ class _MessageTile extends StatefulWidget {
 }
 
 class _MessageTileState extends State<_MessageTile> {
-  bool _hovered = false;
-
-  Future<void> _showLineActions(BuildContext context) {
-    final line = widget.line;
-    final onReply = widget.onReply;
-    return showModalBottomSheet<void>(
-      context: context,
-      showDragHandle: true,
-      builder: (sheet) => SafeArea(
-        child: Column(
-          mainAxisSize: MainAxisSize.min,
-          children: [
-            if (onReply != null)
-              ListTile(
-                leading: const Icon(Icons.reply),
-                title: Text('Reply to ${line.sender}'),
-                onTap: () {
-                  Navigator.pop(sheet);
-                  onReply();
-                },
-              ),
-            ListTile(
-              leading: const Icon(Icons.copy),
-              title: const Text('Copy message'),
-              onTap: () {
-                Navigator.pop(sheet);
-                _copyNick(line.text);
-              },
-            ),
-          ],
-        ),
-      ),
-    );
-  }
-
   // Owned here so it can be disposed with the row.
   late final TapGestureRecognizer _nickTap = TapGestureRecognizer()
     ..onTap = () {
@@ -1162,9 +1618,10 @@ class _MessageTileState extends State<_MessageTile> {
   @override
   Widget build(BuildContext context) {
     final theme = Theme.of(context);
+    final tokens = AppTokens.of(context);
     final muted = theme.colorScheme.onSurfaceVariant;
     final line = widget.line;
-    final time = TimeOfDay.fromDateTime(line.time.toLocal()).format(context);
+    final time = _time(context, line.time);
     final sender = line.sender;
     final chatColors = ChatColors.of(context);
     final nickStyle = TextStyle(
@@ -1203,10 +1660,7 @@ class _MessageTileState extends State<_MessageTile> {
         style: TextStyle(color: theme.colorScheme.error),
       ),
     };
-    final mentioned =
-        line.kind != ChatLineKind.own &&
-        line.sender != null &&
-        mentions(line.text, widget.ownNick);
+    final mentioned = lineMentions(line, widget.ownNick);
     final span = TextSpan(
       style: theme.textTheme.bodyMedium,
       children: [
@@ -1217,243 +1671,21 @@ class _MessageTileState extends State<_MessageTile> {
         body,
       ],
     );
-    // Phones: plain text so a swipe can reply; long-press offers Reply and
-    // Copy. Computers: selectable text, reply button on hover.
-    final touch = switch (theme.platform) {
-      TargetPlatform.iOS || TargetPlatform.android => true,
-      _ => false,
-    };
-    final text = touch
-        ? GestureDetector(
-            onLongPress: () => unawaited(_showLineActions(context)),
-            child: Text.rich(span),
-          )
-        : SelectableText.rich(span);
-    final onReply = widget.onReply;
-    Widget row = Container(
-      padding: const EdgeInsets.symmetric(vertical: 2, horizontal: 4),
-      decoration: mentioned
-          ? BoxDecoration(
-              color: theme.colorScheme.tertiaryContainer.withValues(alpha: 0.6),
-              border: Border(
-                left: BorderSide(color: theme.colorScheme.tertiary, width: 3),
-              ),
-            )
-          : null,
-      child: Row(
-        crossAxisAlignment: CrossAxisAlignment.start,
-        children: [
-          Expanded(child: text),
-          if (onReply != null)
-            // Always there for touch and screen readers; brighter on hover.
-            Opacity(
-              opacity: _hovered ? 1 : 0.35,
-              child: IconButton(
-                tooltip: 'Reply to ${line.sender}',
-                visualDensity: VisualDensity.compact,
-                iconSize: 18,
-                icon: const Icon(Icons.reply),
-                onPressed: onReply,
-              ),
-            ),
-        ],
+    return _LineActions(
+      line: line,
+      onReply: widget.onReply,
+      child: Container(
+        padding: const EdgeInsets.symmetric(vertical: 2, horizontal: 4),
+        decoration: mentioned
+            ? BoxDecoration(
+                color: tokens.mentionSoft,
+                border: Border(
+                  left: BorderSide(color: tokens.mentionBar, width: 3),
+                ),
+              )
+            : null,
+        child: _isTouch(context) ? Text.rich(span) : SelectableText.rich(span),
       ),
-    );
-    if (onReply == null) return row;
-    row = MouseRegion(
-      onEnter: (_) => setState(() => _hovered = true),
-      onExit: (_) => setState(() => _hovered = false),
-      child: row,
-    );
-    // Swipe right on a phone to reply, like other chat apps.
-    return Dismissible(
-      key: ObjectKey(line),
-      direction: DismissDirection.startToEnd,
-      dismissThresholds: const {DismissDirection.startToEnd: 0.25},
-      confirmDismiss: (_) async {
-        onReply();
-        return false;
-      },
-      background: Align(
-        alignment: Alignment.centerLeft,
-        child: Padding(
-          padding: const EdgeInsets.only(left: 8),
-          child: Icon(Icons.reply, color: theme.colorScheme.primary),
-        ),
-      ),
-      child: row,
-    );
-  }
-}
-
-class _InputBar extends StatefulWidget {
-  const _InputBar({
-    required this.onSubmit,
-    required this.onCancelReply,
-    this.replyTo,
-    this.nicks = const [],
-    this.onAttach,
-    this.uploading = false,
-    super.key,
-  });
-
-  final void Function(String text) onSubmit;
-
-  /// Shows the picture button when set.
-  final VoidCallback? onAttach;
-
-  /// A picture is being uploaded.
-  final bool uploading;
-  final ChatLine? replyTo;
-  final VoidCallback onCancelReply;
-
-  /// Names Tab completes to.
-  final List<String> nicks;
-
-  @override
-  State<_InputBar> createState() => _InputBarState();
-}
-
-class _InputBarState extends State<_InputBar> {
-  final _controller = TextEditingController();
-  final _focus = FocusNode();
-
-  @override
-  void didUpdateWidget(_InputBar old) {
-    super.didUpdateWidget(old);
-    if (widget.replyTo != null && widget.replyTo != old.replyTo) {
-      _focus.requestFocus();
-    }
-  }
-
-  @override
-  void dispose() {
-    _controller.dispose();
-    _focus.dispose();
-    super.dispose();
-  }
-
-  /// Tab completes a nickname, as in mIRC.
-  void _complete() {
-    final done = completeNick(_controller.text, widget.nicks);
-    if (done == null) return;
-    _controller.value = TextEditingValue(
-      text: done,
-      selection: TextSelection.collapsed(offset: done.length),
-    );
-  }
-
-  void _send() {
-    final text = _controller.text;
-    if (text.trim().isEmpty) return;
-    widget.onSubmit(text);
-    _controller.clear();
-    _focus.requestFocus();
-  }
-
-  @override
-  Widget build(BuildContext context) {
-    final theme = Theme.of(context);
-    final reply = widget.replyTo;
-    return Column(
-      mainAxisSize: MainAxisSize.min,
-      children: [
-        if (widget.uploading)
-          Semantics(
-            liveRegion: true,
-            child: Padding(
-              padding: const EdgeInsets.fromLTRB(12, 6, 12, 0),
-              child: Row(
-                children: [
-                  const SizedBox(
-                    width: 14,
-                    height: 14,
-                    child: CircularProgressIndicator(strokeWidth: 2),
-                  ),
-                  const SizedBox(width: 8),
-                  Text(
-                    'Encrypting and sending picture…',
-                    style: theme.textTheme.bodySmall,
-                  ),
-                ],
-              ),
-            ),
-          ),
-        if (reply != null)
-          Container(
-            color: theme.colorScheme.surfaceContainerHighest,
-            padding: const EdgeInsets.fromLTRB(12, 4, 4, 4),
-            child: Row(
-              children: [
-                Icon(Icons.reply, size: 18, color: theme.colorScheme.primary),
-                const SizedBox(width: 8),
-                Expanded(
-                  child: Text.rich(
-                    TextSpan(
-                      children: [
-                        TextSpan(
-                          text: 'Replying to ${reply.sender}',
-                          style: const TextStyle(fontWeight: FontWeight.bold),
-                        ),
-                        if (reply.text.isNotEmpty)
-                          TextSpan(text: ': ${reply.text}'),
-                      ],
-                    ),
-                    maxLines: 1,
-                    overflow: TextOverflow.ellipsis,
-                  ),
-                ),
-                IconButton(
-                  tooltip: 'Cancel reply',
-                  visualDensity: VisualDensity.compact,
-                  icon: const Icon(Icons.close, size: 18),
-                  onPressed: widget.onCancelReply,
-                ),
-              ],
-            ),
-          ),
-        Padding(
-          padding: const EdgeInsets.fromLTRB(12, 8, 8, 8),
-          child: Row(
-            children: [
-              if (widget.onAttach != null)
-                IconButton(
-                  tooltip: 'Send a picture',
-                  onPressed: widget.uploading ? null : widget.onAttach,
-                  icon: const Icon(Icons.add_photo_alternate_outlined),
-                ),
-              Expanded(
-                child: CallbackShortcuts(
-                  bindings: {
-                    const SingleActivator(LogicalKeyboardKey.tab): _complete,
-                  },
-                  child: TextField(
-                    controller: _controller,
-                    focusNode: _focus,
-                    minLines: 1,
-                    maxLines: 5,
-                    textInputAction: TextInputAction.send,
-                    onSubmitted: (_) => _send(),
-                    decoration: InputDecoration(
-                      hintText: reply == null
-                          ? 'Message or /command'
-                          : 'Reply to ${reply.sender}',
-                      border: const OutlineInputBorder(),
-                      isDense: true,
-                    ),
-                  ),
-                ),
-              ),
-              const SizedBox(width: 8),
-              IconButton.filled(
-                tooltip: 'Send',
-                onPressed: _send,
-                icon: const Icon(Icons.send),
-              ),
-            ],
-          ),
-        ),
-      ],
     );
   }
 }
@@ -1523,15 +1755,18 @@ class _NickList extends StatelessWidget {
 
   /// Owners, admins, ops and half-ops get the operator ring; voice the
   /// accent ring.
-  static NickRole _role(IrcMember m) => m.prefixes.contains(RegExp('[~&@%]'))
-      ? NickRole.op
-      : m.prefixes.contains('+')
-      ? NickRole.voiced
-      : NickRole.member;
+  static NickRole _role(IrcMember m) => nickRoleOf(m);
 
   static int _rank(IrcMember m) =>
       m.prefixes.isEmpty ? 99 : '~&@%+'.indexOf(m.topPrefix).abs();
 }
+
+/// Operators (and above) get the gold ring, voiced people the accent one.
+NickRole nickRoleOf(IrcMember m) => m.prefixes.contains(RegExp('[~&@%]'))
+    ? NickRole.op
+    : m.prefixes.contains('+')
+    ? NickRole.voiced
+    : NickRole.member;
 
 /// Asks what to do when a secure connection can't be made: trust an
 /// unverified certificate, or fall back to an unencrypted connection.
