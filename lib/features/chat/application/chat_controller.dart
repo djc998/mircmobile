@@ -734,6 +734,7 @@ class ChatController extends Notifier<ChatState> {
     final change = modeChange(
       current: chan.modes,
       currentKey: chan.key,
+      currentLimit: chan.limit,
       wanted: settings,
     );
     if (change != null) {
@@ -767,6 +768,33 @@ class ChatController extends Notifier<ChatState> {
 
   void makeOperator(String channel, String nick, {String? networkId}) =>
       _network(networkId)?.client.setModes(channel, '+o', [nick]);
+
+  /// Takes operator status away from [nick].
+  void removeOperator(String channel, String nick, {String? networkId}) =>
+      _network(networkId)?.client.setModes(channel, '-o', [nick]);
+
+  /// Gives or takes [nick]'s voice (+v): in a moderated room only people
+  /// with a voice (and operators) can talk.
+  void setVoice(
+    String channel,
+    String nick, {
+    required bool voice,
+    String? networkId,
+  }) =>
+      _network(networkId)?.client
+          .setModes(channel, voice ? '+v' : '-v', [nick]);
+
+  /// Changes the room's description (its topic).
+  void setRoomDescription(String channel, String text, {String? networkId}) =>
+      _network(networkId)?.client.setTopic(channel, text.trim());
+
+  /// Loads the room's ban list; the room settings show it when it arrives.
+  void requestBans(String channel, {String? networkId}) =>
+      _network(networkId)?.client.requestBans(channel);
+
+  /// Lifts a ban.
+  void unban(String channel, String mask, {String? networkId}) =>
+      _network(networkId)?.client.setModes(channel, '-b', [mask]);
 
   /// Joins the room from an invitation and forgets the invitation.
   void acceptInvite(String networkId, RoomInvite invite) {

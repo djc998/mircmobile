@@ -10,6 +10,9 @@ class RoomSettings {
     this.secret,
     this.topicLocked,
     this.password,
+    this.moderated,
+    this.noOutsideMessages,
+    this.limit,
   });
 
   /// Only invited people can join (+i).
@@ -23,6 +26,15 @@ class RoomSettings {
 
   /// Join password (+k). Empty removes it.
   final String? password;
+
+  /// Only operators and people with a voice can talk (+m).
+  final bool? moderated;
+
+  /// People who aren't in the room can't send messages to it (+n).
+  final bool? noOutsideMessages;
+
+  /// Most people allowed in the room (+l). 0 removes the limit.
+  final int? limit;
 }
 
 /// The MODE change that turns [current] into [wanted], as `modes` and
@@ -32,6 +44,7 @@ class RoomSettings {
   required Set<String> current,
   required String? currentKey,
   required RoomSettings wanted,
+  int? currentLimit,
 }) {
   final add = StringBuffer();
   final remove = StringBuffer();
@@ -45,6 +58,17 @@ class RoomSettings {
   flag('i', wanted.inviteOnly);
   flag('s', wanted.secret);
   flag('t', wanted.topicLocked);
+  flag('m', wanted.moderated);
+  flag('n', wanted.noOutsideMessages);
+  final limit = wanted.limit;
+  if (limit != null) {
+    if (limit <= 0 && currentLimit != null) {
+      remove.write('l');
+    } else if (limit > 0 && limit != currentLimit) {
+      add.write('l');
+      addArgs.add('$limit');
+    }
+  }
   final password = wanted.password?.trim();
   if (password != null) {
     if (password.isEmpty && currentKey != null) {

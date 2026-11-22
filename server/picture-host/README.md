@@ -43,12 +43,18 @@ the two people and keeps nothing after the call.
 For the relay that hides people's IP addresses, create a TURN key in the
 Cloudflare dashboard (**Realtime → TURN Server → Create**) and add it:
 
+Easiest: run `./set-turn-key.sh`. It asks for the Turn Token ID and API
+Token (without showing them), checks them with Cloudflare, and only then
+saves them as the `TURN_KEY_ID` and `TURN_KEY_API_TOKEN` secrets. Or by hand:
+
 ```sh
 npx wrangler secret put TURN_KEY_ID
 npx wrangler secret put TURN_KEY_API_TOKEN
 ```
 
-Without it, calls still work but connect directly (STUN only).
+Both values must come from **Realtime → TURN Server** (a Serverless SFU
+app's ID and secret look similar but don't work). Without them, calls
+still work but connect directly (STUN only).
 
 ## Reviewing reports
 

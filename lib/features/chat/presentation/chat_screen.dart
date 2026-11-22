@@ -521,6 +521,11 @@ Future<void> showUserActions(
       (client?.channel(room)?.members.containsKey(nick.toLowerCase()) ?? false);
   final canModerate =
       !isMe && room != null && inRoom && (client?.isOperator(room) ?? false);
+  final member = room == null
+      ? null
+      : client?.channel(room)?.members[nick.toLowerCase()];
+  final theyAreOp = member?.prefixes.contains(RegExp('[~&@]')) ?? false;
+  final theyHaveVoice = member?.prefixes.contains('+') ?? false;
   // Rooms we're in that this person isn't in, for "Invite to".
   final inviteTo = isMe || client == null
       ? const <String>[]
@@ -605,12 +610,46 @@ Future<void> showUserActions(
               ),
             if (canModerate) ...[
               const Divider(),
+              if (theyAreOp)
+                ListTile(
+                  leading: const Icon(Icons.remove_moderator_outlined),
+                  title: Text('Remove operator of $room'),
+                  onTap: () {
+                    Navigator.pop(sheet);
+                    controller.removeOperator(
+                      room,
+                      nick,
+                      networkId: network!.id,
+                    );
+                  },
+                )
+              else
+                ListTile(
+                  leading: const Icon(Icons.shield_outlined),
+                  title: Text('Make operator of $room'),
+                  onTap: () {
+                    Navigator.pop(sheet);
+                    controller.makeOperator(room, nick, networkId: network!.id);
+                  },
+                ),
               ListTile(
-                leading: const Icon(Icons.shield_outlined),
-                title: Text('Make operator of $room'),
+                leading: Icon(
+                  theyHaveVoice
+                      ? Icons.voice_over_off_outlined
+                      : Icons.record_voice_over_outlined,
+                ),
+                title: Text(theyHaveVoice ? 'Take voice' : 'Give voice'),
+                subtitle: const Text(
+                  'In a moderated room, only people with a voice can talk',
+                ),
                 onTap: () {
                   Navigator.pop(sheet);
-                  controller.makeOperator(room, nick, networkId: network!.id);
+                  controller.setVoice(
+                    room,
+                    nick,
+                    voice: !theyHaveVoice,
+                    networkId: network!.id,
+                  );
                 },
               ),
               ListTile(

@@ -96,6 +96,13 @@ class IrcChannel {
   /// User limit (+l), if any.
   int? limit;
 
+  /// Ban masks (+b), once asked for with [IrcClient.requestBans] or seen
+  /// being set.
+  final List<String> bans = [];
+
+  /// Whether [bans] has been loaded from the server.
+  bool bansLoaded = false;
+
   /// Whether [modes] reflect the server yet (after 324 or a MODE).
   bool modesKnown = false;
 
@@ -151,6 +158,8 @@ class IrcClient {
   int _nickAttempt = 0;
   final Set<String> _rejoin = {};
   final List<ChannelListEntry> _listBuffer = [];
+  // Ban masks arriving (367) per case-folded channel, until 368.
+  final _banBuffer = <String, List<String>>{};
   final Set<String> _namesInProgress = {};
 
   IrcConnectionStatus _status = IrcConnectionStatus.disconnected;
@@ -383,6 +392,9 @@ class IrcClient {
         : 'KICK $channel $nick :$reason',
   );
 
+  /// Asks the server for [channel]'s ban list (367/368 replies).
+  void requestBans(String channel) => sendRaw('MODE $channel +b');
+
   /// Bans [nick] from [channel] by nickname mask (`nick!*@*`).
   void ban(String channel, String nick) =>
       setModes(channel, '+b', ['$nick!*@*']);
@@ -562,6 +574,23 @@ class IrcClient {
         _setChannelTopic(m.param(0) ?? '', m.param(1) ?? '', from);
       case '332':
         _setChannelTopic(m.param(1) ?? '', m.param(2) ?? '', null);
+      case '367':
+        // RPL_BANLIST: me #chan mask [setter time]
+        final key = _isupport.fold(m.param(1) ?? '');
+        final mask = m.param(2);
+        if (mask != null) (_banBuffer[key] ??= []).add(mask);
+      case '368':
+        // RPL_ENDOFBANLIST
+        final chan = channel(m.param(1) ?? '');
+        final found = _banBuffer.remove(_isupport.fold(m.param(1) ?? ''));
+        if (chan != null) {
+          chan
+            ..bans.clear()
+            ..bans.addAll(found ?? const [])
+            ..bansLoaded = true;
+          // Not a membership change, but it refreshes the room's views.
+          _emit(MembersChangedEvent(chan.name));
+        }
       case '353':
         _onNames(m.param(2) ?? '', m.param(3) ?? '');
       case '366':
@@ -772,7 +801,11 @@ class IrcClient {
           changed = true;
         }
       } else if (listArg.contains(c)) {
-        nextArg();
+        final mask = nextArg();
+        if (c == 'b' && mask != null) {
+          chan.bans.remove(mask);
+          if (adding) chan.bans.add(mask);
+        }
       } else if (alwaysArg.contains(c)) {
         final arg = nextArg();
         if (c == 'k') chan.key = adding ? arg : null;

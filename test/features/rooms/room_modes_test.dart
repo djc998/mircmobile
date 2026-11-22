@@ -37,6 +37,42 @@ void main() {
       expect(replaced?.args, ['old', 'new']);
     });
 
+    test('moderated, outside messages and the user limit', () {
+      final on = modeChange(
+        current: {'t'},
+        currentKey: null,
+        wanted: const RoomSettings(
+          moderated: true,
+          noOutsideMessages: true,
+          limit: 25,
+        ),
+      );
+      expect(on?.modes, '+mnl');
+      expect(on?.args, ['25']);
+      final off = modeChange(
+        current: {'m', 'n'},
+        currentKey: null,
+        currentLimit: 25,
+        wanted: const RoomSettings(
+          moderated: false,
+          noOutsideMessages: false,
+          limit: 0,
+        ),
+      );
+      expect(off?.modes, '-mnl');
+      expect(off?.args, isEmpty);
+      // The same limit again changes nothing.
+      expect(
+        modeChange(
+          current: {},
+          currentKey: null,
+          currentLimit: 25,
+          wanted: const RoomSettings(limit: 25),
+        ),
+        isNull,
+      );
+    });
+
     test('no change gives null', () {
       expect(
         modeChange(

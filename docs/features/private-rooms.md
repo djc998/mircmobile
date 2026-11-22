@@ -22,9 +22,19 @@ nothing.
 ### Room settings
 **Room settings** (chat menu, in a room) shows and changes:
 
+- the room's **Description** (its topic), shown at the top of the room and
+  in the room list. Operators can always change it; others only when the
+  topic isn't locked;
 - the **Private**, **Hidden** and **Lock the topic** switches;
+- **Moderated** (`+m`): only operators and people with a voice can talk;
+- **No messages from outside** (`+n`): people who aren't in the room can't
+  send it messages;
+- **Room size** (`+l`): the most people allowed in, or **No limit**;
 - the room **Password** (set, change or remove);
-- **Invite someone** by nickname.
+- **Invite someone** by nickname;
+- **Banned** (operators only): the room's ban list (loaded with
+  `MODE #room +b` when the settings open, kept up to date as bans change),
+  with **Unban** next to each one.
 
 People who don't run the room see the settings but can't change them. Every
 change shows in the room in words, for example "alice changed the room:
@@ -32,8 +42,10 @@ invite only on, password set". Passwords are never shown.
 
 ### People list
 Tapping a name now also offers **Invite to #room** for your other rooms on
-that network. In a room you run, it offers **Make operator**, **Remove
-from #room** (kick) and **Ban from #room** (ban by nickname, then remove).
+that network. In a room you run, it offers **Make operator** (or **Remove
+operator** for someone who already is one), **Give voice** / **Take
+voice** (`+v`, so they can talk in a moderated room), **Remove from #room**
+(kick) and **Ban from #room** (ban by nickname, then remove).
 
 ### Invitations
 When someone invites you, a banner shows "alice invited you to #club" with

@@ -807,9 +807,14 @@ void main() {
     await tester.pumpAndSettle();
     expect(transport.written.last, 'MODE #friends -i');
 
+    // The settings sheet is long now; scroll to the invite box.
+    await tester.ensureVisible(find.widgetWithText(FilledButton, 'Invite'));
+    await tester.pumpAndSettle();
     await tester.enterText(find.widgetWithText(TextField, 'Nickname'), 'bob');
     await tester.tap(find.widgetWithText(FilledButton, 'Invite'));
-    await tester.pumpAndSettle();
+    // Opening the settings also asked for the ban list, so flood control
+    // may hold this line back for a moment.
+    await flush();
     expect(transport.written.last, 'INVITE bob #friends');
 
     // Let the "Invited bob" snack bar go away.
