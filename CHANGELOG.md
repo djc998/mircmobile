@@ -7,6 +7,11 @@ and the project uses [Semantic Versioning](https://semver.org/).
 ## [Unreleased]
 
 ### Added
+- Change your nickname without commands (iOS, Android, macOS): **Change
+  nickname** in the chat menu, or tap your name on a network in the
+  conversation list. Optionally change it on all networks; the new name is
+  remembered. A taken name shows a clear message and keeps your current one.
+  See [docs/features/change-nickname.md](docs/features/change-nickname.md).
 - Appearance settings (iOS, Android, macOS): System/Light/Dark mode, four
   themes (Classic, Midnight, Solarized, High contrast) with live previews,
   and text size. Open from the palette button on the start screen or the
@@ -51,6 +56,8 @@ and the project uses [Semantic Versioning](https://semver.org/).
   server tab. See [docs/features/private-messages.md](docs/features/private-messages.md).
 
 ### Fixed
+- The chat menu was missing its **Appearance** item (it was only on the
+  start screen).
 - Join/part (green), notice (dark red) and action (purple) lines were hard
   to read on dark backgrounds. Chat colours now come from the theme, with
   light and dark versions that all meet a 4.5:1 contrast ratio (tested).

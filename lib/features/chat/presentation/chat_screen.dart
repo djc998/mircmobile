@@ -9,6 +9,7 @@ import 'package:irc_client/core/irc/irc_client.dart';
 import 'package:irc_client/core/irc/irc_events.dart';
 import 'package:irc_client/core/theme/app_theme.dart';
 import 'package:irc_client/features/chat/application/chat_controller.dart';
+import 'package:irc_client/features/chat/presentation/change_nick_dialog.dart';
 import 'package:irc_client/features/favorites/application/room_prefs_controller.dart';
 import 'package:irc_client/features/rooms/presentation/room_dialogs.dart';
 import 'package:material_ui/material_ui.dart';
@@ -35,6 +36,7 @@ class ChatScreen extends ConsumerWidget {
       state: state,
       prefs: prefs,
       controller: controller,
+      onChangeNick: (id) => showChangeNickDialog(context, ref, networkId: id),
     );
 
     return Scaffold(
@@ -104,6 +106,8 @@ class ChatScreen extends ConsumerWidget {
                   await controller.clearHistory(buffer!.key);
                 case 'add':
                   context.go('/');
+                case 'nick':
+                  await showChangeNickDialog(context, ref);
                 case 'appearance':
                   await context.push('/appearance');
                 case 'create':
@@ -147,6 +151,15 @@ class ChatScreen extends ConsumerWidget {
                   child: Text('Clear history'),
                 ),
               const PopupMenuItem(value: 'add', child: Text('Add a network')),
+              if (net != null)
+                PopupMenuItem(
+                  value: 'nick',
+                  child: Text('Change nickname (${net.nick})'),
+                ),
+              const PopupMenuItem(
+                value: 'appearance',
+                child: Text('Appearance'),
+              ),
               if (net != null && net.status == IrcConnectionStatus.disconnected)
                 PopupMenuItem(
                   value: 'reconnect',
@@ -332,11 +345,13 @@ class _BufferList extends StatelessWidget {
     required this.state,
     required this.prefs,
     required this.controller,
+    required this.onChangeNick,
   });
 
   final ChatState state;
   final RoomPrefs prefs;
   final ChatController controller;
+  final Future<void> Function(String networkId) onChangeNick;
 
   void _closeDrawer(BuildContext context) {
     if (Scaffold.maybeOf(context)?.isDrawerOpen ?? false) {
@@ -371,6 +386,17 @@ class _BufferList extends StatelessWidget {
                     style: theme.textTheme.labelLarge,
                     overflow: TextOverflow.ellipsis,
                   ),
+                ),
+                // Your nickname here; tap to change it.
+                ActionChip(
+                  avatar: const Icon(Icons.edit, size: 16),
+                  label: Text(net.nick),
+                  tooltip: 'Change nickname on ${net.label}',
+                  visualDensity: VisualDensity.compact,
+                  onPressed: () {
+                    _closeDrawer(context);
+                    unawaited(onChangeNick(net.id));
+                  },
                 ),
               ],
             ),

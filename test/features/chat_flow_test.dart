@@ -994,6 +994,95 @@ void main() {
     expect(Theme.of(ctx()).brightness, Brightness.dark);
     expect(Theme.of(ctx()).colorScheme.surface, Colors.black);
   });
+
+  testWidgets('change nickname from the menu', (tester) async {
+    tester.view.physicalSize = const Size(800, 1800);
+    tester.view.devicePixelRatio = 1;
+    addTearDown(tester.view.reset);
+    final store = MemoryKeyValueStore();
+    final transport = FakeTransport();
+    await tester.pumpWidget(
+      ProviderScope(
+        overrides: [
+          keyValueStoreProvider.overrideWithValue(store),
+          transportFactoryProvider.overrideWithValue(
+            (host, port, {required useTls, trustedFingerprints = const {}}) =>
+                transport,
+          ),
+        ],
+        child: const IrcApp(),
+      ),
+    );
+    await tester.enterText(find.widgetWithText(TextField, 'Nickname'), 'me');
+    await tester.tap(find.text('Libera.Chat'));
+    await tester.pumpAndSettle();
+    transport.incoming
+      ..add(':s 001 me :Welcome')
+      ..add(':me!u@h JOIN #chat');
+    await tester.pumpAndSettle();
+
+    Future<void> openDialog() async {
+      await tester.tap(find.byType(PopupMenuButton<String>));
+      await tester.pumpAndSettle();
+      await tester.tap(find.textContaining('Change nickname'));
+      await tester.pumpAndSettle();
+    }
+
+    // A bad name is refused in the dialog.
+    await openDialog();
+    await tester.enterText(
+      find.widgetWithText(TextField, 'New nickname'),
+      '9 lives',
+    );
+    await tester.tap(find.widgetWithText(FilledButton, 'Change'));
+    await tester.pumpAndSettle();
+    expect(find.textContaining('starting with a letter'), findsOneWidget);
+
+    await tester.enterText(
+      find.widgetWithText(TextField, 'New nickname'),
+      'newme',
+    );
+    await tester.tap(find.widgetWithText(FilledButton, 'Change'));
+    await tester.pumpAndSettle();
+    expect(transport.written.last, 'NICK newme');
+    expect(store.values['savedConnection'], contains('"nick":"newme"'));
+    transport.incoming.add(':me!u@h NICK :newme');
+    await tester.pumpAndSettle();
+    expect(find.text('Connected as newme'), findsOneWidget);
+    expect(
+      find.textContaining('me is now known as newme', findRichText: true),
+      findsOneWidget,
+    );
+
+    // A taken name keeps the old one and says so.
+    await openDialog();
+    await tester.enterText(
+      find.widgetWithText(TextField, 'New nickname'),
+      'bob',
+    );
+    await tester.tap(find.widgetWithText(FilledButton, 'Change'));
+    await tester.pumpAndSettle();
+    transport.incoming.add(':s 433 newme bob :Nickname is already in use');
+    await tester.pumpAndSettle();
+    expect(
+      find.textContaining(
+        "Couldn't change your nickname: Nickname is already in use. "
+        "You're still newme.",
+        findRichText: true,
+      ),
+      findsOneWidget,
+    );
+
+    // The same menu opens Appearance.
+    await tester.tap(find.byType(PopupMenuButton<String>));
+    await tester.pumpAndSettle();
+    await tester.tap(find.text('Appearance'));
+    await tester.pumpAndSettle();
+    expect(find.widgetWithText(AppBar, 'Appearance'), findsOneWidget);
+
+    await tester.pumpWidget(const SizedBox());
+    await tester.pump(const Duration(seconds: 1));
+  });
 }
 
 class _FailingTransport implements IrcTransport {
