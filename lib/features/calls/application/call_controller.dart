@@ -42,6 +42,7 @@ class CallState {
     this.endedReason,
     this.relayOnly = true,
     this.ipHidden = false,
+    this.devicesBlocked = false,
   });
 
   final CallPhase phase;
@@ -66,6 +67,10 @@ class CallState {
   /// IP address. False when the setting is off or no relay is set up.
   final bool ipHidden;
 
+  /// The call ended because the camera or microphone is blocked in the
+  /// system's privacy settings; the screen offers to open them.
+  final bool devicesBlocked;
+
   bool get inCall =>
       phase == CallPhase.outgoing ||
       phase == CallPhase.connecting ||
@@ -80,6 +85,7 @@ class CallState {
     String? endedReason,
     bool? relayOnly,
     bool? ipHidden,
+    bool? devicesBlocked,
   }) => CallState(
     phase: phase ?? this.phase,
     link: link,
@@ -93,6 +99,7 @@ class CallState {
     endedReason: endedReason ?? this.endedReason,
     relayOnly: relayOnly ?? this.relayOnly,
     ipHidden: ipHidden ?? this.ipHidden,
+    devicesBlocked: devicesBlocked ?? this.devicesBlocked,
   );
 }
 
@@ -167,7 +174,9 @@ class CallController extends Notifier<CallState> {
       }
       return null;
     } on CallException catch (e) {
-      if (generation == _generation) await _end(e.message);
+      if (generation == _generation) {
+        await _end(e.message, devicesBlocked: e is DevicesBlockedException);
+      }
       return e.message;
     }
   }
@@ -201,7 +210,9 @@ class CallController extends Notifier<CallState> {
       await _openMedia(link, video: link.video);
       await _connect(link, generation);
     } on CallException catch (e) {
-      if (generation == _generation) await _end(e.message);
+      if (generation == _generation) {
+        await _end(e.message, devicesBlocked: e is DevicesBlockedException);
+      }
     }
   }
 
@@ -339,13 +350,17 @@ class CallController extends Notifier<CallState> {
     }
   }
 
-  Future<void> _end(String reason) async {
+  Future<void> _end(String reason, {bool devicesBlocked = false}) async {
     if (state.phase == CallPhase.ended || state.phase == CallPhase.idle) {
       await _teardown();
       return;
     }
     _generation++;
-    state = state.copyWith(phase: CallPhase.ended, endedReason: reason);
+    state = state.copyWith(
+      phase: CallPhase.ended,
+      endedReason: reason,
+      devicesBlocked: devicesBlocked,
+    );
     await _teardown();
   }
 

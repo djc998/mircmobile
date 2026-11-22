@@ -7,6 +7,11 @@ and the project uses [Semantic Versioning](https://semver.org/).
 ## [Unreleased]
 
 ### Added
+- **Open Settings** buttons for blocked camera and microphone access: when a
+  call can't use them, the call screen offers **Open Camera settings** /
+  **Open Microphone settings** (Mac) or **Open Settings** (iPhone, Android),
+  also under **More options → Camera and microphone**. See
+  [docs/features/calls.md](docs/features/calls.md).
 - More controls for rooms you run, in **Room settings**: edit the room's
   **Description** (topic), **Moderated** (only voiced people talk), **No
   messages from outside**, **Room size** (user limit), and a **Banned**

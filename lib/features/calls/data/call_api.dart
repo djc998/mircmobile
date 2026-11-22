@@ -22,6 +22,19 @@ class CallException implements Exception {
   String toString() => message;
 }
 
+/// The camera or microphone is blocked in the system's privacy settings.
+class DevicesBlockedException extends CallException {
+  const DevicesBlockedException({required this.video})
+    : super(
+        video
+            ? 'The camera or microphone is blocked.'
+            : 'The microphone is blocked.',
+      );
+
+  /// It was a video call (camera and microphone), not voice only.
+  final bool video;
+}
+
 /// STUN/TURN servers for one call, and whether a relay is among them.
 typedef IceConfig = ({List<Map<String, Object?>> servers, bool relay});
 

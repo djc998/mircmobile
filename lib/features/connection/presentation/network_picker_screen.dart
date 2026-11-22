@@ -8,6 +8,7 @@ import 'package:irc_client/core/irc/irc_client.dart';
 import 'package:irc_client/core/irc/irc_events.dart';
 import 'package:irc_client/core/irc/networks.dart';
 import 'package:irc_client/features/calls/application/call_controller.dart';
+import 'package:irc_client/features/calls/presentation/call_widgets.dart';
 import 'package:irc_client/features/chat/application/chat_controller.dart';
 import 'package:irc_client/features/connection/data/saved_connection.dart';
 import 'package:irc_client/features/favorites/application/room_prefs_controller.dart';
@@ -377,6 +378,12 @@ class _NetworkPickerScreenState extends ConsumerState<NetworkPickerScreen> {
                     );
                   },
                 ),
+                const ListTile(
+                  contentPadding: EdgeInsets.zero,
+                  title: Text('Camera and microphone'),
+                  subtitle: Text('Allow them for voice and video calls'),
+                ),
+                const DeviceAccessHelp(),
                 Consumer(
                   builder: (context, ref, _) => SwitchListTile.adaptive(
                     contentPadding: EdgeInsets.zero,
