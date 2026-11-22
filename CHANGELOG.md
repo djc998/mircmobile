@@ -7,6 +7,9 @@ and the project uses [Semantic Versioning](https://semver.org/).
 ## [Unreleased]
 
 ### Changed
+- Replying on a phone is now swipe or long-press only (no faint ↩ on
+  every line); screen readers get a Reply action. On a Mac the ↩ appears
+  on hover.
 - The app is now called **IRCade**: home screen and app switcher on iOS
   and Android, the Mac app (`IRCade.app`, menu bar and Privacy & Security
   lists), the window title, and the CTCP VERSION reply
@@ -24,6 +27,19 @@ and the project uses [Semantic Versioning](https://semver.org/).
   too. See [docs/features/pinned-panels.md](docs/features/pinned-panels.md).
 
 ### Added
+- New chat screen, Phase 2 of the redesign (iOS, Android, macOS). In
+  Comfortable, room messages from one person within 5 minutes are grouped
+  under one avatar, name, **OP** tag and time; mentions get a coral bar and
+  tint with your nick highlighted; your own messages an accent bar. Private
+  chats use bubbles. Runs of joins and leaves collapse into one line
+  ("mara, kai and 3 others joined · sam left") that expands on tap. Every
+  chat gets **Today / Yesterday** dividers, a coral **New messages**
+  divider, and a **3 new** pill (coral with a mention) when you've scrolled
+  up. The header shows the avatar and "142 people · Libera.Chat"; the
+  topic is in Chat info. The new composer has a **+** menu (picture in
+  private chats, common commands) and completion chips for `@nick`,
+  `/command` and `#room`. Compact keeps `HH:MM <nick>` lines. See
+  [docs/features/chat-screen.md](docs/features/chat-screen.md).
 - IRCade design system, Phase 1 of the redesign (iOS, Android, macOS).
   A new **Default** theme (white or near-black with an Electric Indigo
   accent) is now the default, with an **accent colour** picker (Indigo,

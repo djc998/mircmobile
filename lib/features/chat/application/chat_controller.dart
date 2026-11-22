@@ -33,12 +33,18 @@ const int maxLinesPerBuffer = 1000;
 
 enum ChatLineKind { message, action, notice, event, error, own }
 
+/// Someone arriving or leaving, so runs of these can be shown as one line
+/// ("mara, kai and 3 others joined").
+enum PresenceChange { joined, left }
+
 class ChatLine {
   ChatLine({
     required this.text,
     required this.kind,
     this.sender,
     DateTime? time,
+    this.presence,
+    this.subject,
   }) : time = time ?? DateTime.now();
 
   factory ChatLine.fromStored(StoredLine line) => ChatLine(
@@ -52,6 +58,12 @@ class ChatLine {
   final String? sender;
   final String text;
   final ChatLineKind kind;
+
+  /// Set on join, part and quit events (not kicks or your own joins).
+  final PresenceChange? presence;
+
+  /// Who [presence] is about.
+  final String? subject;
 
   /// Whether this kind of line is kept in saved history.
   bool get isSaved => switch (kind) {
@@ -77,6 +89,13 @@ class ChatBuffer {
   final List<ChatLine> lines = [];
   int unread = 0;
   bool mentioned = false;
+
+  /// The first line that arrived while this conversation wasn't open.
+  ChatLine? firstUnread;
+
+  /// Where the "New messages" divider goes while the conversation is open:
+  /// [firstUnread] at the moment it was opened.
+  ChatLine? unreadMarker;
 
   /// The message the user is replying to, shown above the input. Sending
   /// puts `nick: ` in front so that person is notified.
@@ -875,7 +894,12 @@ class ChatController extends Notifier<ChatState> {
   void selectBuffer(String key) {
     final buffer = state.buffers[key];
     if (buffer == null) return;
+    // The divider only marks what was new on this visit.
+    final previous = state.activeBuffer;
+    if (previous != null && previous != buffer) previous.unreadMarker = null;
     buffer
+      ..unreadMarker = buffer.firstUnread ?? buffer.unreadMarker
+      ..firstUnread = null
       ..unread = 0
       ..mentioned = false;
     state = state.copyWith(activeKey: key);
@@ -1037,6 +1061,7 @@ class ChatController extends Notifier<ChatState> {
       buffer.lines.removeRange(0, buffer.lines.length - maxLinesPerBuffer);
     }
     if (state.activeKey != buffer.key && countUnread) {
+      if (buffer.unread == 0) buffer.firstUnread = line;
       buffer.unread++;
       if (session.nick.isNotEmpty &&
           line.kind == ChatLineKind.message &&
@@ -1148,6 +1173,8 @@ class ChatController extends Notifier<ChatState> {
             text: isSelf ? 'You joined $channel' : '$nick joined',
             kind: ChatLineKind.event,
             time: e.time,
+            presence: isSelf ? null : PresenceChange.joined,
+            subject: nick,
           ),
           countUnread: false,
         );
@@ -1174,6 +1201,8 @@ class ChatController extends Notifier<ChatState> {
             text: '${isSelf && e.kickedBy == null ? 'You left' : what}$reason',
             kind: ChatLineKind.event,
             time: e.time,
+            presence: isSelf || e.kickedBy != null ? null : PresenceChange.left,
+            subject: nick,
           ),
           countUnread: false,
         );
@@ -1185,6 +1214,8 @@ class ChatController extends Notifier<ChatState> {
               text: '$nick quit${reason == null ? '' : ' ($reason)'}',
               kind: ChatLineKind.event,
               time: e.time,
+              presence: PresenceChange.left,
+              subject: nick,
             ),
             countUnread: false,
           );

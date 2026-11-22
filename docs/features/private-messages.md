@@ -12,8 +12,11 @@ Status: done (unreleased). Platforms: iOS, Android, macOS.
 - **Commands:** `/query nick` opens the chat, `/msg nick text` sends one
   message without switching.
 
-Private chats appear in the conversation list with a person icon. When
-someone messages you first, their chat opens automatically.
+Private chats appear in the conversation list with a person avatar (or
+icon in Compact). When someone messages you first, their chat opens
+automatically. In Comfortable, messages show as bubbles: theirs on the
+left, yours on the right in the accent colour
+([chat-screen.md](chat-screen.md)).
 
 ## The name menu
 - **Send private message** (hidden for your own nick)
@@ -24,7 +27,8 @@ someone messages you first, their chat opens automatically.
 ## Code
 - `ChatController.openPrivateChat()`, `ChatController.whoisUser()` and the
   WHOIS reply routing (numerics 301, 307, 311–320, 330, 338, 378, 379, 671).
-- `showUserActions()` and `_MessageTile` (tappable nicknames) in
+- `showUserActions()`, `MessageGroup` (tappable avatar and name) and
+  `_MessageTile` (tappable nicknames in Compact) in
   `lib/features/chat/presentation/chat_screen.dart`.
 
 ## Tests

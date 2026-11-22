@@ -3,10 +3,14 @@ import 'dart:io';
 import 'package:flutter_test/flutter_test.dart';
 import 'package:irc_client/core/theme/app_theme.dart';
 import 'package:irc_client/core/ui/avatars.dart';
+import 'package:irc_client/core/ui/chat_dividers.dart';
+import 'package:irc_client/core/ui/composer.dart';
+import 'package:irc_client/core/ui/message_group.dart';
 import 'package:irc_client/core/ui/unread_badge.dart';
 import 'package:material_ui/material_ui.dart';
 
-/// Light and dark goldens for each Phase 1 component, in the Default theme
+/// Light and dark goldens for each Phase 1 and 2 component, in the Default
+/// theme
 /// and in Classic mIRC (square corners).
 ///
 /// The images are made on macOS. Linux draws anti-aliased circle edges and
@@ -44,6 +48,77 @@ void main() {
         UnreadBadge(count: 2, mention: true),
       ],
     ),
+    'message_group': const SizedBox(
+      width: 360,
+      child: Column(
+        children: [
+          MessageGroup(
+            nick: 'devon',
+            time: '10:02',
+            role: NickRole.op,
+            children: [
+              Text('Morning all. Anyone tried the new split?'),
+              Text('The import change caught me off guard.'),
+            ],
+          ),
+          MessageGroup(
+            nick: 'alice',
+            time: '10:11',
+            mentioned: true,
+            children: [Text('dennis, does IRCade run on the Mac too?')],
+          ),
+          MessageGroup(
+            nick: 'dennis',
+            time: '10:13',
+            own: true,
+            children: [Text('It does.')],
+          ),
+        ],
+      ),
+    ),
+    'message_bubble': const SizedBox(
+      width: 360,
+      child: Column(
+        children: [
+          MessageBubble(child: Text('Hey! Are you building IRCade?')),
+          SizedBox(height: 2),
+          MessageBubble(continued: true, child: Text('Quick call later?')),
+          SizedBox(height: 6),
+          MessageBubble(own: true, child: Text('Guilty. Sure!')),
+        ],
+      ),
+    ),
+    'chat_dividers': SizedBox(
+      width: 360,
+      child: Column(
+        children: [
+          DayDivider(day: DateTime(2026, 11, 22), now: DateTime(2026, 11, 22)),
+          const SystemEventLine(
+            text: 'mara, kai and 3 others joined',
+            details: ['mara joined', 'kai joined'],
+          ),
+          const UnreadDivider(),
+          const SystemEventLine(text: 'Cannot send to channel', error: true),
+          Row(
+            mainAxisAlignment: MainAxisAlignment.end,
+            children: [
+              JumpPill(count: 3, onTap: () {}),
+              const SizedBox(width: 8),
+              JumpPill(count: 2, mention: true, onTap: () {}),
+            ],
+          ),
+        ],
+      ),
+    ),
+    'composer': const SizedBox(
+      width: 360,
+      child: Composer(
+        onSubmit: print,
+        hint: 'Message #flutter',
+        replyTo: 'alice',
+        replyText: 'does it run on the Mac?',
+      ),
+    ),
   };
 
   for (final MapEntry(key: name, value: widget) in components.entries) {
@@ -59,6 +134,7 @@ void main() {
               home: Scaffold(
                 body: Center(
                   child: RepaintBoundary(
+                    key: const ValueKey('golden'),
                     child: Container(
                       color: theme.colorScheme.surface,
                       padding: const EdgeInsets.all(12),
@@ -70,7 +146,7 @@ void main() {
             ),
           );
           await expectLater(
-            find.byType(RepaintBoundary).last,
+            find.byKey(const ValueKey('golden')),
             matchesGoldenFile(file),
           );
         });

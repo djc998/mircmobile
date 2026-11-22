@@ -144,6 +144,11 @@ Four token values were nudged to meet contrast where they're drawn as text
 or marks (`onAccentSoft`, `opText`, light `mentionBar`, `success` on tinted
 themes); the reasons are in design-system.md.
 
+Phase 2 done ([chat-screen.md](../features/chat-screen.md)). Left for later
+phases: typing indicator and "Seen" (need IRCv3 `typing` and read markers),
+the call history card (Phase 5), an emoji button, and room search
+(Phase 3). The topic moved from the header into Chat info.
+
 1. **Foundation**: tokens, Default (Indigo) + Classic mIRC themes, accent
    picker, density setting, `NickAvatar`, `RoomAvatar`, `UnreadBadge`,
    rename display name to IRCade. Docs: `docs/features/design-system.md`,

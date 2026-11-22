@@ -22,9 +22,9 @@ the chat menu.
   or Purple. Applies to the Default theme; the other themes keep their own
   colours and the swatches are dimmed with a note saying so. Each swatch is
   a 48-pt target and screen readers hear "Teal accent, selected".
-- **Density:** **Comfortable** (avatars next to rooms, people and, from
-  Phase 2, messages) or **Compact** (no avatars, classic `HH:MM <nick>`
-  lines). See [design-system.md](design-system.md).
+- **Density:** **Comfortable** (avatars next to rooms and people, grouped
+  messages in rooms, bubbles in private chats) or **Compact** (no avatars,
+  classic `HH:MM <nick>` lines). See [chat-screen.md](chat-screen.md).
 - **Text size:** Small, Normal, Large or Larger. It applies to the whole
   app, on top of the device's own text size setting.
 

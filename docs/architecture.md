@@ -21,7 +21,8 @@ lib/
     networks.dart            Built-in network list
   core/storage/              KeyValueStore / SecretStore interfaces
   core/theme/                Themes, design tokens (tokens.dart), nick colours
-  core/ui/                   Shared components: NickAvatar, RoomAvatar, UnreadBadge
+  core/ui/                   Shared components: NickAvatar, RoomAvatar, UnreadBadge,
+                             MessageGroup, MessageBubble, dividers, JumpPill, Composer
   features/connection/       Network picker screen
   features/chat/             ChatController (Riverpod) and chat screen
   features/connection/data/  SavedConnection (nick, network, account)

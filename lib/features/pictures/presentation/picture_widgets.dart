@@ -172,8 +172,12 @@ class PictureBubble extends ConsumerStatefulWidget {
     required this.networkId,
     required this.isOwn,
     required this.autoShow,
+    this.indent = 48,
     super.key,
   });
+
+  /// Space on the leading side, to line up under the message text.
+  final double indent;
 
   final PictureLink link;
   final String sender;
@@ -310,7 +314,11 @@ class _PictureBubbleState extends ConsumerState<PictureBubble> {
       );
     }
     return Padding(
-      padding: const EdgeInsets.only(top: 4, bottom: 4, left: 48),
+      padding: EdgeInsetsDirectional.only(
+        top: 4,
+        bottom: 4,
+        start: widget.indent,
+      ),
       child: Row(
         mainAxisSize: MainAxisSize.min,
         crossAxisAlignment: CrossAxisAlignment.start,
