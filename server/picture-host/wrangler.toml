@@ -8,9 +8,9 @@ compatibility_date = "2026-11-01"
 binding = "PICTURES"
 bucket_name = "irc-pictures"
 
-# Hourly clean-up of expired pictures.
+# Clean-up of expired pictures every 15 minutes.
 [triggers]
-crons = ["17 * * * *"]
+crons = ["*/15 * * * *"]
 
 # At most 20 uploads a minute from one address.
 [[ratelimits]]

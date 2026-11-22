@@ -1155,7 +1155,7 @@ void main() {
     final controller = container.read(chatControllerProvider.notifier);
     final link = 'https://pics.test/p/$id#k=$key';
     transport.incoming.add(
-      ':bob!b@h PRIVMSG me :📷 Picture (disappears in 1 day): $link',
+      ':bob!b@h PRIVMSG me :📷 Picture (disappears in 4 hours): $link',
     );
     await tester.pumpAndSettle();
     controller.selectBuffer(ChatState.bufferKey('irc.libera.chat', 'bob'));
@@ -1195,7 +1195,6 @@ void main() {
       () => controller.sendPicture(
         Uint8List.fromList(picture),
         expiry: PictureExpiry.hour,
-        viewOnce: true,
       ),
     );
     expect(error, isNull);

@@ -318,8 +318,8 @@ class ChatController extends Notifier<ChatState> {
   /// conversation. Returns a message to show when it fails.
   Future<String?> sendPicture(
     Uint8List picture, {
-    PictureExpiry expiry = PictureExpiry.day,
-    bool viewOnce = false,
+    PictureExpiry expiry = PictureExpiry.fourHours,
+    bool viewOnce = true,
   }) async {
     final session = state.activeNetwork;
     final buffer = state.activeBuffer;

@@ -54,6 +54,8 @@ test('upload then download the encrypted bytes', async () => {
   assert.match(body.id, /^[A-Za-z0-9_-]{22}$/);
   assert.equal(body.url, `${base}/p/${body.id}`);
   assert.equal(body.expiresAt, 1000 + 3600 * 1000);
+  const defaulted = await upload(e, {}, 0);
+  assert.equal(defaulted.body.expiresAt, 4 * 3600 * 1000);
   const got = await route(new Request(`${body.url}/raw`), e, 2000);
   assert.equal(got.status, 200);
   assert.deepEqual(new Uint8Array(await got.arrayBuffer()), sealed);
@@ -69,9 +71,9 @@ test('expired pictures are refused and deleted', async () => {
   assert.equal(e.PICTURES.items.size, 0);
 });
 
-test('view-once pictures are deleted after the first view', async () => {
+test('every picture is deleted after the first view', async () => {
   const e = env();
-  const { body } = await upload(e, { 'x-view-once': '1' });
+  const { body } = await upload(e);
   assert.equal((await route(new Request(`${body.url}/raw`), e, 2000)).status, 200);
   assert.equal((await route(new Request(`${body.url}/raw`), e, 2000)).status, 404);
 });
@@ -79,6 +81,8 @@ test('view-once pictures are deleted after the first view', async () => {
 test('rejects unsupported expiry, empty and oversized uploads', async () => {
   const e = env();
   assert.equal((await upload(e, { 'x-expires-in': '999999' })).res.status, 400);
+  // Nothing is kept longer than 4 hours.
+  assert.equal((await upload(e, { 'x-expires-in': '86400' })).res.status, 400);
   const empty = await route(
     new Request(`${base}/upload`, { method: 'POST', body: new Uint8Array(3) }),
     e,
@@ -102,7 +106,7 @@ test('app token and rate limit are enforced when configured', async () => {
   assert.equal((await upload(limited)).res.status, 429);
 });
 
-test('a report keeps the picture and is listed for the admin', async () => {
+test('a report is stored as text only and listed for the admin', async () => {
   const e = env({ ADMIN_TOKEN: 'adm' });
   const { body } = await upload(e);
   const link = `${body.url}#k=abc`;
@@ -115,7 +119,7 @@ test('a report keeps the picture and is listed for the admin', async () => {
     5000,
   );
   assert.equal(rep.status, 201);
-  assert.ok(e.PICTURES.items.has(`reported/${body.id}`));
+  assert.ok(![...e.PICTURES.items.keys()].some((k) => k.startsWith('reported/')));
 
   const denied = await route(new Request(`${base}/admin/reports`), e);
   assert.equal(denied.status, 401);
@@ -125,9 +129,9 @@ test('a report keeps the picture and is listed for the admin', async () => {
   );
   const { reports } = await list.json();
   assert.equal(reports.length, 1);
-  assert.equal(reports[0].link, link);
+  assert.equal(reports[0].link, body.url);
   assert.equal(reports[0].sender, 'troll');
-  assert.equal(reports[0].kept, true);
+  assert.equal(reports[0].kept, undefined);
 });
 
 test('the viewer page is served without the key reaching the server', async () => {
@@ -142,7 +146,7 @@ test('the viewer page is served without the key reaching the server', async () =
 test('the sweep removes only expired pictures', async () => {
   const e = env();
   await upload(e, { 'x-expires-in': '3600' }, 0);
-  await upload(e, { 'x-expires-in': '86400' }, 0);
+  await upload(e, { 'x-expires-in': '14400' }, 0);
   assert.equal(await sweepExpired(e, 3600 * 1000 + 1), 1);
   assert.equal(e.PICTURES.items.size, 1);
 });

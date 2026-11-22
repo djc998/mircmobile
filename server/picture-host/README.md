@@ -1,8 +1,8 @@
 # Picture host (Cloudflare Worker + R2)
 
 Stores the app's shared pictures. Pictures arrive already encrypted (the
-key stays in the link after `#`), expire after 1 hour to 3 days, and can be
-view-once. See [docs/features/picture-sharing.md](../../docs/features/picture-sharing.md).
+key stays in the link after `#`), are deleted on their first view, and are
+never kept longer than 4 hours (the 15-minute cron removes expired ones). See [docs/features/picture-sharing.md](../../docs/features/picture-sharing.md).
 
 Free-tier friendly: Workers free plan, R2 free up to 10 GB stored.
 
@@ -15,8 +15,9 @@ cd server/picture-host
 npm install
 npx wrangler login                      # approve in the browser
 npx wrangler r2 bucket create irc-pictures
-# Backstop: anything older than 4 days is deleted even if the cron misses it.
-npx wrangler r2 bucket lifecycle add irc-pictures expire-pictures p/ --expire-days 4
+# Backstop: R2's shortest lifecycle rule is 1 day, so anything the cron
+# somehow misses is still deleted within a day.
+npx wrangler r2 bucket lifecycle add irc-pictures expire-pictures p/ --expire-days 1
 npx wrangler secret put ADMIN_TOKEN     # long random string, for reviewing reports
 npx wrangler deploy
 ```
@@ -38,10 +39,9 @@ Optional: `npx wrangler secret put APP_TOKEN` makes uploads require an
 curl -H "Authorization: Bearer $ADMIN_TOKEN" https://<host>/admin/reports
 ```
 
-Each report has the full link (open it in a browser to see the picture),
-the sender, network, reason and time. A reported picture is kept under
-`reported/<id>` past its expiry. Delete it with
-`npx wrangler r2 object delete irc-pictures/reported/<id>` when done.
+Each report has the picture's address (without its key), the sender,
+network, reason and time. No copy of the picture is kept, so reports are
+about who sent what, not the picture itself.
 
 ## Test
 

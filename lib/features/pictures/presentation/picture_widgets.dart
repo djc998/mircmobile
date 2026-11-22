@@ -100,8 +100,7 @@ class _SendPictureSheet extends StatefulWidget {
 }
 
 class _SendPictureSheetState extends State<_SendPictureSheet> {
-  PictureExpiry _expiry = PictureExpiry.day;
-  var _viewOnce = false;
+  PictureExpiry _expiry = PictureExpiry.fourHours;
 
   @override
   Widget build(BuildContext context) {
@@ -137,16 +136,11 @@ class _SendPictureSheetState extends State<_SendPictureSheet> {
                   ),
               ],
             ),
-            SwitchListTile(
-              contentPadding: EdgeInsets.zero,
-              title: const Text('View once'),
-              subtitle: const Text('Deleted as soon as it has been opened.'),
-              value: _viewOnce,
-              onChanged: (v) => setState(() => _viewOnce = v),
-            ),
             Text(
-              'The picture is encrypted on this device and location data is '
-              'removed. Only people with the link can see it.',
+              'View once: the picture is deleted as soon as it has been '
+              'opened, or when the time runs out. It is encrypted on this '
+              'device and location data is removed. Only people with the '
+              'link can see it.',
               style: theme.textTheme.bodySmall?.copyWith(
                 color: theme.colorScheme.onSurfaceVariant,
               ),
@@ -157,7 +151,7 @@ class _SendPictureSheetState extends State<_SendPictureSheet> {
               label: const Text('Send picture'),
               onPressed: () => Navigator.pop(
                 context,
-                _SendChoice(_expiry, viewOnce: _viewOnce),
+                _SendChoice(_expiry, viewOnce: true),
               ),
             ),
           ],

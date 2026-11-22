@@ -3,12 +3,12 @@ library;
 
 import 'package:meta/meta.dart';
 
-/// How long a shared picture stays available.
+/// How long a shared picture stays available. Four hours is the most the
+/// server keeps anything, and every picture is also deleted after it has
+/// been viewed once.
 enum PictureExpiry {
   hour(Duration(hours: 1), '1 hour'),
-  halfDay(Duration(hours: 12), '12 hours'),
-  day(Duration(days: 1), '1 day'),
-  threeDays(Duration(days: 3), '3 days');
+  fourHours(Duration(hours: 4), '4 hours');
 
   PictureExpiry(this.duration, this.label);
 

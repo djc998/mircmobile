@@ -6,22 +6,25 @@
 //
 // Routes
 //   POST /upload            body = encrypted bytes. Headers:
-//                             X-Expires-In: seconds (3600, 43200, 86400, 259200)
-//                             X-View-Once: 1 to delete after the first view
+//                             X-Expires-In: seconds (3600 or 14400; 4 hours
+//                             is the most a picture is ever kept)
+//                           Every picture is view-once: it is deleted as soon
+//                           as it has been downloaded the first time.
 //                           -> 201 {"id","url","expiresAt"}
 //   GET  /p/<id>/raw        encrypted bytes (404 when expired or viewed)
 //   GET  /p/<id>            viewer page: decrypts in the browser, for people
 //                           on other IRC apps who just click the link
 //   POST /report            {"link","sender","network","reason"} -> 201.
-//                           Keeps a copy of the reported picture for review.
+//                           Records the report as text only (no key, no copy
+//                           of the picture is kept).
 //   GET  /admin/reports     reports list (Authorization: Bearer ADMIN_TOKEN)
-//   GET  /admin/reported/<id>  a reported picture's encrypted bytes
 //
-// Expired pictures are refused on read and removed by the hourly cron below.
-// An R2 lifecycle rule (see README) is the backstop.
+// Expired pictures are refused on read and removed by the cron below, which
+// runs every 15 minutes. An R2 lifecycle rule (see README) is the backstop.
 
 export const MAX_BYTES = 10 * 1024 * 1024;
-export const EXPIRY_CHOICES = [3600, 43200, 86400, 259200];
+export const EXPIRY_CHOICES = [3600, 14400];
+export const DEFAULT_EXPIRY = 14400;
 const ID_PATTERN = /^[A-Za-z0-9_-]{22}$/;
 
 export default {
@@ -74,7 +77,7 @@ async function upload(request, env, url, now) {
   if (env.APP_TOKEN && request.headers.get('x-app-token') !== env.APP_TOKEN) {
     return json({ error: 'Not allowed' }, 403);
   }
-  const expiresIn = Number(request.headers.get('x-expires-in') ?? 86400);
+  const expiresIn = Number(request.headers.get('x-expires-in') ?? DEFAULT_EXPIRY);
   if (!EXPIRY_CHOICES.includes(expiresIn)) {
     return json({ error: 'Unsupported expiry' }, 400);
   }
@@ -87,10 +90,9 @@ async function upload(request, env, url, now) {
 
   const id = randomId();
   const expiresAt = now + expiresIn * 1000;
-  const viewOnce = request.headers.get('x-view-once') === '1';
   await env.PICTURES.put(`p/${id}`, body, {
     httpMetadata: { contentType: 'application/octet-stream' },
-    customMetadata: { expiresAt: String(expiresAt), viewOnce: viewOnce ? '1' : '0' },
+    customMetadata: { expiresAt: String(expiresAt), viewOnce: '1' },
   });
   return json({ id, url: `${url.origin}/p/${id}`, expiresAt }, 201);
 }
@@ -106,13 +108,14 @@ async function raw(env, id, now) {
     return json({ error: 'This picture has expired' }, 404);
   }
   const bytes = await object.arrayBuffer();
-  if (meta.viewOnce === '1') await env.PICTURES.delete(key);
+  // Every picture is view-once: gone after the first download.
+  await env.PICTURES.delete(key);
   return new Response(bytes, {
     headers: {
       'content-type': 'application/octet-stream',
       'cache-control': 'no-store',
       'x-expires-at': String(meta.expiresAt),
-      'x-view-once': meta.viewOnce === '1' ? '1' : '0',
+      'x-view-once': '1',
     },
   });
 }
@@ -127,23 +130,16 @@ async function report(request, env, now) {
   const link = String(body.link ?? '').slice(0, 500);
   const id = link.match(/\/p\/([A-Za-z0-9_-]{22})/)?.[1];
   if (!id) return json({ error: 'Bad report' }, 400);
+  // Text only: the key (after `#`) is dropped and no copy of the picture is
+  // kept, so nothing viewable is stored past the picture's own expiry.
   const record = {
-    // The full link, key included, so the reviewer can open the picture.
-    link,
+    link: link.split('#')[0],
     id,
     sender: String(body.sender ?? '').slice(0, 64),
     network: String(body.network ?? '').slice(0, 128),
     reason: String(body.reason ?? '').slice(0, 1000),
     reportedAt: new Date(now).toISOString(),
   };
-  // Keep the evidence past its expiry (unless it was already viewed once).
-  const object = await env.PICTURES.get(`p/${id}`);
-  if (object) {
-    await env.PICTURES.put(`reported/${id}`, await object.arrayBuffer(), {
-      httpMetadata: { contentType: 'application/octet-stream' },
-    });
-    record.kept = true;
-  }
   await env.PICTURES.put(`reports/${now}-${randomId()}.json`, JSON.stringify(record), {
     httpMetadata: { contentType: 'application/json' },
   });
@@ -164,14 +160,6 @@ async function admin(request, env, path) {
     }
     reports.sort((a, b) => (a.reportedAt < b.reportedAt ? 1 : -1));
     return json({ reports });
-  }
-  const m = path.match(/^\/admin\/reported\/([A-Za-z0-9_-]{22})$/);
-  if (m) {
-    const o = await env.PICTURES.get(`reported/${m[1]}`);
-    if (!o) return json({ error: 'Not found' }, 404);
-    return new Response(await o.arrayBuffer(), {
-      headers: { 'content-type': 'application/octet-stream' },
-    });
   }
   return json({ error: 'Not found' }, 404);
 }
@@ -262,8 +250,8 @@ const VIEWER_HTML = `<!doctype html>
   try {
     const key = new URLSearchParams(location.hash.slice(1)).get('k');
     if (!key) throw new Error('This link is missing its key.');
-    const once = new URLSearchParams(location.hash.slice(1)).get('o') === '1';
-    if (once && !confirm('This picture can be viewed only once. Show it now?')) {
+    // Every picture is view-once.
+    if (!confirm('This picture can be viewed only once. Show it now?')) {
       msg.textContent = 'Not opened. Reload to view it.';
       return;
     }

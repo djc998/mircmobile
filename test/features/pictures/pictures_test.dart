@@ -17,7 +17,7 @@ void main() {
   group('PictureLink', () {
     test('finds a link in a message and keeps its parts', () {
       final link = PictureLink.find(
-        '📷 Picture (disappears in 1 day): https://pics.test/p/$_id#k=$_key',
+        '📷 Picture (disappears in 4 hours): https://pics.test/p/$_id#k=$_key',
       )!;
       expect(link.page, Uri.parse('https://pics.test/p/$_id'));
       expect(link.key, _key);
@@ -114,10 +114,9 @@ void main() {
       );
       final link = await sender.upload(
         picture,
-        expiry: PictureExpiry.halfDay,
-        viewOnce: true,
+        expiry: PictureExpiry.fourHours,
       );
-      expect(upload.headers['x-expires-in'], '43200');
+      expect(upload.headers['x-expires-in'], '14400');
       expect(upload.headers['x-view-once'], '1');
       expect(stored, isNot(contains(picture)));
       expect(link.viewOnce, isTrue);
@@ -153,7 +152,7 @@ void main() {
         prepare: (b) async => b,
       );
       await expectLater(
-        service.upload(Uint8List(4), expiry: PictureExpiry.day),
+        service.upload(Uint8List(4), expiry: PictureExpiry.fourHours),
         throwsA(
           isA<PictureException>().having(
             (e) => e.message,

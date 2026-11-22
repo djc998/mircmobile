@@ -10,12 +10,12 @@ and delete themselves after a set time.
 
 - **Send:** in a private chat, tap the picture button left of the message
   box. On phones choose **Choose a photo** or **Take a photo**; on the Mac a
-  file picker opens. Then pick how long it lasts (**1 hour**, **12 hours**,
-  **1 day**, **3 days**), optionally turn on **View once**, and tap **Send
-  picture**. The message box shows "Encrypting and sending picture…" while
+  file picker opens. Then pick how long it lasts (**1 hour** or **4 hours**,
+  the default) and tap **Send picture**. Every picture is view-once: the
+  server deletes it the first time it is downloaded. The message box shows "Encrypting and sending picture…" while
   it uploads.
 - The message sent looks like
-  `📷 Picture (disappears in 1 day): https://<host>/p/<id>#k=<key>`.
+  `📷 Picture (view once, disappears in 4 hours): https://<host>/p/<id>#k=<key>&o=1`.
 - **Receive:** the picture shows under the message.
   - It loads straight away for your own pictures and in private chats where
     you've already written to the person.
@@ -41,9 +41,11 @@ and delete themselves after a set time.
 - Each picture gets a new random AES-256-GCM key. The key is only in the
   part of the link after `#`, which browsers and the app never send to a
   server, so the server stores and serves only encrypted bytes.
-- A report sends the full link (key included) to the server so the
-  reviewer can see that one picture, and keeps a copy past its expiry.
-- The server refuses expired pictures, deletes them hourly, and has a
+- Nothing is kept: the server never stores a picture longer than 4 hours,
+  deletes it on its first download, and a report is stored as text only
+  (the address without its key, the sender, network and reason). No copy
+  of a reported picture is kept.
+- The server refuses expired pictures, deletes them every 15 minutes, and has a
   rate limit of 20 uploads a minute per address and a 10 MB size limit.
 
 ## Setup

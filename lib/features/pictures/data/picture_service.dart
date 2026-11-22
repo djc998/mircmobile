@@ -77,7 +77,7 @@ class PictureService {
   Future<PictureLink> upload(
     Uint8List picture, {
     required PictureExpiry expiry,
-    bool viewOnce = false,
+    bool viewOnce = true,
   }) async {
     final base = host;
     if (base == null) {
