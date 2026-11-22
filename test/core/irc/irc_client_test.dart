@@ -105,6 +105,26 @@ void main() {
     expect(events.whereType<RegisteredEvent>().single.nick, 'me');
   });
 
+  test('loads the ban list and keeps it up to date', () async {
+    await setUpClient();
+    await register();
+    await server(':me!u@h JOIN #start');
+    final chan = client.channel('#start')!;
+    expect(chan.bansLoaded, isFalse);
+    client.requestBans('#start');
+    expect(transport.written.last, 'MODE #start +b');
+    await server(':s 367 me #start troll!*@* op 1700000000');
+    await server(':s 367 me #start *!*@bad.example op 1700000001');
+    await server(':s 368 me #start :End of Channel Ban List');
+    expect(chan.bansLoaded, isTrue);
+    expect(chan.bans, ['troll!*@*', '*!*@bad.example']);
+    expect(events.whereType<MembersChangedEvent>(), isNotEmpty);
+    // Bans set and lifted later are tracked too.
+    await server(':op!u@h MODE #start +b spam!*@*');
+    await server(':op!u@h MODE #start -b troll!*@*');
+    expect(chan.bans, ['*!*@bad.example', 'spam!*@*']);
+  });
+
   test('custom username and real name are cleaned up and sent', () async {
     await setUpClient(
       config: const IrcConnectionConfig(

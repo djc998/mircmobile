@@ -207,13 +207,21 @@ class RoomSettingsSheet extends ConsumerStatefulWidget {
 class _RoomSettingsSheetState extends ConsumerState<RoomSettingsSheet> {
   final _password = TextEditingController();
   final _invite = TextEditingController();
+  final _limit = TextEditingController();
+  TextEditingController? _description;
+  bool _bansRequested = false;
 
   @override
   void dispose() {
     _password.dispose();
     _invite.dispose();
+    _limit.dispose();
+    _description?.dispose();
     super.dispose();
   }
+
+  void _toast(String text) =>
+      ScaffoldMessenger.of(context).showSnackBar(SnackBar(content: Text(text)));
 
   void _update(RoomSettings settings) => ref
       .read(chatControllerProvider.notifier)
@@ -231,6 +239,14 @@ class _RoomSettingsSheetState extends ConsumerState<RoomSettingsSheet> {
     }
     final isOp = net.client.isOperator(chan.name);
     final services = net.services;
+    final description = _description ??= TextEditingController(
+      text: chan.topic,
+    );
+    final canDescribe = isOp || !chan.isTopicLocked;
+    if (isOp && !_bansRequested) {
+      _bansRequested = true;
+      controller.requestBans(chan.name, networkId: net.id);
+    }
 
     return ListView(
       padding: const EdgeInsets.fromLTRB(16, 0, 16, 24),
@@ -244,7 +260,41 @@ class _RoomSettingsSheetState extends ConsumerState<RoomSettingsSheet> {
                     '@) can change its settings.',
           style: theme.textTheme.bodyMedium,
         ),
-        const SizedBox(height: 8),
+        const SizedBox(height: 16),
+        Text('Description', style: theme.textTheme.titleMedium),
+        Text(
+          canDescribe
+              ? 'Shown at the top of the room and in the room list.'
+              : 'Only operators can change the description here.',
+        ),
+        TextField(
+          controller: description,
+          enabled: canDescribe,
+          minLines: 1,
+          maxLines: 3,
+          maxLength: 300,
+          decoration: const InputDecoration(
+            hintText: 'What is this room about?',
+          ),
+        ),
+        Align(
+          alignment: Alignment.centerRight,
+          child: FilledButton.tonal(
+            onPressed: canDescribe
+                ? () {
+                    controller.setRoomDescription(
+                      chan.name,
+                      description.text,
+                      networkId: net.id,
+                    );
+                    _toast('Description updated.');
+                  }
+                : null,
+            child: const Text('Save description'),
+          ),
+        ),
+        const Divider(height: 32),
+        Text('Who can join', style: theme.textTheme.titleMedium),
         SwitchListTile.adaptive(
           contentPadding: EdgeInsets.zero,
           title: const Text('Private'),
@@ -266,6 +316,62 @@ class _RoomSettingsSheetState extends ConsumerState<RoomSettingsSheet> {
           value: chan.isTopicLocked,
           onChanged: isOp ? (v) => _update(RoomSettings(topicLocked: v)) : null,
         ),
+        SwitchListTile.adaptive(
+          contentPadding: EdgeInsets.zero,
+          title: const Text('Moderated'),
+          subtitle: const Text(
+            'Only operators and people you give a voice can talk',
+          ),
+          value: chan.isModerated,
+          onChanged: isOp ? (v) => _update(RoomSettings(moderated: v)) : null,
+        ),
+        SwitchListTile.adaptive(
+          contentPadding: EdgeInsets.zero,
+          title: const Text('No messages from outside'),
+          subtitle: const Text(
+            "People who aren't in the room can't send messages to it",
+          ),
+          value: chan.modes.contains('n'),
+          onChanged: isOp
+              ? (v) => _update(RoomSettings(noOutsideMessages: v))
+              : null,
+        ),
+        const SizedBox(height: 8),
+        Text('Room size', style: theme.textTheme.titleMedium),
+        Text(
+          chan.limit == null
+              ? 'Any number of people can be in the room.'
+              : 'At most ${chan.limit} people can be in the room.',
+        ),
+        if (isOp)
+          Row(
+            children: [
+              Expanded(
+                child: TextField(
+                  controller: _limit,
+                  keyboardType: TextInputType.number,
+                  decoration: const InputDecoration(hintText: 'Most people'),
+                ),
+              ),
+              const SizedBox(width: 8),
+              FilledButton.tonal(
+                onPressed: () {
+                  final n = int.tryParse(_limit.text.trim());
+                  if (n == null || n <= 0) return;
+                  _update(RoomSettings(limit: n));
+                  _limit.clear();
+                },
+                child: const Text('Set'),
+              ),
+              if (chan.limit != null) ...[
+                const SizedBox(width: 8),
+                TextButton(
+                  onPressed: () => _update(const RoomSettings(limit: 0)),
+                  child: const Text('No limit'),
+                ),
+              ],
+            ],
+          ),
         const SizedBox(height: 8),
         Text('Password', style: theme.textTheme.titleMedium),
         Text(
@@ -329,6 +435,39 @@ class _RoomSettingsSheetState extends ConsumerState<RoomSettingsSheet> {
             ),
           ],
         ),
+        if (isOp) ...[
+          const Divider(height: 32),
+          Text('Banned', style: theme.textTheme.titleMedium),
+          const Text(
+            "People matching these can't join. Ban someone from the "
+            'people list.',
+          ),
+          if (!chan.bansLoaded)
+            const Padding(
+              padding: EdgeInsets.symmetric(vertical: 8),
+              child: Text('Loading…'),
+            )
+          else if (chan.bans.isEmpty)
+            const Padding(
+              padding: EdgeInsets.symmetric(vertical: 8),
+              child: Text('Nobody is banned.'),
+            )
+          else
+            for (final mask in chan.bans)
+              ListTile(
+                contentPadding: EdgeInsets.zero,
+                dense: true,
+                leading: const Icon(Icons.block),
+                title: Text(mask),
+                trailing: TextButton(
+                  onPressed: () {
+                    controller.unban(chan.name, mask, networkId: net.id);
+                    _toast('Unbanned $mask.');
+                  },
+                  child: const Text('Unban'),
+                ),
+              ),
+        ],
         const Divider(height: 32),
         Text('Keep this room', style: theme.textTheme.titleMedium),
         const SizedBox(height: 4),

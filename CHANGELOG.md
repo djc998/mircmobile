@@ -7,6 +7,12 @@ and the project uses [Semantic Versioning](https://semver.org/).
 ## [Unreleased]
 
 ### Added
+- More controls for rooms you run, in **Room settings**: edit the room's
+  **Description** (topic), **Moderated** (only voiced people talk), **No
+  messages from outside**, **Room size** (user limit), and a **Banned**
+  list with **Unban**. The people menu adds **Give voice** / **Take voice**
+  and **Remove operator**. See
+  [docs/features/private-rooms.md](docs/features/private-rooms.md).
 - Pinned side panels on wide screens (Mac, iPad, tablets): servers and
   chats stay open on the left and the people in the room on the right.
   Show or hide each from the top bar; the choice is remembered. Phones
