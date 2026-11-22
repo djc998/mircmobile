@@ -18,7 +18,7 @@ const pictureHostSetting = String.fromEnvironment('PICTURE_HOST');
 
 /// Filled in once the Worker is deployed. Empty means picture sharing is
 /// switched off and the app says so.
-const defaultPictureHost = '';
+const defaultPictureHost = 'https://irc-pictures.irc-pictures.workers.dev';
 
 /// Optional shared token the Worker can require (`APP_TOKEN` secret).
 const pictureAppToken = String.fromEnvironment('PICTURE_APP_TOKEN');
