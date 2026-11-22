@@ -1,4 +1,4 @@
-# Appearance: themes, dark mode and text size
+# Appearance: themes, accent, density, dark mode and text size
 
 Available on iOS, Android and macOS (shared Flutter code).
 
@@ -9,41 +9,62 @@ the chat menu.
 
 - **Mode:** System (follows the device), Light or Dark.
 - **Theme:** each theme has a light and a dark version, and its card shows
-  a live preview of chat lines in the current mode.
-  - **Classic:** mIRC navy, the default.
+  a live preview of chat lines in the current mode (with avatars in
+  Comfortable).
+  - **Default** (new default): clean and modern, with the accent colour
+    you pick.
+  - **Classic mIRC:** mIRC navy, square corners, compact lines. Picking it
+    also switches density to Compact.
   - **Midnight:** deep blue, easy on the eyes at night.
   - **Solarized:** warm, low-glare colours.
   - **High contrast:** black and white with bright colours.
+- **Accent colour:** Indigo (default), Blue, Teal, Green, Orange, Red, Pink
+  or Purple. Applies to the Default theme; the other themes keep their own
+  colours and the swatches are dimmed with a note saying so. Each swatch is
+  a 48-pt target and screen readers hear "Teal accent, selected".
+- **Density:** **Comfortable** (avatars next to rooms, people and, from
+  Phase 2, messages) or **Compact** (no avatars, classic `HH:MM <nick>`
+  lines). See [design-system.md](design-system.md).
 - **Text size:** Small, Normal, Large or Larger. It applies to the whole
   app, on top of the device's own text size setting.
 
-Choices are saved on the device.
+Choices are saved on the device. Settings saved before the redesign that
+had the old default (Classic) move to the new Default theme once; other
+themes, mode and text size are kept.
 
 ## Readable colours
 
-Join/part lines were a fixed green (#009300), notices a fixed dark red
-(#7F0000, about 1.9:1 on dark backgrounds) and actions a fixed purple, the
-same in light and dark mode. Chat colours now come from the theme
-(`ChatColors`), with separate light and dark versions. A test checks every
-theme in both modes: event, notice, action, error, body text, timestamps
-and all nickname colours must reach a contrast ratio of at least 4.5:1
-(WCAG AA) against the background.
+Chat colours come from the theme (`ChatColors`), with separate light and
+dark versions, and every theme also provides the design tokens
+(`AppTokens`). Tests check every theme in both modes: event, notice,
+action, error, body text, timestamps and all nickname colours reach at
+least 4.5:1 (WCAG AA) on the background, and so does every token text
+pair, for every accent. Dots, rings and bars reach 3:1.
 
 ## Code
 
+- `lib/core/theme/tokens.dart`: `AppTokens`, `AccentColor`, spacing,
+  radii, type scale, motion. See [design-system.md](design-system.md).
 - `lib/core/theme/app_theme.dart`: `AppearanceMode`, `ThemePreset`,
-  `ChatColors` (a `ThemeExtension`: event, notice, action, nickname
-  palette, `nickColor()`), `AppTheme.build(preset, brightness)`,
+  `ChatColors`, `AppTheme.build(preset, brightness, accent:)`,
   `contrastRatio()`.
 - `lib/features/settings/application/appearance_controller.dart`:
-  `Appearance` and `appearanceProvider` (saved under `appearance`).
+  `Appearance` (mode, preset, accent, density, text scale, `version`),
+  `ChatDensity`, `appearanceProvider` (saved under `appearance`).
 - `lib/features/settings/presentation/appearance_screen.dart`: route
-  `/appearance`.
-- `lib/app/app.dart` applies theme, dark theme, mode and text scale.
-- `chat_screen.dart` reads colours with `ChatColors.of(context)`.
+  `/appearance`, theme cards, accent picker, density.
+- `lib/app/app.dart` applies theme, accent, dark theme, mode and text
+  scale.
+- `chat_screen.dart` reads colours with `ChatColors.of(context)` and
+  density from `appearanceProvider`.
 
 ## Tests
 
-- `test/core/theme/app_theme_test.dart`: contrast for every theme and mode.
+- `test/core/theme/app_theme_test.dart`: chat colour contrast for every
+  theme and mode.
+- `test/core/theme/tokens_test.dart`: token contrast for every theme and
+  accent.
+- `test/features/settings/appearance_test.dart`: accent, density, saving
+  and the move from the old default.
 - `test/features/chat_flow_test.dart`: "appearance: pick dark mode, a
   theme and text size".

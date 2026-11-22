@@ -953,5 +953,5 @@ class IrcClient {
   }
 
   /// Reported in CTCP VERSION replies.
-  static String clientVersion = 'mIRC Mobile (Flutter) 0.1.0';
+  static String clientVersion = 'IRCade (Flutter) 0.1.0';
 }

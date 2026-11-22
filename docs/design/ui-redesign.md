@@ -139,6 +139,11 @@ Each gets a widget test and light + dark golden tests.
 
 ## Phases (one PR each)
 
+Status: Phase 1 done ([design-system.md](../features/design-system.md)).
+Four token values were nudged to meet contrast where they're drawn as text
+or marks (`onAccentSoft`, `opText`, light `mentionBar`, `success` on tinted
+themes); the reasons are in design-system.md.
+
 1. **Foundation**: tokens, Default (Indigo) + Classic mIRC themes, accent
    picker, density setting, `NickAvatar`, `RoomAvatar`, `UnreadBadge`,
    rename display name to IRCade. Docs: `docs/features/design-system.md`,
