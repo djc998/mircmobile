@@ -23,6 +23,8 @@ view changes layout as it's resized.
 - A large **Rooms** title with **Browse rooms**, **Join a room** and **New
   private message**.
 - **Search rooms and people** filters everything below by name.
+- Before you've joined anything: **Find your first room** with a
+  **Discover rooms** button ([onboarding.md](onboarding.md)).
 - **Favorites:** big tiles for your favorite rooms with their unread badge.
   A favorite you haven't joined yet is dimmed; tap it to join.
 - **Active now:** every open room and private chat, newest activity first.

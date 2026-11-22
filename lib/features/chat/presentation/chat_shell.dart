@@ -15,6 +15,7 @@ import 'package:irc_client/core/theme/app_theme.dart';
 import 'package:irc_client/core/theme/tokens.dart';
 import 'package:irc_client/core/ui/avatars.dart';
 import 'package:irc_client/core/ui/conversation_row.dart';
+import 'package:irc_client/core/ui/empty_state.dart';
 import 'package:irc_client/core/ui/unread_badge.dart';
 import 'package:irc_client/features/chat/application/chat_controller.dart';
 import 'package:irc_client/features/chat/application/conversations.dart';
@@ -563,18 +564,27 @@ class _RoomsHomeState extends ConsumerState<RoomsHome> {
           ],
           section('Active now'),
           if (conversations.isEmpty)
-            Padding(
-              padding: const EdgeInsets.fromLTRB(20, 8, 20, 8),
-              child: Text(
-                _query.trim().isNotEmpty
-                    ? 'No rooms or chats match "${_query.trim()}".'
-                    : state.networks.isEmpty
-                    ? 'Not connected to a network yet.'
-                    : 'No rooms yet. Find one in Discover, or join one '
-                          'with the button above.',
-                style: TextStyle(color: tokens.textMuted),
+            if (_query.trim().isEmpty && state.networks.isNotEmpty)
+              // Step 3 of the welcome: find a first room.
+              EmptyState(
+                icon: Icons.explore_outlined,
+                title: 'Find your first room',
+                message:
+                    'Discover lists every room on your networks. Join one '
+                    'with a tap.',
+                action: 'Discover rooms',
+                onAction: widget.onBrowse,
+              )
+            else
+              Padding(
+                padding: const EdgeInsets.fromLTRB(20, 8, 20, 8),
+                child: Text(
+                  _query.trim().isNotEmpty
+                      ? 'No rooms or chats match "${_query.trim()}".'
+                      : 'Not connected to a network yet.',
+                  style: TextStyle(color: tokens.textMuted),
+                ),
               ),
-            ),
           for (final c in conversations)
             _SwipeRow(
               key: ValueKey(c.key),

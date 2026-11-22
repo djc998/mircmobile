@@ -22,7 +22,7 @@ macOS. People on other IRC apps can join from a browser.
 - **Ending:** hanging up, closing the page, or losing the connection ends the
   call for both. A call nobody answers stops ringing after 10 minutes. Each
   link works for one call only; afterwards it says the call has ended.
-- **Hide my IP address on calls** (start screen, **More options**, on by
+- **Hide my IP address on calls** (start screen, **Advanced options**, on by
   default): the call always goes through Cloudflare's relay, so the other
   person never sees your IP address. If the relay isn't set up on the
   server, the call screen says so and the call connects directly.
@@ -39,7 +39,7 @@ buttons that open the right settings page:
 - **iPhone / Android:** **Open Settings** opens the app's own settings
   page with its Camera and Microphone switches.
 
-The same buttons are on the start screen under **More options → Camera and
+The same buttons are on the start screen under **Advanced options → Camera and
 microphone**. Code: `lib/core/platform/privacy_settings.dart`
 (`url_launcher` on macOS/iOS, a small `irc_client/settings` channel in
 Android's `MainActivity`).

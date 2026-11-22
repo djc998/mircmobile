@@ -7,6 +7,8 @@
       (redesign Phase 2)
 - [x] Navigation by screen size: phone tabs, tablet rail, iPad/Mac sidebar,
       Mac menu bar and shortcuts (redesign Phase 3)
+- [x] Discover with room cards, categories and previews; three-step welcome
+      (redesign Phase 4)
 - [x] Room browser: search and sort LIST results, one-tap join
 - [x] Several networks at once; room browser and favorites across them
 - [ ] mIRC colour and style rendering

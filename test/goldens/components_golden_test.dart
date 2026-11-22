@@ -6,7 +6,9 @@ import 'package:irc_client/core/ui/avatars.dart';
 import 'package:irc_client/core/ui/chat_dividers.dart';
 import 'package:irc_client/core/ui/composer.dart';
 import 'package:irc_client/core/ui/conversation_row.dart';
+import 'package:irc_client/core/ui/empty_state.dart';
 import 'package:irc_client/core/ui/message_group.dart';
+import 'package:irc_client/core/ui/room_card.dart';
 import 'package:irc_client/core/ui/unread_badge.dart';
 import 'package:material_ui/material_ui.dart';
 
@@ -167,6 +169,44 @@ void main() {
         FavoriteTile(name: '#linux', isRoom: true, onTap: () {}),
         FavoriteTile(name: '#retro', isRoom: true, joined: false, onTap: () {}),
       ],
+    ),
+    'room_card': SizedBox(
+      width: 380,
+      child: Column(
+        children: [
+          RoomCard(
+            name: '#help',
+            people: 1520,
+            topic: 'New to IRC? Ask anything here, friendly volunteers.',
+            category: 'Help',
+            busy: true,
+            onJoin: () {},
+            onFavorite: () {},
+          ),
+          const SizedBox(height: 10),
+          RoomCard(
+            name: '#linux',
+            people: 891,
+            topic: 'General Linux help and chat.',
+            category: 'Tech',
+            network: 'Libera',
+            joined: true,
+            favorite: true,
+            onJoin: () {},
+            onFavorite: () {},
+          ),
+        ],
+      ),
+    ),
+    'empty_state': SizedBox(
+      width: 380,
+      child: EmptyState(
+        icon: Icons.explore_outlined,
+        title: 'Find your first room',
+        message: 'Discover lists every room on your networks.',
+        action: 'Discover rooms',
+        onAction: () {},
+      ),
     ),
     'composer': const SizedBox(
       width: 360,

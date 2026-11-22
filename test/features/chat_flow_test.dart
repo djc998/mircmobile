@@ -12,6 +12,7 @@ import 'package:irc_client/app/app.dart';
 import 'package:irc_client/core/irc/irc_transport.dart';
 import 'package:irc_client/core/storage/app_storage.dart';
 import 'package:irc_client/core/ui/composer.dart';
+import 'package:irc_client/core/ui/room_card.dart';
 import 'package:irc_client/features/chat/application/chat_controller.dart';
 import 'package:irc_client/features/chat/data/chat_history_store.dart';
 import 'package:irc_client/features/chat/presentation/chat_screen.dart';
@@ -49,6 +50,23 @@ Finder chatText(String text) => find.descendant(
   of: find.byType(ChatScreen),
   matching: find.textContaining(text, findRichText: true),
 );
+
+/// Opens Advanced options on the welcome screen.
+Future<void> openAdvanced(WidgetTester tester) async {
+  await tester.ensureVisible(find.text('Advanced options'));
+  await tester.tap(find.text('Advanced options'));
+  await tester.pumpAndSettle();
+}
+
+/// Taps a network on the welcome screen, scrolling to it first.
+Future<void> tapNetwork(WidgetTester tester, String name) async {
+  // A focused field would scroll itself back into view.
+  FocusManager.instance.primaryFocus?.unfocus();
+  await tester.pumpAndSettle();
+  await tester.ensureVisible(find.text(name).first);
+  await tester.pumpAndSettle();
+  await tester.tap(find.text(name).first);
+}
 
 /// Picks a place on the rail (small tablets) or tab bar (phones).
 Future<void> showTab(WidgetTester tester, String label) async {
@@ -90,11 +108,12 @@ void main() {
 
     expect(find.text('Choose a network'), findsOneWidget);
     await tester.enterText(find.widgetWithText(TextField, 'Nickname'), 'me');
+    await openAdvanced(tester);
     await tester.enterText(
       find.widgetWithText(TextField, 'Rooms to join (optional)'),
       'flutter',
     );
-    await tester.tap(find.text('Libera.Chat'));
+    await tapNetwork(tester, 'Libera.Chat');
     await tester.pumpAndSettle();
 
     expect(connectedHost, 'irc.libera.chat');
@@ -175,14 +194,27 @@ void main() {
     expect(find.text('3 of 3 rooms'), findsOneWidget);
     expect(find.text('#debian'), findsOneWidget);
     expect(find.text('Debian help'), findsOneWidget);
-    expect(find.text('1.2k'), findsOneWidget);
+    // Cards show the people count, a category and "Busy now".
+    expect(
+      find.textContaining('1,200 people · Tech · Busy now', findRichText: true),
+      findsOneWidget,
+    );
+    expect(
+      find.textContaining('Busy now', findRichText: true),
+      findsNWidgets(2),
+    );
 
+    // Size and sort are under Filters.
+    await tester.tap(find.byTooltip('Filters'));
+    await tester.pumpAndSettle();
     await tester.tap(find.text('10+ people'));
+    await tester.pumpAndSettle();
+    await tester.tap(find.text('Done'));
     await tester.pumpAndSettle();
     expect(find.text('#quiet'), findsNothing);
 
     await tester.enterText(
-      find.widgetWithText(TextField, 'Search rooms and topics'),
+      find.widgetWithText(TextField, 'Search 3 rooms'),
       'tor',
     );
     await tester.pumpAndSettle();
@@ -242,6 +274,7 @@ void main() {
     await launch();
     expect(find.textContaining('Continue on'), findsNothing);
     await tester.enterText(find.widgetWithText(TextField, 'Nickname'), 'me');
+    await openAdvanced(tester);
     await tester.tap(find.text('Log in with a registered account'));
     await tester.pumpAndSettle();
     await tester.enterText(
@@ -249,7 +282,7 @@ void main() {
       'meacct',
     );
     await tester.enterText(find.widgetWithText(TextField, 'Password'), 'pw1');
-    await tester.tap(find.text('Libera.Chat'));
+    await tapNetwork(tester, 'Libera.Chat');
     await tester.pumpAndSettle();
     transport.incoming
       ..add(':s 001 me :Welcome')
@@ -436,7 +469,7 @@ void main() {
       ),
     );
     await tester.enterText(find.widgetWithText(TextField, 'Nickname'), 'me');
-    await tester.tap(find.text('Libera.Chat'));
+    await tapNetwork(tester, 'Libera.Chat');
     await tester.pumpAndSettle();
     transport.incoming
       ..add(':s 001 me :Welcome')
@@ -492,7 +525,7 @@ void main() {
       ),
     );
     await tester.enterText(find.widgetWithText(TextField, 'Nickname'), 'me');
-    await tester.tap(find.text('Libera.Chat'));
+    await tapNetwork(tester, 'Libera.Chat');
     await tester.pumpAndSettle();
     transport.incoming
       ..add(':s 001 me :Welcome')
@@ -546,11 +579,12 @@ void main() {
       ),
     );
     await tester.enterText(find.widgetWithText(TextField, 'Nickname'), 'me');
+    await openAdvanced(tester);
     await tester.tap(
       find.widgetWithText(SwitchListTile, 'Rejoin my favorite rooms'),
     );
     await tester.pumpAndSettle();
-    await tester.tap(find.text('Libera.Chat'));
+    await tapNetwork(tester, 'Libera.Chat');
     await tester.pumpAndSettle();
     transports['irc.libera.chat']!.incoming
       ..add(':s 001 me :Welcome')
@@ -605,7 +639,10 @@ void main() {
     await tester.pumpAndSettle();
     expect(find.text('2 of 2 rooms'), findsOneWidget);
     expect(
-      find.textContaining('OFTC · OFTC room', findRichText: true),
+      find.descendant(
+        of: find.widgetWithText(RoomCard, 'OFTC room'),
+        matching: find.text('OFTC'),
+      ),
       findsOneWidget,
     );
 
@@ -616,7 +653,11 @@ void main() {
     await tester.tap(find.widgetWithText(ChoiceChip, 'All networks'));
     await tester.pumpAndSettle();
 
+    // Tapping a card opens its preview; Join room joins it.
     await tester.tap(find.text('#oftcroom'));
+    await tester.pumpAndSettle();
+    expect(find.text('OFTC room'), findsWidgets);
+    await tester.tap(find.text('Join room'));
     await tester.pumpAndSettle();
     expect(oftc.written.last, 'JOIN #oftcroom');
 
@@ -679,7 +720,7 @@ void main() {
 
     await launch();
     await tester.enterText(find.widgetWithText(TextField, 'Nickname'), 'me');
-    await tester.tap(find.text('Libera.Chat'));
+    await tapNetwork(tester, 'Libera.Chat');
     await tester.pumpAndSettle();
     transport.incoming
       ..add(':s 001 me :Welcome')
@@ -762,7 +803,7 @@ void main() {
       ),
     );
     await tester.enterText(find.widgetWithText(TextField, 'Nickname'), 'me');
-    await tester.tap(find.text('Libera.Chat'));
+    await tapNetwork(tester, 'Libera.Chat');
     await tester.pumpAndSettle();
     transport.incoming.add(':s 001 me :Welcome');
     await tester.pumpAndSettle();
@@ -880,7 +921,7 @@ void main() {
       ),
     );
     await tester.enterText(find.widgetWithText(TextField, 'Nickname'), 'me');
-    await tester.tap(find.text('Libera.Chat'));
+    await tapNetwork(tester, 'Libera.Chat');
     await tester.pumpAndSettle();
     transport.incoming
       ..add(':s 001 me :Welcome')
@@ -1005,7 +1046,7 @@ void main() {
       ),
     );
     await tester.enterText(find.widgetWithText(TextField, 'Nickname'), 'me');
-    await tester.tap(find.text('Libera.Chat'));
+    await tapNetwork(tester, 'Libera.Chat');
     await tester.pumpAndSettle();
     transport.incoming
       ..add(':s 001 me :Welcome')
@@ -1128,7 +1169,7 @@ void main() {
       ),
     );
     await tester.enterText(find.widgetWithText(TextField, 'Nickname'), 'me');
-    await tester.tap(find.text('Libera.Chat'));
+    await tapNetwork(tester, 'Libera.Chat');
     await tester.pumpAndSettle();
     transport.incoming
       ..add(':s 001 me :Welcome')

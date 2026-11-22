@@ -7,6 +7,9 @@ and the project uses [Semantic Versioning](https://semver.org/).
 ## [Unreleased]
 
 ### Changed
+- The start screen's room, account, username and history options moved
+  under **Advanced options**; Discover's size, sort and favorites chips
+  moved into **Filters**.
 - New navigation, Phase 3 of the redesign (iOS, Android, macOS). It
   replaces the ☰ drawer and the ⋮ menu: Browse, Message, Join, Create a
   room, Add a network, Appearance and each network's options are now in
@@ -33,6 +36,17 @@ and the project uses [Semantic Versioning](https://semver.org/).
   too. See [docs/features/pinned-panels.md](docs/features/pinned-panels.md).
 
 ### Added
+- Discover and welcome, Phase 4 of the redesign (iOS, Android, macOS).
+  **Discover** shows rooms as cards (avatar, people, category, "Busy now",
+  two-line topic, Join or Open) with category chips (Popular, Tech, Gaming,
+  Music, Help, Social, guessed from each room's name and topic), "Search
+  N rooms", a Filters sheet (favorites, size, sort), a preview sheet when
+  you tap a card, and two columns on tablets and the Mac. The **welcome**
+  screen says "Welcome to IRCade" and walks through three steps (nickname,
+  network, first room), with the rest under **Advanced options**; Rooms
+  home then offers **Find your first room**. See
+  [docs/features/room-browser.md](docs/features/room-browser.md) and
+  [docs/features/onboarding.md](docs/features/onboarding.md).
 - Navigation by screen size, Phase 3 of the redesign (iOS, Android,
   macOS). **Phones:** bottom tabs (**Rooms**, **Discover**, **Mentions**
   with a badge, **You**) and chats full screen with a back arrow. **Rooms

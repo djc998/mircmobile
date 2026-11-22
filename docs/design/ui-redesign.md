@@ -154,6 +154,14 @@ became Find in Chat (⌘F). Left for later: Mute on the swipe actions and
 grouped People (Phase 5, with Room info and profile cards) and online dots
 (need MONITOR/WATCH).
 
+Phase 4 done ([room-browser.md](../features/room-browser.md),
+[onboarding.md](../features/onboarding.md)). The welcome's three steps are
+one page of numbered sections rather than separate screens, so returning
+users and Add a network keep a one-screen form; step 3 lands on Rooms
+home's "Find your first room". Categories are guessed from keywords and
+"Busy now" means 100+ people, since IRC reports neither. Size, sort and
+favorites moved into a Filters sheet.
+
 1. **Foundation**: tokens, Default (Indigo) + Classic mIRC themes, accent
    picker, density setting, `NickAvatar`, `RoomAvatar`, `UnreadBadge`,
    rename display name to IRCade. Docs: `docs/features/design-system.md`,

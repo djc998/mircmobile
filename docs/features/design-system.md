@@ -19,7 +19,8 @@ Available on iOS, Android and macOS (shared Flutter code). Phase 1 of the
 - **Unread badges**: accent pill with the count (99+ past 99), or a coral
   `@ n` when one of the messages mentions you.
 
-Phase 2 adds the chat components: grouped messages, bubbles, dividers,
+Phase 4 adds `RoomCard`, `EmptyState` and `SkeletonList` for Discover
+([room-browser.md](room-browser.md)). Phase 2 adds the chat components: grouped messages, bubbles, dividers,
 the jump pill and the composer. See [chat-screen.md](chat-screen.md).
 
 ## Tokens

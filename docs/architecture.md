@@ -23,7 +23,8 @@ lib/
   core/theme/                Themes, design tokens (tokens.dart), nick colours
   core/ui/                   Shared components: NickAvatar, RoomAvatar, UnreadBadge,
                              MessageGroup, MessageBubble, dividers, JumpPill, Composer,
-                             ConversationRow, FavoriteTile
+                             ConversationRow, FavoriteTile, RoomCard, EmptyState,
+                             SkeletonList
   features/connection/       Network picker screen
   features/chat/             ChatController (Riverpod) and chat screen
   features/connection/data/  SavedConnection (nick, network, account)

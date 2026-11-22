@@ -16,7 +16,7 @@ Available on iOS, Android and macOS (shared Flutter code).
 - **What is saved:** messages, actions (`/me`), notices and your own
   messages, up to the last 1,000 per conversation shown and about 2,000 kept
   on disk. Joins, quits, errors and the server tab are not saved.
-- **Settings** (start screen, **More options**):
+- **Settings** (start screen, **Advanced options**):
   - **Save chat history on this device** (on by default). Turning it off
     stops saving and loading history; what is already saved stays until
     deleted.
