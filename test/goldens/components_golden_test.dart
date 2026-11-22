@@ -1,3 +1,5 @@
+import 'dart:io';
+
 import 'package:flutter_test/flutter_test.dart';
 import 'package:irc_client/core/theme/app_theme.dart';
 import 'package:irc_client/core/ui/avatars.dart';
@@ -6,7 +8,14 @@ import 'package:material_ui/material_ui.dart';
 
 /// Light and dark goldens for each Phase 1 component, in the Default theme
 /// and in Classic mIRC (square corners).
+///
+/// The images are made on macOS. Linux draws anti-aliased circle edges and
+/// scaled text 2-3% differently, so these only run on macOS; the widget
+/// tests in test/core/ui check colours, sizes and labels on every platform.
 void main() {
+  // Goldens are made and checked on macOS only (see above).
+  final skip = !Platform.isMacOS;
+
   final components = <String, Widget>{
     'nick_avatar': const Wrap(
       spacing: 8,
@@ -41,7 +50,7 @@ void main() {
     for (final preset in [ThemePreset.indigo, ThemePreset.classic]) {
       for (final brightness in Brightness.values) {
         final file = '${name}_${preset.name}_${brightness.name}.png';
-        testWidgets(file, (tester) async {
+        testWidgets(file, skip: skip, (tester) async {
           final theme = AppTheme.build(preset, brightness);
           await tester.pumpWidget(
             MaterialApp(

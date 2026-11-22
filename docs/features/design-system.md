@@ -109,10 +109,11 @@ label); the badge grows with the text.
 - `test/core/ui/components_test.dart`: initials, room letters, colours,
   rings, away, semantics labels, badge text and colours, largest text size.
 - `test/goldens/components_golden_test.dart`: light and dark goldens for
-  each component in Default and Classic mIRC (`test/goldens/*.png`). The
-  comparator in `test/goldens/flutter_test_config.dart` allows 0.5% pixel
-  difference so macOS-made goldens pass on Linux CI. Update with
-  `flutter test test/goldens --update-goldens`.
+  each component in Default and Classic mIRC (`test/goldens/*.png`). They
+  run on macOS only: Linux draws circle edges and scaled text 2-3%
+  differently, so CI (Linux) skips them and relies on the widget tests
+  above. The comparator in `test/goldens/flutter_test_config.dart` allows
+  0.5%. Update on a Mac with `flutter test test/goldens --update-goldens`.
 - `test/features/settings/appearance_test.dart`: saved settings and their
   move from the old default, accent and density pick and persistence,
   accent disabled for other themes, avatars in Comfortable but not Compact.
