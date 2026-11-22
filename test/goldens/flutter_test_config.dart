@@ -4,9 +4,9 @@ import 'package:flutter/foundation.dart';
 
 import 'package:flutter_test/flutter_test.dart';
 
-/// Goldens are made on macOS and checked on Linux CI. The test font draws
-/// the same everywhere, but anti-aliased edges can differ by a few pixels,
-/// so allow a 0.5% difference.
+/// Goldens are made and checked on macOS. Allow a 0.5% difference so
+/// small anti-aliasing changes between macOS or Flutter versions don't fail
+/// them.
 Future<void> testExecutable(FutureOr<void> Function() testMain) async {
   final previous = goldenFileComparator;
   if (previous is LocalFileComparator) {
