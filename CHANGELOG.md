@@ -7,6 +7,9 @@ and the project uses [Semantic Versioning](https://semver.org/).
 ## [Unreleased]
 
 ### Added
+- IRCade UI redesign plan and approved mockup (docs only, no app changes
+  yet): design tokens, layouts for phone, iPad and Mac, screen specs and a
+  five-phase rollout. See [docs/design/ui-redesign.md](docs/design/ui-redesign.md).
 - Share temporary pictures in private chats (iOS, Android, macOS). Tap the
   picture button next to the message box, choose or take a photo, pick how
   long it lasts (1 hour or 4 hours). Every picture is view-once: it is

@@ -1,0 +1,307 @@
+<!doctype html>
+<html lang="en">
+<head>
+<meta charset="utf-8">
+<title>IRCade workspace</title>
+<script src="./support.js"></script>
+</head>
+<body>
+<x-dc>
+<helmet>
+<link rel="preconnect" href="https://fonts.googleapis.com">
+<link href="https://fonts.googleapis.com/css2?family=Inter:wght@400;500;600;700&amp;display=swap" rel="stylesheet">
+<style>
+body{margin:0}
+a{color:#5B5BF0}a:hover{color:#4040D0}
+button{font:inherit;cursor:pointer}
+input{font:inherit}
+.sr{position:absolute;width:1px;height:1px;overflow:hidden;clip:rect(0 0 0 0)}
+</style>
+</helmet>
+<div style="width: 1280px; height: 800px; display: flex; overflow: hidden; font-family: Inter, system-ui, sans-serif; background: {{t.surface}}; color: {{t.text}}">
+
+  <nav aria-label="Rooms and chats" style="width: 264px; flex-shrink: 0; display: flex; flex-direction: column; background: {{t.raised}}; border-right: 1px solid {{t.line}}; padding: 20px 12px; box-sizing: border-box; gap: 4px">
+    <div style="display: flex; align-items: center; gap: 10px; padding: 0 8px 14px">
+      <div style="width: 32px; height: 32px; border-radius: 9px; background: {{t.accent}}; color: {{t.accentText}}; display: flex; align-items: center; justify-content: center; font-weight: 700; font-size: 17px">#</div>
+      <div style="font-size: 18px; font-weight: 700; letter-spacing: -0.2px">IRCade</div>
+      <div style="flex: 1"></div>
+      <button aria-label="Switch to dark or light mode" onClick="{{ toggleTheme }}" style="width: 32px; height: 32px; border-radius: 8px; border: 1px solid {{t.line}}; background: {{t.surface}}; color: {{t.muted}}; display: flex; align-items: center; justify-content: center; padding: 0">
+        <svg width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><path d="M21 12.8A9 9 0 1 1 11.2 3a7 7 0 0 0 9.8 9.8z"></path></svg>
+      </button>
+    </div>
+    <button style="display: flex; align-items: center; gap: 8px; height: 36px; border-radius: 10px; border: 1px solid {{t.line}}; background: {{t.surface}}; color: {{t.muted}}; padding: 0 12px; margin: 0 4px 12px; font-size: 13px; text-align: left">
+      <svg width="15" height="15" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" aria-hidden="true"><circle cx="11" cy="11" r="7"></circle><path d="M20 20l-3.5-3.5"></path></svg>
+      <span style="flex: 1">Jump to a room or person</span>
+      <span style="font-size: 11px; border: 1px solid {{t.line}}; border-radius: 5px; padding: 1px 5px">⌘K</span>
+    </button>
+
+    <sc-for list="{{ nav }}" as="n" hint-placeholder-count="3">
+      <button style="display: flex; align-items: center; gap: 10px; height: 34px; border: 0; border-radius: 8px; background: transparent; color: {{t.text}}; padding: 0 10px; font-size: 14px; font-weight: 500; text-align: left">
+        <span style="width: 8px; height: 8px; border-radius: 4px; background: {{n.dot}}"></span>
+        <span style="flex: 1">{{ n.label }}</span>
+        <sc-if value="{{ n.hasBadge }}" hint-placeholder-val="{{ false }}"><span style="min-width: 20px; height: 20px; border-radius: 10px; background: {{t.mention}}; color: {{t.mentionText}}; font-size: 11px; font-weight: 700; display: flex; align-items: center; justify-content: center; padding: 0 6px; box-sizing: border-box">{{ n.badge }}</span></sc-if>
+      </button>
+    </sc-for>
+
+    <sc-for list="{{ sections }}" as="s" hint-placeholder-count="3">
+      <div style="font-size: 11px; font-weight: 600; letter-spacing: 0.6px; text-transform: uppercase; color: {{t.muted}}; padding: 16px 10px 6px">{{ s.title }}</div>
+      <sc-for list="{{ s.rooms }}" as="r" hint-placeholder-count="2">
+        <button onClick="{{ r.pick }}" style="display: flex; align-items: center; gap: 10px; height: 40px; border: 0; border-radius: 10px; background: {{r.rowBg}}; color: {{t.text}}; padding: 0 8px; text-align: left; width: 100%">
+          <span style="width: 26px; height: 26px; border-radius: {{r.avatarRadius}}; background: {{r.avBg}}; color: {{r.avFg}}; font-size: 12px; font-weight: 700; display: flex; align-items: center; justify-content: center; position: relative; flex-shrink: 0">{{ r.initial }}<sc-if value="{{ r.online }}" hint-placeholder-val="{{ false }}"><span style="position: absolute; right: -2px; bottom: -2px; width: 9px; height: 9px; border-radius: 5px; background: {{t.success}}; border: 2px solid {{t.raised}}"></span></sc-if></span>
+          <span style="flex: 1; min-width: 0; font-size: 14px; font-weight: {{r.weight}}; white-space: nowrap; overflow: hidden; text-overflow: ellipsis">{{ r.name }}</span>
+          <span style="font-size: 10px; font-weight: 600; color: {{t.muted}}; border: 1px solid {{t.line}}; border-radius: 4px; padding: 0 4px">{{ r.net }}</span>
+          <sc-if value="{{ r.hasUnread }}" hint-placeholder-val="{{ false }}"><span style="min-width: 20px; height: 20px; border-radius: 10px; background: {{r.badgeBg}}; color: {{r.badgeFg}}; font-size: 11px; font-weight: 700; display: flex; align-items: center; justify-content: center; padding: 0 6px; box-sizing: border-box">{{ r.unread }}</span></sc-if>
+        </button>
+      </sc-for>
+    </sc-for>
+    <div style="flex: 1"></div>
+    <div style="display: flex; align-items: center; gap: 10px; padding: 10px 8px 0; border-top: 1px solid {{t.line}}">
+      <span style="width: 30px; height: 30px; border-radius: 15px; background: {{me.bg}}; color: {{me.color}}; font-size: 12px; font-weight: 700; display: flex; align-items: center; justify-content: center">DE</span>
+      <div style="flex: 1">
+        <div style="font-size: 13px; font-weight: 600">dennis</div>
+        <div style="font-size: 11px; color: {{t.muted}}">Connected to 3 networks</div>
+      </div>
+    </div>
+  </nav>
+
+  <main style="flex: 1; min-width: 0; display: flex; flex-direction: column">
+    <header style="height: 64px; flex-shrink: 0; display: flex; align-items: center; gap: 12px; padding: 0 20px; border-bottom: 1px solid {{t.line}}">
+      <span style="width: 36px; height: 36px; border-radius: {{room.avatarRadius}}; background: {{room.avBg}}; color: {{room.avFg}}; font-weight: 700; display: flex; align-items: center; justify-content: center">{{ room.initial }}</span>
+      <div style="flex: 1; min-width: 0">
+        <div style="font-size: 16px; font-weight: 600">{{ room.name }}</div>
+        <div style="font-size: 12px; color: {{t.muted}}; white-space: nowrap; overflow: hidden; text-overflow: ellipsis">{{ room.subtitle }}</div>
+      </div>
+      <sc-if value="{{ room.dm }}" hint-placeholder-val="{{ false }}">
+        <button aria-label="Voice call" style="width: 36px; height: 36px; border-radius: 10px; border: 0; background: {{t.overlay}}; color: {{t.text}}; display: flex; align-items: center; justify-content: center"><svg width="18" height="18" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><path d="M22 16.9v3a2 2 0 0 1-2.2 2 19.8 19.8 0 0 1-8.6-3.1 19.5 19.5 0 0 1-6-6A19.8 19.8 0 0 1 2.1 4.2 2 2 0 0 1 4.1 2h3a2 2 0 0 1 2 1.7c.1.9.4 1.8.7 2.7a2 2 0 0 1-.5 2.1L8 9.8a16 16 0 0 0 6 6l1.3-1.3a2 2 0 0 1 2.1-.5c.9.3 1.8.6 2.7.7a2 2 0 0 1 1.7 2z"></path></svg></button>
+        <button aria-label="Video call" style="width: 36px; height: 36px; border-radius: 10px; border: 0; background: {{t.overlay}}; color: {{t.text}}; display: flex; align-items: center; justify-content: center"><svg width="18" height="18" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><rect x="2" y="6" width="14" height="12" rx="2"></rect><path d="M22 8l-6 4 6 4z"></path></svg></button>
+      </sc-if>
+      <button aria-label="Search this chat" style="width: 36px; height: 36px; border-radius: 10px; border: 0; background: transparent; color: {{t.muted}}; display: flex; align-items: center; justify-content: center"><svg width="18" height="18" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" aria-hidden="true"><circle cx="11" cy="11" r="7"></circle><path d="M20 20l-3.5-3.5"></path></svg></button>
+      <sc-if value="{{ room.isRoom }}" hint-placeholder-val="{{ true }}">
+        <button aria-label="Show or hide people" onClick="{{ togglePeople }}" style="height: 36px; border-radius: 10px; border: 0; background: {{peopleBtnBg}}; color: {{peopleBtnFg}}; display: flex; align-items: center; gap: 6px; padding: 0 10px; font-size: 13px; font-weight: 600"><svg width="18" height="18" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" aria-hidden="true"><circle cx="9" cy="8" r="4"></circle><path d="M2 21a7 7 0 0 1 14 0"></path><path d="M17 4a4 4 0 0 1 0 8M22 21a7 7 0 0 0-4-6.3"></path></svg>{{ room.members }}</button>
+      </sc-if>
+      <button aria-label="Room info" style="width: 36px; height: 36px; border-radius: 10px; border: 0; background: transparent; color: {{t.muted}}; display: flex; align-items: center; justify-content: center"><svg width="18" height="18" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" aria-hidden="true"><circle cx="12" cy="12" r="9"></circle><path d="M12 11v6M12 7.5v.5"></path></svg></button>
+    </header>
+
+    <div style="flex: 1; min-height: 0; overflow: auto; padding: 16px 24px 8px; display: flex; flex-direction: column; gap: 4px">
+      <sc-if value="{{ isEmpty }}" hint-placeholder-val="{{ false }}">
+        <div style="margin: auto; text-align: center; max-width: 320px">
+          <div style="width: 64px; height: 64px; border-radius: 18px; background: {{t.accentSoft}}; color: {{t.accent}}; display: flex; align-items: center; justify-content: center; margin: 0 auto 16px; font-size: 28px; font-weight: 700">{{ room.initial }}</div>
+          <div style="font-size: 17px; font-weight: 600; margin-bottom: 6px">You just joined {{ room.name }}</div>
+          <div style="font-size: 14px; color: {{t.muted}}; line-height: 20px">Messages from before you joined aren't shown. Say hello to get things started.</div>
+        </div>
+      </sc-if>
+      <sc-for list="{{ items }}" as="it" hint-placeholder-count="6">
+        <sc-if value="{{ it.isDivider }}" hint-placeholder-val="{{ false }}">
+          <div style="display: flex; align-items: center; gap: 12px; margin: 12px 0 8px; font-size: 12px; font-weight: 600; color: {{it.dividerColor}}">
+            <span style="flex: 1; height: 1px; background: {{it.dividerLine}}"></span>{{ it.label }}<span style="flex: 1; height: 1px; background: {{it.dividerLine}}"></span>
+          </div>
+        </sc-if>
+        <sc-if value="{{ it.isEvent }}" hint-placeholder-val="{{ false }}">
+          <div style="text-align: center; font-size: 12px; color: {{t.muted}}; padding: 4px 0">{{ it.label }}</div>
+        </sc-if>
+        <sc-if value="{{ it.isGroup }}" hint-placeholder-val="{{ true }}">
+          <div style="display: flex; gap: 12px; padding: 8px 10px; border-radius: 10px; border-left: 3px solid {{it.rule}}; margin-left: -13px; background: {{it.rowBg}}">
+            <span style="width: 36px; height: 36px; border-radius: 18px; background: {{it.bg}}; color: {{it.color}}; font-size: 13px; font-weight: 700; display: flex; align-items: center; justify-content: center; flex-shrink: 0">{{ it.initials }}</span>
+            <div style="flex: 1; min-width: 0">
+              <div style="display: flex; align-items: baseline; gap: 8px; margin-bottom: 2px">
+                <span style="font-size: 14px; font-weight: 600; color: {{it.color}}">{{ it.nick }}</span>
+                <sc-if value="{{ it.hasRole }}" hint-placeholder-val="{{ false }}"><span style="font-size: 10px; font-weight: 700; color: {{t.op}}; border: 1px solid {{t.op}}; border-radius: 4px; padding: 0 4px">{{ it.role }}</span></sc-if>
+                <span style="font-size: 12px; color: {{t.muted}}">{{ it.time }}</span>
+              </div>
+              <sc-for list="{{ it.lines }}" as="ln" hint-placeholder-count="1">
+                <div style="font-size: 15px; line-height: 22px">{{ ln }}</div>
+              </sc-for>
+            </div>
+          </div>
+        </sc-if>
+        <sc-if value="{{ it.isBubble }}" hint-placeholder-val="{{ false }}">
+          <div style="display: flex; justify-content: {{it.justify}}; margin: 2px 0">
+            <div style="max-width: 60%; padding: 9px 14px; border-radius: {{it.radius}}; background: {{it.bubbleBg}}; color: {{it.bubbleFg}}; font-size: 15px; line-height: 21px">{{ it.text }}<div style="font-size: 11px; opacity: 0.75; margin-top: 2px; text-align: right">{{ it.time }}</div></div>
+          </div>
+        </sc-if>
+      </sc-for>
+    </div>
+
+    <div style="padding: 8px 20px 20px">
+      <sc-if value="{{ room.isRoom }}" hint-placeholder-val="{{ true }}">
+        <div style="font-size: 12px; color: {{t.muted}}; padding: 0 4px 6px">priya is typing…</div>
+      </sc-if>
+      <div style="display: flex; align-items: center; gap: 8px; background: {{t.raised}}; border: 1px solid {{t.line}}; border-radius: 18px; padding: 6px 6px 6px 8px">
+        <button aria-label="Add a photo or command" style="width: 32px; height: 32px; border-radius: 16px; border: 0; background: {{t.overlay}}; color: {{t.text}}; display: flex; align-items: center; justify-content: center"><svg width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.2" stroke-linecap="round" aria-hidden="true"><path d="M12 5v14M5 12h14"></path></svg></button>
+        <label style="flex: 1; display: flex"><span class="sr">Message</span><input placeholder="{{ placeholder }}" style="flex: 1; border: 0; outline: none; background: transparent; color: {{t.text}}; font-size: 15px; height: 32px"></label>
+        <button aria-label="Emoji" style="width: 32px; height: 32px; border-radius: 16px; border: 0; background: transparent; color: {{t.muted}}; display: flex; align-items: center; justify-content: center"><svg width="18" height="18" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" aria-hidden="true"><circle cx="12" cy="12" r="9"></circle><path d="M8 14s1.5 2 4 2 4-2 4-2M9 9.5h.01M15 9.5h.01"></path></svg></button>
+        <button aria-label="Send" style="width: 36px; height: 32px; border-radius: 12px; border: 0; background: {{t.accent}}; color: {{t.accentText}}; display: flex; align-items: center; justify-content: center"><svg width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.2" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><path d="M5 12h14M13 6l6 6-6 6"></path></svg></button>
+      </div>
+    </div>
+  </main>
+
+  <sc-if value="{{ showPeople }}" hint-placeholder-val="{{ true }}">
+    <aside aria-label="People in this room" style="width: 240px; flex-shrink: 0; background: {{t.raised}}; border-left: 1px solid {{t.line}}; padding: 20px 12px; box-sizing: border-box; overflow: auto">
+      <div style="font-size: 15px; font-weight: 600; padding: 0 8px 12px">People · {{ room.members }}</div>
+      <sc-for list="{{ people }}" as="g" hint-placeholder-count="3">
+        <div style="font-size: 11px; font-weight: 600; letter-spacing: 0.6px; text-transform: uppercase; color: {{t.muted}}; padding: 12px 8px 4px">{{ g.title }}</div>
+        <sc-for list="{{ g.list }}" as="p" hint-placeholder-count="2">
+          <button style="display: flex; align-items: center; gap: 10px; width: 100%; height: 38px; border: 0; border-radius: 8px; background: transparent; color: {{t.text}}; padding: 0 8px; opacity: {{p.opacity}}; text-align: left">
+            <span style="width: 28px; height: 28px; border-radius: 14px; background: {{p.bg}}; color: {{p.color}}; font-size: 11px; font-weight: 700; display: flex; align-items: center; justify-content: center; box-shadow: 0 0 0 2px {{t.raised}}, 0 0 0 3.5px {{p.ring}}">{{ p.initials }}</span>
+            <span style="flex: 1; font-size: 14px">{{ p.nick }}</span>
+            <sc-if value="{{ p.hasBadge }}" hint-placeholder-val="{{ false }}"><span style="font-size: 12px; font-weight: 700; color: {{p.ring}}">{{ p.badge }}</span></sc-if>
+          </button>
+        </sc-for>
+      </sc-for>
+    </aside>
+  </sc-if>
+</div>
+</x-dc>
+<script type="text/x-dc" data-dc-script data-props='{"$preview":{"width":1280,"height":800}}'>
+const LIGHT = { surface: '#FFFFFF', raised: '#F5F6FA', overlay: '#ECEEF5', line: '#E3E6EE', text: '#14161C', muted: '#5F6474', accent: '#5B5BF0', accentText: '#FFFFFF', accentSoft: '#5B5BF01F', mention: '#C8372A', mentionText: '#FFFFFF', mentionSoft: '#FF6B5B1A', mentionBar: '#FF6B5B', success: '#1FA971', op: '#A86A00', bubbleOther: '#ECEEF5' };
+const DARK = { surface: '#0F1117', raised: '#171A23', overlay: '#232838', line: '#262B37', text: '#E8EAF2', muted: '#8E94A6', accent: '#8B8BFF', accentText: '#0F1117', accentSoft: '#8B8BFF29', mention: '#FF8A7D', mentionText: '#0F1117', mentionSoft: '#FF8A7D1F', mentionBar: '#FF8A7D', success: '#3DD68C', op: '#F5C15C', bubbleOther: '#232838' };
+const NICK_LIGHT = ['#0B6E4F', '#9B1C1C', '#8E1A8E', '#8A4500', '#00696A', '#1A237E', '#6A1B9A', '#2E6B30'];
+const NICK_DARK = ['#6FE3B5', '#FF8A80', '#F48FB1', '#FFB74D', '#4DD0E1', '#90CAF9', '#CE93D8', '#A5D6A7'];
+const ME = 'dennis';
+
+function nickColor(nick, dark) {
+  let h = 0;
+  const s = nick.toLowerCase();
+  for (let i = 0; i < s.length; i++) h = (h * 31 + s.charCodeAt(i)) & 0x7fffffff;
+  return (dark ? NICK_DARK : NICK_LIGHT)[h % 8];
+}
+
+const ROOMS = [
+  { id: 'flutter', name: '#flutter', net: 'Libera', section: 'Favorites', topic: 'Flutter and Dart help. Be kind, share code with a paste link.', members: 142, unread: 12, mention: true },
+  { id: 'linux', name: '#linux', net: 'Libera', section: 'Favorites', topic: 'General Linux help and chat', members: 891, unread: 0 },
+  { id: 'python', name: '#python', net: 'Libera', section: 'Rooms', topic: 'Python help, all levels welcome', members: 1204, unread: 3 },
+  { id: 'retro', name: '#retrocomputing', net: 'EFnet', section: 'Rooms', topic: 'Old machines, new friends', members: 58, unread: 0 },
+  { id: 'alice', name: 'alice', net: 'Libera', section: 'Private chats', dm: true, online: true, unread: 2, mention: true },
+  { id: 'bob', name: 'bob', net: 'OFTC', section: 'Private chats', dm: true, online: false, unread: 0 }
+];
+
+const CHAT = {
+  flutter: [
+    { divider: 'Today' },
+    { event: 'mara, kai and 3 others joined' },
+    { nick: 'devon', role: 'OP', time: '10:02 AM', lines: ['Morning all. Anyone tried the Material split in 3.50 yet?', 'The import change caught me off guard.'] },
+    { nick: 'kai', time: '10:04 AM', lines: ['Yes, it lives in package:material_ui now. Took five minutes to fix.'] },
+    { unread: 'New messages' },
+    { nick: 'alice', time: '10:11 AM', mention: true, lines: ['dennis, does IRCade run on the Mac too?'] },
+    { nick: 'dennis', time: '10:13 AM', lines: ['It does. iOS, Android and macOS from one codebase.', 'This is the Mac build right here.'] },
+    { event: 'sam left (Quit: see you tomorrow)' },
+    { nick: 'priya', time: '10:15 AM', lines: ['The grouped messages are so much easier to read than my old client.'] }
+  ],
+  linux: [
+    { divider: 'Today' },
+    { nick: 'tux42', time: '9:40 AM', lines: ['Anyone else seeing slow boots after the kernel update?'] },
+    { nick: 'mara', role: 'OP', time: '9:42 AM', lines: ['Check systemd-analyze blame first and paste the top lines.'] },
+    { event: '4 people joined' },
+    { nick: 'tux42', time: '9:47 AM', lines: ['NetworkManager-wait-online, 41 seconds. That explains it.', 'Thanks!'] }
+  ],
+  alice: [
+    { divider: 'Today' },
+    { bubble: true, from: 'alice', time: '9:58 AM', text: 'Hey! Saw you in #flutter. Are you the one building IRCade?' },
+    { bubble: true, from: 'dennis', time: '9:59 AM', text: 'Guilty. Trying to make IRC feel like a modern chat app.' },
+    { bubble: true, from: 'alice', time: '10:00 AM', text: 'Love it. Can we do a quick video call later? I have feedback on the room browser.' },
+    { bubble: true, from: 'dennis', time: '10:01 AM', text: 'Sure, call me from here any time.' }
+  ],
+  bob: [
+    { divider: 'Yesterday' },
+    { bubble: true, from: 'bob', time: '6:12 PM', text: 'Thanks for the invite to #retrocomputing.' },
+    { bubble: true, from: 'dennis', time: '6:20 PM', text: 'Anytime. They are a friendly bunch.' }
+  ]
+};
+
+const PEOPLE = [
+  { title: 'Operators', badge: '@', list: ['devon', 'mara'] },
+  { title: 'Voiced', badge: '+', list: ['kai'] },
+  { title: 'Members', badge: '', list: ['alice', 'dennis', 'priya', 'jules', 'tux42'] },
+  { title: 'Away', badge: '', away: true, list: ['oldtimer', 'nightowl'] }
+];
+
+function initials(n) { return n.replace(/[^a-z0-9]/gi, '').slice(0, 2).toUpperCase(); }
+
+class Component extends DCLogic {
+  constructor(props) {
+    super(props);
+    this.state = { dark: false, active: 'flutter', people: true };
+  }
+  renderVals() {
+    const dark = this.state.dark;
+    const t = dark ? DARK : LIGHT;
+    const active = ROOMS.find((r) => r.id === this.state.active);
+    const avatar = (r) => {
+      const c = r.dm ? nickColor(r.name, dark) : t.accent;
+      return { avBg: c + (dark ? '33' : '1F'), avFg: c, initial: r.dm ? initials(r.name) : r.name.charAt(1).toUpperCase(), avatarRadius: r.dm ? '50%' : '8px' };
+    };
+    const sectionNames = ['Favorites', 'Rooms', 'Private chats'];
+    const sections = sectionNames.map((title) => ({
+      title,
+      rooms: ROOMS.filter((r) => r.section === title).map((r) => {
+        const on = r.id === active.id;
+        const unread = on ? 0 : r.unread;
+        return Object.assign({}, r, avatar(r), {
+          pick: () => this.setState({ active: r.id }),
+          rowBg: on ? t.accentSoft : 'transparent',
+          weight: unread ? 700 : (on ? 600 : 400),
+          online: !!r.online,
+          hasUnread: unread > 0,
+          unread,
+          badgeBg: r.mention ? t.mention : t.accent,
+          badgeFg: r.mention ? t.mentionText : t.accentText
+        });
+      })
+    }));
+    const raw = CHAT[active.id] || [];
+    const items = raw.map((m) => {
+      if (m.divider || m.unread) {
+        return { isDivider: true, label: m.divider || m.unread, dividerColor: m.unread ? t.mentionBar : t.muted, dividerLine: m.unread ? t.mentionBar : t.line };
+      }
+      if (m.event) return { isEvent: true, label: m.event };
+      if (m.bubble) {
+        const own = m.from === ME;
+        return { isBubble: true, text: m.text, time: m.time, justify: own ? 'flex-end' : 'flex-start', bubbleBg: own ? t.accent : t.bubbleOther, bubbleFg: own ? t.accentText : t.text, radius: own ? '18px 18px 6px 18px' : '18px 18px 18px 6px' };
+      }
+      const own = m.nick === ME;
+      const c = nickColor(m.nick, dark);
+      return {
+        isGroup: true, nick: m.nick, time: m.time, lines: m.lines, initials: initials(m.nick), color: c, bg: c + (dark ? '33' : '1F'),
+        hasRole: !!m.role, role: m.role || '',
+        rule: m.mention ? t.mentionBar : (own ? t.accent : 'transparent'),
+        rowBg: m.mention ? t.mentionSoft : 'transparent'
+      };
+    });
+    const people = PEOPLE.map((g) => ({
+      title: g.title,
+      list: g.list.map((n) => {
+        const c = nickColor(n, dark);
+        return { nick: n, initials: initials(n), color: c, bg: c + (dark ? '33' : '1F'), opacity: g.away ? 0.5 : 1, hasBadge: !!g.badge, badge: g.badge, ring: g.badge === '@' ? t.op : (g.badge === '+' ? t.accent : 'transparent') };
+      })
+    }));
+    const mc = nickColor(ME, dark);
+    return {
+      t,
+      me: { color: mc, bg: mc + (dark ? '33' : '1F') },
+      nav: [
+        { label: 'Home', dot: t.accent, hasBadge: false },
+        { label: 'Discover rooms', dot: t.muted, hasBadge: false },
+        { label: 'Mentions', dot: t.mentionBar, hasBadge: true, badge: 2 }
+      ],
+      sections,
+      room: Object.assign({}, active, avatar(active), {
+        isRoom: !active.dm,
+        dm: !!active.dm,
+        subtitle: active.dm ? (active.online ? 'Online · private chat on ' + active.net : 'Offline · private chat on ' + active.net) : active.topic,
+        members: active.members || 0
+      }),
+      items,
+      isEmpty: items.length === 0,
+      people,
+      showPeople: !active.dm && this.state.people,
+      peopleBtnBg: this.state.people ? t.accentSoft : 'transparent',
+      peopleBtnFg: this.state.people ? t.accent : t.muted,
+      placeholder: 'Message ' + active.name,
+      toggleTheme: () => this.setState({ dark: !dark }),
+      togglePeople: () => this.setState({ people: !this.state.people })
+    };
+  }
+}
+</script>
+</body>
+</html>
