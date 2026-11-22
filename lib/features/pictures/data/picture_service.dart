@@ -35,8 +35,7 @@ class PictureException implements Exception {
 
 /// The picture is gone: expired, or a view-once picture already seen.
 class PictureGoneException extends PictureException {
-  const PictureGoneException()
-    : super('This picture has expired or was already viewed.');
+  const PictureGoneException() : super('This photo has expired.');
 }
 
 class PictureService {

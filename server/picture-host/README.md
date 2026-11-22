@@ -33,6 +33,23 @@ Cloudflare dashboard and use that address instead.
 Optional: `npx wrangler secret put APP_TOKEN` makes uploads require an
 `x-app-token` header; build the app with `--dart-define=PICTURE_APP_TOKEN=...`.
 
+## Calls
+
+The same Worker runs call signaling (`src/calls.js`): one `CallRoom`
+Durable Object per call, created by `wrangler deploy` (see the
+`[[migrations]]` in `wrangler.toml`). It passes connection messages between
+the two people and keeps nothing after the call.
+
+For the relay that hides people's IP addresses, create a TURN key in the
+Cloudflare dashboard (**Realtime → TURN Server → Create**) and add it:
+
+```sh
+npx wrangler secret put TURN_KEY_ID
+npx wrangler secret put TURN_KEY_API_TOKEN
+```
+
+Without it, calls still work but connect directly (STUN only).
+
 ## Reviewing reports
 
 ```sh

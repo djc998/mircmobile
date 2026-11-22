@@ -26,11 +26,15 @@ lib/
   features/connection/data/  SavedConnection (nick, network, account)
   features/discovery/        Room browser: filterRooms() and its screen
   features/favorites/        Favorite and recent rooms per network
+  features/calls/            Voice/video calls: call links, WebRTC media
+                             (CallMedia), signaling (CallApi), call
+                             controller, ringing banner and call screen
   features/pictures/         Encrypted picture links: prepare, seal,
                              upload/download/report (PictureService),
                              picture bubble, send sheet, viewer
 server/picture-host/         Cloudflare Worker + R2 that stores the
-                             encrypted pictures (see its README)
+                             encrypted pictures and runs call signaling
+                             (CallRoom Durable Object; see its README)
 ```
 
 ## Data flow

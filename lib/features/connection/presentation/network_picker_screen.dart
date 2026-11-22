@@ -7,6 +7,7 @@ import 'package:irc_client/core/irc/formatting.dart';
 import 'package:irc_client/core/irc/irc_client.dart';
 import 'package:irc_client/core/irc/irc_events.dart';
 import 'package:irc_client/core/irc/networks.dart';
+import 'package:irc_client/features/calls/application/call_controller.dart';
 import 'package:irc_client/features/chat/application/chat_controller.dart';
 import 'package:irc_client/features/connection/data/saved_connection.dart';
 import 'package:irc_client/features/favorites/application/room_prefs_controller.dart';
@@ -375,6 +376,22 @@ class _NetworkPickerScreenState extends ConsumerState<NetworkPickerScreen> {
                           .setSaveHistory(enabled: v),
                     );
                   },
+                ),
+                Consumer(
+                  builder: (context, ref, _) => SwitchListTile.adaptive(
+                    contentPadding: EdgeInsets.zero,
+                    title: const Text('Hide my IP address on calls'),
+                    subtitle: const Text(
+                      'Calls go through a relay, so the other person never '
+                      'sees your IP address',
+                    ),
+                    value: ref.watch(callControllerProvider).relayOnly,
+                    onChanged: (v) => unawaited(
+                      ref
+                          .read(callControllerProvider.notifier)
+                          .setRelayOnly(enabled: v),
+                    ),
+                  ),
                 ),
                 Align(
                   alignment: Alignment.centerLeft,
