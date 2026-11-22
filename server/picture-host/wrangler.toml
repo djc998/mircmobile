@@ -1,0 +1,19 @@
+# Cloudflare Worker that stores short-lived, encrypted pictures.
+# Deploy steps are in README.md.
+name = "irc-pictures"
+main = "src/index.js"
+compatibility_date = "2026-11-01"
+
+[[r2_buckets]]
+binding = "PICTURES"
+bucket_name = "irc-pictures"
+
+# Clean-up of expired pictures every 15 minutes.
+[triggers]
+crons = ["*/15 * * * *"]
+
+# At most 20 uploads a minute from one address.
+[[ratelimits]]
+name = "UPLOAD_LIMIT"
+namespace_id = "1001"
+simple = { limit = 20, period = 60 }

@@ -11,8 +11,10 @@
 - [x] Saved chat history on the device
 - [x] Private rooms without commands: create, settings, invite/kick/ban,
       keep permanently (ChanServ)
-- [ ] App Store safety: ignore/block, report, content filter, terms on
-      first launch
+- [x] Share temporary, end-to-end encrypted pictures in private chats
+      (own Cloudflare Worker + R2)
+- [~] App Store safety: block and report pictures done; content filter,
+      blocked-people list and terms on first launch still to do
 - [ ] Adaptive Cupertino touches on iOS/macOS
 - [ ] App name and icon (working name "mIRC Mobile"; "mIRC" is a trademark)
 
