@@ -15,6 +15,8 @@ import 'package:irc_client/core/irc/irc_transport.dart';
 import 'package:irc_client/core/irc/networks.dart';
 import 'package:irc_client/core/irc/services.dart';
 import 'package:irc_client/core/storage/app_storage.dart';
+import 'package:irc_client/features/calls/application/call_controller.dart';
+import 'package:irc_client/features/calls/domain/call_link.dart';
 import 'package:irc_client/features/chat/data/chat_history_store.dart';
 import 'package:irc_client/features/connection/data/certificate_trust.dart';
 import 'package:irc_client/features/connection/data/saved_connection.dart';
@@ -350,6 +352,17 @@ class ChatController extends Notifier<ChatState> {
       buffer.uploading--;
       _touch();
     }
+  }
+
+  /// Sends [text] to [target] on [networkId]. Returns false when that
+  /// network isn't connected.
+  bool sendPrivateText(String networkId, String target, String text) {
+    final session = state.networks[networkId];
+    if (session == null || session.status != IrcConnectionStatus.connected) {
+      return false;
+    }
+    runInput(session.client, text, target: target);
+    return true;
   }
 
   /// Reports a picture to the server that holds it and blocks its sender.
@@ -957,6 +970,19 @@ class ChatController extends Notifier<ChatState> {
 
   void _touch() => state = state.copyWith();
 
+  /// Rings for a call link someone sent us in a private chat. Old messages
+  /// (history replayed by the server) don't ring.
+  void _maybeRing(NetworkSession session, MessageEvent e) {
+    if (e.isOwn || e.isNotice || e.isAction) return;
+    if (session.client.isChannel(e.target)) return;
+    final link = CallLink.find(e.text);
+    if (link == null) return;
+    if (DateTime.now().difference(e.time) > const Duration(minutes: 2)) return;
+    ref
+        .read(callControllerProvider.notifier)
+        .ring(link, from: e.sender, networkId: session.id);
+  }
+
   ChatBuffer _ensureBuffer(NetworkSession session, String name) {
     final key = ChatState.bufferKey(session.id, name);
     final existing = state.buffers[key];
@@ -1071,6 +1097,7 @@ class ChatController extends Notifier<ChatState> {
           when !isOwn && isBlocked(sender):
         return;
       case MessageEvent():
+        _maybeRing(session, e);
         add(
           e.target,
           ChatLine(

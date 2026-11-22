@@ -18,9 +18,15 @@
 //                           Records the report as text only (no key, no copy
 //                           of the picture is kept).
 //   GET  /admin/reports     reports list (Authorization: Bearer ADMIN_TOKEN)
+//   POST /call, /c/<id>...  voice and video calls, see calls.js
 //
 // Expired pictures are refused on read and removed by the cron below, which
 // runs every 15 minutes. An R2 lifecycle rule (see README) is the backstop.
+
+import { callRoute } from './calls.js';
+
+// The Durable Object class must be exported from the Worker's entry module.
+export { CallRoom } from './calls.js';
 
 export const MAX_BYTES = 10 * 1024 * 1024;
 export const EXPIRY_CHOICES = [3600, 14400];
@@ -53,6 +59,9 @@ export async function route(request, env, now = Date.now()) {
   if (request.method === 'POST' && path === '/report') {
     return cors(await report(request, env, now));
   }
+  // Voice and video calls (see calls.js).
+  const call = await callRoute(request, env, url, now);
+  if (call) return call.status === 101 ? call : cors(call);
   let m = path.match(/^\/p\/([^/]+)\/raw$/);
   if (request.method === 'GET' && m) return cors(await raw(env, m[1], now));
   m = path.match(/^\/p\/([^/]+)$/);

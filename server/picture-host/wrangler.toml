@@ -17,3 +17,18 @@ crons = ["*/15 * * * *"]
 name = "UPLOAD_LIMIT"
 namespace_id = "1001"
 simple = { limit = 20, period = 60 }
+
+# Voice and video calls: one Durable Object per call (see src/calls.js).
+[[durable_objects.bindings]]
+name = "CALLS"
+class_name = "CallRoom"
+
+[[migrations]]
+tag = "v1"
+new_sqlite_classes = ["CallRoom"]
+
+# At most 10 new calls a minute from one address.
+[[ratelimits]]
+name = "CALL_LIMIT"
+namespace_id = "1002"
+simple = { limit = 10, period = 60 }

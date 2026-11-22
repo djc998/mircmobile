@@ -12,6 +12,8 @@
 - [x] Private rooms without commands: create, settings, invite/kick/ban,
       keep permanently (ChanServ)
 - [x] Share temporary, end-to-end encrypted pictures in private chats
+- [x] One-to-one voice and video calls, with a browser link for other IRC apps
+- [ ] Calls: ring when the app is closed (PushKit/CallKit), group calls, screen sharing
       (own Cloudflare Worker + R2)
 - [~] App Store safety: block and report pictures done; content filter,
       blocked-people list and terms on first launch still to do

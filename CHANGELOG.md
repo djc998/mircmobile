@@ -7,6 +7,14 @@ and the project uses [Semantic Versioning](https://semver.org/).
 ## [Unreleased]
 
 ### Added
+- Voice and video calls (iOS, Android, macOS). In a private chat, tap
+  **Voice call** or **Video call**. The other person gets a ringing banner
+  with **Accept** / **Decline**; people on other IRC apps get a link that
+  opens the call in their browser. Mute, camera on/off, switch camera,
+  speaker and hang up. Calls are WebRTC, encrypted end to end, and the
+  server keeps nothing after the call. **Hide my IP address on calls**
+  (on by default) sends calls through Cloudflare's relay once it is set up.
+  See [docs/features/calls.md](docs/features/calls.md).
 - Photos are sent as `📷 Photo from <your nick>: <link>`. The message no
   longer says how long it lasts; opening an expired or already-viewed photo
   says **This photo has expired.**

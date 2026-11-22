@@ -8,6 +8,7 @@ import 'package:irc_client/core/irc/formatting.dart';
 import 'package:irc_client/core/irc/irc_client.dart';
 import 'package:irc_client/core/irc/irc_events.dart';
 import 'package:irc_client/core/theme/app_theme.dart';
+import 'package:irc_client/features/calls/presentation/call_widgets.dart';
 import 'package:irc_client/features/chat/application/chat_controller.dart';
 import 'package:irc_client/features/chat/presentation/change_nick_dialog.dart';
 import 'package:irc_client/features/favorites/application/room_prefs_controller.dart';
@@ -81,6 +82,9 @@ class ChatScreen extends ConsumerWidget {
             icon: const Icon(Icons.add_comment_outlined),
             onPressed: () => _promptJoin(context, controller),
           ),
+          // Calls are for private chats.
+          if (buffer != null && !buffer.isStatus && !isChannel)
+            ...callButtons(context, ref),
           if (channel != null && host != null)
             IconButton(
               tooltip: isFavorite
