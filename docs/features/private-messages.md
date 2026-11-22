@@ -7,8 +7,8 @@ Status: done (unreleased). Platforms: iOS, Android, macOS.
   choose **Send private message**.
 - **In the chat:** tap a nickname in a message (`<alice>`, `* alice`,
   `-alice-`) for the same menu.
-- **Envelope button** in the chat top bar: **New private message**, type a
-  nickname, **Open chat**.
+- **Envelope button** in the chat top bar: **New private message** (on phones:
+  ☰ → **Message**), type a nickname, **Open chat**.
 - **Commands:** `/query nick` opens the chat, `/msg nick text` sends one
   message without switching.
 

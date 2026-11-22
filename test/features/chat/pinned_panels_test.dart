@@ -110,4 +110,94 @@ void main() {
     await tester.pumpAndSettle();
     expect(find.text('3 people in #chat'), findsOneWidget);
   });
+
+  testWidgets('on phones the title bar leaves room for the chat name', (
+    tester,
+  ) async {
+    final store = MemoryKeyValueStore();
+    final transport = await pumpApp(tester, store, size: const Size(375, 800));
+
+    // Only People stays up top in a room: no ⋮ menu, no global buttons.
+    expect(find.byTooltip('People'), findsOneWidget);
+    expect(find.byTooltip('Show menu'), findsNothing);
+    expect(find.byTooltip('Browse rooms'), findsNothing);
+    expect(find.byTooltip('New private message'), findsNothing);
+    expect(find.byTooltip('Join a room'), findsNothing);
+    expect(find.byTooltip('Add to favorites'), findsNothing);
+    // So the name gets nearly the whole bar.
+    expect(tester.getTopLeft(find.byTooltip('People')).dx, greaterThan(300));
+
+    // Tapping the name opens the room's info sheet.
+    await tester.tap(find.byTooltip('Chat info'));
+    await tester.pumpAndSettle();
+    expect(find.text('People (3)'), findsOneWidget);
+    expect(find.text('Room settings'), findsOneWidget);
+    expect(find.text('Clear history'), findsOneWidget);
+    expect(find.text('Leave room'), findsOneWidget);
+    await tester.tap(find.text('Add to favorites'));
+    await tester.pumpAndSettle();
+    expect(find.text('Room settings'), findsNothing); // sheet closed
+    await tester.tap(find.byTooltip('Chat info'));
+    await tester.pumpAndSettle();
+    expect(find.text('Remove from favorites'), findsOneWidget);
+    // People from the sheet opens the member list.
+    await tester.tap(find.text('People (3)'));
+    await tester.pumpAndSettle();
+    expect(find.text('3 people in #chat'), findsOneWidget);
+    await tester.tapAt(const Offset(10, 400));
+    await tester.pumpAndSettle();
+
+    // The drawer has Browse / Message / Join, network options, Appearance.
+    await tester.tap(find.byTooltip('Open navigation menu'));
+    await tester.pumpAndSettle();
+    expect(find.byTooltip('Browse rooms'), findsOneWidget);
+    expect(find.byTooltip('Join a room'), findsOneWidget);
+    expect(find.text('Create a room'), findsOneWidget);
+    expect(find.text('Appearance'), findsOneWidget);
+    await tester.tap(find.byTooltip('New private message'));
+    await tester.pumpAndSettle();
+    await tester.enterText(find.byType(TextField).last, 'bob');
+    await tester.tap(find.text('Open chat'));
+    await tester.pumpAndSettle();
+
+    // A private chat keeps its call buttons and shows the person's name.
+    expect(
+      find.descendant(of: find.byType(AppBar), matching: find.text('bob')),
+      findsOneWidget,
+    );
+    expect(find.byTooltip('Voice call'), findsOneWidget);
+    expect(find.byTooltip('Video call'), findsOneWidget);
+    expect(find.byTooltip('Show menu'), findsNothing);
+    await tester.tap(find.byTooltip('Chat info'));
+    await tester.pumpAndSettle();
+    expect(find.text('Who is this? (whois)'), findsOneWidget);
+    await tester.tap(find.text('Close chat'));
+    await tester.pumpAndSettle();
+    expect(
+      find.descendant(of: find.byType(AppBar), matching: find.text('bob')),
+      findsNothing,
+    );
+
+    // A server's options are on its row in the drawer.
+    await tester.tap(find.byTooltip('Open navigation menu'));
+    await tester.pumpAndSettle();
+    await tester.tap(find.byType(PopupMenuButton<String>));
+    await tester.pumpAndSettle();
+    await tester.tap(find.textContaining('Disconnect from'));
+    await tester.pumpAndSettle();
+    expect(transport.written.any((l) => l.startsWith('QUIT')), isTrue);
+  });
+
+  testWidgets('wider screens can open chat info from the name too', (
+    tester,
+  ) async {
+    final store = MemoryKeyValueStore();
+    await pumpApp(tester, store, size: const Size(1400, 900));
+    expect(find.byTooltip('Show menu'), findsOneWidget);
+    await tester.tap(find.byTooltip('Chat info'));
+    await tester.pumpAndSettle();
+    expect(find.text('Room settings'), findsOneWidget);
+    // People is already a button and a pinned panel here.
+    expect(find.text('People (3)'), findsNothing);
+  });
 }

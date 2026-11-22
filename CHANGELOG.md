@@ -14,6 +14,14 @@ and the project uses [Semantic Versioning](https://semver.org/).
   existing installs keep their settings and permissions.
 - Settings saved with the old default theme move to the new Default theme
   once; other choices are kept.
+- On phones the chat's top bar no longer cuts off the room or person's
+  name. It keeps only **People** (rooms) or **Voice call** / **Video call**
+  (private chats); there's no ⋮ menu. Tap the name for **Chat info**
+  (favorite, people, room settings, clear history, leave or close, whois).
+  **Browse**, **Message** and **Join** are at the top of the ☰ drawer, each
+  network has a ⋮ for disconnect and close, and **Create a room** and
+  **Appearance** are at the bottom. Tapping the name works on wider screens
+  too. See [docs/features/pinned-panels.md](docs/features/pinned-panels.md).
 
 ### Added
 - IRCade design system, Phase 1 of the redesign (iOS, Android, macOS).

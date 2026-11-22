@@ -3,7 +3,8 @@
 Status: done (unreleased). Platforms: iOS, Android, macOS.
 
 ## Favorites
-- Star a room with the ☆ button in the chat screen's top bar, or the star
+- Star a room with the ☆ button in the chat screen's top bar (on phones:
+  tap the room's name → **Add to favorites**), or the star
   next to any room in the room browser. Tap again to unstar.
 - Favorites are kept per network (by server host), so `#help` on Libera.Chat
   and `#help` on OFTC are separate.

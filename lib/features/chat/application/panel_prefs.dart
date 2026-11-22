@@ -9,6 +9,11 @@ import 'package:irc_client/core/storage/app_storage.dart';
 /// screens (phones) open them as slide-out drawers instead.
 const double pinnedPanelsMinWidth = 900;
 
+/// Below this width (phones held upright) the chat title bar keeps only the
+/// buttons for the open chat; Browse rooms, New private message, Join a
+/// room and Favorite move into the ⋮ menu so the chat's name fits.
+const double compactTitleBarMaxWidth = 600;
+
 class PanelPrefs {
   const PanelPrefs({this.chatsPinned = true, this.peoplePinned = true});
 

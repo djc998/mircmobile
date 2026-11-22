@@ -6,7 +6,8 @@ The room browser is the app's main way to find somewhere to chat. It lists
 every public room on the connected network.
 
 ## Using it
-- In the chat screen, tap the compass (**Browse rooms**).
+- In the chat screen, tap the compass (**Browse rooms**). On phones it's
+  **Browse** at the top of the ☰ drawer.
 - The first time, the app asks the server for its room list (`LIST`). Big
   networks send tens of thousands of rooms, so this can take a few seconds;
   a progress bar shows while it loads.
