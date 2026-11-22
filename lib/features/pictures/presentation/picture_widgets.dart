@@ -149,10 +149,8 @@ class _SendPictureSheetState extends State<_SendPictureSheet> {
             FilledButton.icon(
               icon: const Icon(Icons.send),
               label: const Text('Send picture'),
-              onPressed: () => Navigator.pop(
-                context,
-                _SendChoice(_expiry, viewOnce: true),
-              ),
+              onPressed: () =>
+                  Navigator.pop(context, _SendChoice(_expiry, viewOnce: true)),
             ),
           ],
         ),
