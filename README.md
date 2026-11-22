@@ -1,6 +1,6 @@
-# mIRC Mobile (working name)
+# IRCade
 
-A modern mIRC-style IRC client for iPhone, iPad, Mac and Android, built with
+IRCade is a modern mIRC-style IRC client for iPhone, iPad, Mac and Android, built with
 Flutter. The goal is to make classic IRC chat easy again: pick a network,
 find a room, start talking.
 

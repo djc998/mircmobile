@@ -9,8 +9,8 @@ import 'package:irc_client/features/settings/application/appearance_controller.d
 import 'package:irc_client/features/settings/presentation/appearance_screen.dart';
 import 'package:material_ui/material_ui.dart';
 
-/// Working name until the final app name is chosen.
-const String appName = 'mIRC Mobile';
+/// The app's name, shown in the task switcher and window title.
+const String appName = 'IRCade';
 
 final routerProvider = Provider<GoRouter>(
   (ref) => GoRouter(
@@ -45,8 +45,16 @@ class IrcApp extends ConsumerWidget {
     final appearance = ref.watch(appearanceProvider);
     return MaterialApp.router(
       title: appName,
-      theme: AppTheme.build(appearance.preset, Brightness.light),
-      darkTheme: AppTheme.build(appearance.preset, Brightness.dark),
+      theme: AppTheme.build(
+        appearance.preset,
+        Brightness.light,
+        accent: appearance.accent,
+      ),
+      darkTheme: AppTheme.build(
+        appearance.preset,
+        Brightness.dark,
+        accent: appearance.accent,
+      ),
       themeMode: switch (appearance.mode) {
         AppearanceMode.system => ThemeMode.system,
         AppearanceMode.light => ThemeMode.light,

@@ -1,3 +1,4 @@
+import 'package:irc_client/core/theme/tokens.dart';
 import 'package:material_ui/material_ui.dart';
 
 /// Light, dark or follow the system.
@@ -5,7 +6,8 @@ enum AppearanceMode { system, light, dark }
 
 /// Built-in colour themes. Each has a light and a dark version.
 enum ThemePreset {
-  classic('Classic', 'mIRC navy, the default'),
+  indigo('Default', 'Clean and modern, with the accent colour you pick'),
+  classic('Classic mIRC', 'mIRC navy, square corners, compact lines'),
   midnight('Midnight', 'Deep blue, easy on the eyes at night'),
   solarized('Solarized', 'Warm, low-glare colours'),
   highContrast('High contrast', 'Black and white with bright colours');
@@ -121,14 +123,40 @@ class AppTheme {
     nicks: _darkNicks,
   );
 
-  /// The theme for [preset] in [brightness].
-  static ThemeData build(ThemePreset preset, Brightness brightness) {
+  /// The theme for [preset] in [brightness]. [accent] recolours the
+  /// Default theme; the other themes keep their own colours.
+  static ThemeData build(
+    ThemePreset preset,
+    Brightness brightness, {
+    AccentColor accent = AccentColor.indigo,
+  }) {
     final dark = brightness == Brightness.dark;
     switch (preset) {
+      case ThemePreset.indigo:
+        final t = AppTokens.indigo(brightness, accent: accent);
+        final scheme =
+            ColorScheme.fromSeed(
+              seedColor: t.accent,
+              brightness: brightness,
+            ).copyWith(
+              primary: t.accent,
+              onPrimary: t.onAccent,
+              surface: t.surface,
+              onSurface: t.textPrimary,
+              onSurfaceVariant: t.textMuted,
+              outlineVariant: t.line,
+              surfaceContainerLowest: t.surface,
+              surfaceContainerLow: t.surfaceRaised,
+              surfaceContainer: t.surfaceRaised,
+              surfaceContainerHigh: t.surfaceOverlay,
+              surfaceContainerHighest: t.surfaceOverlay,
+            );
+        return _theme(scheme, dark ? _classicDark : _classicLight, tokens: t);
       case ThemePreset.classic:
         return _theme(
           ColorScheme.fromSeed(seedColor: seed, brightness: brightness),
           dark ? _classicDark : _classicLight,
+          squareCorners: true,
         );
       case ThemePreset.midnight:
         final scheme = ColorScheme.fromSeed(
@@ -230,15 +258,70 @@ class AppTheme {
     }
   }
 
-  static ThemeData _theme(ColorScheme scheme, ChatColors chat) => ThemeData(
-    colorScheme: scheme,
-    scaffoldBackgroundColor: scheme.surface,
-    useMaterial3: true,
-    extensions: [chat],
-  );
+  /// Builds the [ThemeData]: [tokens] (derived from [scheme] if not given),
+  /// the IRCade type scale, and square corners for Classic mIRC.
+  static ThemeData _theme(
+    ColorScheme scheme,
+    ChatColors chat, {
+    AppTokens? tokens,
+    bool squareCorners = false,
+  }) {
+    final t =
+        tokens ??
+        AppTokens.derive(
+          brightness: scheme.brightness,
+          surface: scheme.surface,
+          surfaceRaised: scheme.surfaceContainerLow,
+          surfaceOverlay: scheme.surfaceContainerHighest,
+          line: scheme.outlineVariant,
+          textPrimary: scheme.onSurface,
+          textMuted: scheme.onSurfaceVariant,
+          accent: scheme.primary,
+          onAccent: scheme.onPrimary,
+          squareCorners: squareCorners,
+        );
+    final base = ThemeData(
+      colorScheme: scheme,
+      scaffoldBackgroundColor: scheme.surface,
+      useMaterial3: true,
+      extensions: [chat, t],
+    );
+    final text = base.textTheme;
+    final themed = base.copyWith(
+      textTheme: text.copyWith(
+        titleLarge: text.titleLarge!.merge(TypeScale.title),
+        titleMedium: text.titleMedium!.merge(TypeScale.heading),
+        bodyLarge: text.bodyLarge!.merge(TypeScale.body),
+        bodyMedium: text.bodyMedium!.merge(TypeScale.body),
+        bodySmall: text.bodySmall!.merge(TypeScale.meta),
+      ),
+    );
+    if (!squareCorners) return themed;
+    const square = RoundedRectangleBorder(
+      borderRadius: BorderRadius.all(Radius.circular(2)),
+    );
+    final buttonShape = ButtonStyle(shape: WidgetStateProperty.all(square));
+    return themed.copyWith(
+      cardTheme: const CardThemeData(shape: square),
+      chipTheme: const ChipThemeData(shape: square),
+      dialogTheme: const DialogThemeData(shape: square),
+      bottomSheetTheme: const BottomSheetThemeData(shape: square),
+      popupMenuTheme: const PopupMenuThemeData(shape: square),
+      filledButtonTheme: FilledButtonThemeData(style: buttonShape),
+      elevatedButtonTheme: ElevatedButtonThemeData(style: buttonShape),
+      outlinedButtonTheme: OutlinedButtonThemeData(style: buttonShape),
+      textButtonTheme: TextButtonThemeData(style: buttonShape),
+      segmentedButtonTheme: SegmentedButtonThemeData(style: buttonShape),
+      inputDecorationTheme: const InputDecorationTheme(
+        border: OutlineInputBorder(
+          borderRadius: BorderRadius.all(Radius.circular(2)),
+        ),
+      ),
+    );
+  }
 
-  static ThemeData light() => build(ThemePreset.classic, Brightness.light);
-  static ThemeData dark() => build(ThemePreset.classic, Brightness.dark);
+  static ThemeData light() => build(ThemePreset.indigo, Brightness.light);
+  static ThemeData dark() => build(ThemePreset.indigo, Brightness.dark);
 
   /// Stable per-nick colour in the classic palette.
   static Color nickColor(String nick, Brightness brightness) =>

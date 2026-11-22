@@ -20,7 +20,8 @@ lib/
     formatting.dart          mIRC colour code stripping, nick validation
     networks.dart            Built-in network list
   core/storage/              KeyValueStore / SecretStore interfaces
-  core/theme/                Material 3 theme, nick colours
+  core/theme/                Themes, design tokens (tokens.dart), nick colours
+  core/ui/                   Shared components: NickAvatar, RoomAvatar, UnreadBadge
   features/connection/       Network picker screen
   features/chat/             ChatController (Riverpod) and chat screen
   features/connection/data/  SavedConnection (nick, network, account)

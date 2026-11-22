@@ -18,10 +18,10 @@
 - [~] App Store safety: block and report pictures done; content filter,
       blocked-people list and terms on first launch still to do
 - [ ] Adaptive Cupertino touches on iOS/macOS
-- [ ] App name and icon (working name "mIRC Mobile"; "mIRC" is a trademark)
+- [~] App name and icon: named **IRCade** (display name on iOS, Android and macOS); icon still to do
 
 ## v2
 - [ ] Bouncer support (soju/ZNC) and push notifications
 - [ ] IRCv3 chathistory
 - [ ] Android foreground service option
-- [ ] Themes, including a classic mIRC skin
+- [x] Themes, including a classic mIRC skin (Classic mIRC theme + Compact density)

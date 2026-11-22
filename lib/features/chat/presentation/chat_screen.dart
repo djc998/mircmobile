@@ -8,6 +8,8 @@ import 'package:irc_client/core/irc/formatting.dart';
 import 'package:irc_client/core/irc/irc_client.dart';
 import 'package:irc_client/core/irc/irc_events.dart';
 import 'package:irc_client/core/theme/app_theme.dart';
+import 'package:irc_client/core/ui/avatars.dart';
+import 'package:irc_client/core/ui/unread_badge.dart';
 import 'package:irc_client/features/calls/presentation/call_widgets.dart';
 import 'package:irc_client/features/chat/application/chat_controller.dart';
 import 'package:irc_client/features/chat/application/panel_prefs.dart';
@@ -16,6 +18,7 @@ import 'package:irc_client/features/favorites/application/room_prefs_controller.
 import 'package:irc_client/features/pictures/domain/picture_link.dart';
 import 'package:irc_client/features/pictures/presentation/picture_widgets.dart';
 import 'package:irc_client/features/rooms/presentation/room_dialogs.dart';
+import 'package:irc_client/features/settings/application/appearance_controller.dart';
 import 'package:material_ui/material_ui.dart';
 
 /// The main chat view: conversation list, messages, input and nick list.
@@ -32,6 +35,9 @@ class ChatScreen extends ConsumerWidget {
     final channel = isChannel ? net?.client.channel(buffer!.name) : null;
     final wide = MediaQuery.sizeOf(context).width >= pinnedPanelsMinWidth;
     final panels = ref.watch(panelPrefsProvider);
+    // Comfortable shows avatars in the chat and people lists.
+    final comfortable =
+        ref.watch(appearanceProvider).density == ChatDensity.comfortable;
     final panelsCtl = ref.read(panelPrefsProvider.notifier);
     // On wide screens each side panel can be pinned open or hidden.
     final showChats = wide && panels.chatsPinned;
@@ -46,12 +52,14 @@ class ChatScreen extends ConsumerWidget {
       prefs: prefs,
       controller: controller,
       onChangeNick: (id) => showChangeNickDialog(context, ref, networkId: id),
+      comfortable: comfortable,
     );
 
     final people = channel == null
         ? null
         : _NickList(
             channel: channel,
+            comfortable: comfortable,
             onNickTap: (nick) => unawaited(
               showUserActions(
                 context,
@@ -392,12 +400,16 @@ class _BufferList extends StatelessWidget {
     required this.prefs,
     required this.controller,
     required this.onChangeNick,
+    this.comfortable = false,
   });
 
   final ChatState state;
   final RoomPrefs prefs;
   final ChatController controller;
   final Future<void> Function(String networkId) onChangeNick;
+
+  /// Avatars instead of icons (Comfortable density).
+  final bool comfortable;
 
   void _closeDrawer(BuildContext context) {
     if (Scaffold.maybeOf(context)?.isDrawerOpen ?? false) {
@@ -451,24 +463,38 @@ class _BufferList extends StatelessWidget {
             ListTile(
               dense: true,
               selected: b.key == state.activeKey,
-              leading: Icon(
-                b.isStatus
-                    ? Icons.dns_outlined
-                    : prefs.isFavorite(net.id, b.name)
-                    ? Icons.star
-                    : b.isChannel
-                    ? Icons.tag
-                    : Icons.person_outline,
-              ),
-              title: Text(b.isStatus ? 'Server messages' : b.name),
-              trailing: b.unread == 0
-                  ? null
-                  : Badge(
-                      label: Text('${b.unread}'),
-                      backgroundColor: b.mentioned
-                          ? theme.colorScheme.error
-                          : theme.colorScheme.primary,
+              leading: comfortable && !b.isStatus
+                  ? (b.isChannel
+                        ? RoomAvatar(name: b.name, size: 32)
+                        : NickAvatar(nick: b.name, size: 28))
+                  : Icon(
+                      b.isStatus
+                          ? Icons.dns_outlined
+                          : prefs.isFavorite(net.id, b.name)
+                          ? Icons.star
+                          : b.isChannel
+                          ? Icons.tag
+                          : Icons.person_outline,
                     ),
+              title: Text(b.isStatus ? 'Server messages' : b.name),
+              trailing: Row(
+                mainAxisSize: MainAxisSize.min,
+                children: [
+                  if (comfortable &&
+                      !b.isStatus &&
+                      prefs.isFavorite(net.id, b.name))
+                    Padding(
+                      padding: const EdgeInsets.only(right: 6),
+                      child: Icon(
+                        Icons.star,
+                        size: 16,
+                        semanticLabel: 'Favorite',
+                        color: theme.colorScheme.onSurfaceVariant,
+                      ),
+                    ),
+                  UnreadBadge(count: b.unread, mention: b.mentioned),
+                ],
+              ),
               onTap: () {
                 controller.selectBuffer(b.key);
                 _closeDrawer(context);
@@ -1116,10 +1142,17 @@ class _InputBarState extends State<_InputBar> {
 }
 
 class _NickList extends StatelessWidget {
-  const _NickList({required this.channel, required this.onNickTap});
+  const _NickList({
+    required this.channel,
+    required this.onNickTap,
+    this.comfortable = false,
+  });
 
   final IrcChannel channel;
   final void Function(String nick) onNickTap;
+
+  /// Avatars with role rings (Comfortable density).
+  final bool comfortable;
 
   @override
   Widget build(BuildContext context) {
@@ -1153,6 +1186,9 @@ class _NickList extends StatelessWidget {
                   Scaffold.of(context).closeEndDrawer();
                   onNickTap(m.nick);
                 },
+                leading: comfortable
+                    ? NickAvatar(nick: m.nick, size: 28, role: _role(m))
+                    : null,
                 trailing: const Icon(Icons.more_horiz, size: 18),
                 title: Text(
                   '${m.topPrefix}${m.nick}',
@@ -1167,6 +1203,14 @@ class _NickList extends StatelessWidget {
       ],
     );
   }
+
+  /// Owners, admins, ops and half-ops get the operator ring; voice the
+  /// accent ring.
+  static NickRole _role(IrcMember m) => m.prefixes.contains(RegExp('[~&@%]'))
+      ? NickRole.op
+      : m.prefixes.contains('+')
+      ? NickRole.voiced
+      : NickRole.member;
 
   static int _rank(IrcMember m) =>
       m.prefixes.isEmpty ? 99 : '~&@%+'.indexOf(m.topPrefix).abs();

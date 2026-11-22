@@ -6,7 +6,30 @@ and the project uses [Semantic Versioning](https://semver.org/).
 
 ## [Unreleased]
 
+### Changed
+- The app is now called **IRCade**: home screen and app switcher on iOS
+  and Android, the Mac app (`IRCade.app`, menu bar and Privacy & Security
+  lists), the window title, and the CTCP VERSION reply
+  (`IRCade (Flutter) 0.1.0`). Bundle and application IDs are unchanged, so
+  existing installs keep their settings and permissions.
+- Settings saved with the old default theme move to the new Default theme
+  once; other choices are kept.
+
 ### Added
+- IRCade design system, Phase 1 of the redesign (iOS, Android, macOS).
+  A new **Default** theme (white or near-black with an Electric Indigo
+  accent) is now the default, with an **accent colour** picker (Indigo,
+  Blue, Teal, Green, Orange, Red, Pink, Purple) in **Appearance**.
+  **Classic mIRC** keeps the navy look with square corners and switches to
+  Compact. New **Density** setting: **Comfortable** shows room and person
+  avatars (initials on the nick colour, gold ring for operators, accent
+  ring for voice) in the chat and people lists; **Compact** keeps the
+  classic icons. Unread counts use a new badge, coral `@ n` when you're
+  mentioned. Design tokens, type scale, spacing, radii and motion live in
+  `lib/core/theme/tokens.dart`; `NickAvatar`, `RoomAvatar` and
+  `UnreadBadge` in `lib/core/ui/`. Every token pair is tested for
+  contrast in every theme and accent. See
+  [docs/features/design-system.md](docs/features/design-system.md).
 - **Open Settings** buttons for blocked camera and microphone access: when a
   call can't use them, the call screen offers **Open Camera settings** /
   **Open Microphone settings** (Mac) or **Open Settings** (iPhone, Android),
