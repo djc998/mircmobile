@@ -6,7 +6,7 @@ macOS. People on other IRC apps can join from a browser.
 ## Using it
 
 - **Call:** open a private chat and tap **Voice call** (📞) or **Video call**
-  (🎥) in the top bar. The other person gets a private message like
+  (🎥) in the chat's top bar. The other person gets a private message like
   `🎥 Video call from dennis: https://<host>/c/<id>#video`, and you see
   **Calling bob…** until they answer.
 - **Answer:** when someone calls you, a banner appears at the top of the app:

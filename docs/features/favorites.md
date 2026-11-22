@@ -3,7 +3,8 @@
 Status: done (unreleased). Platforms: iOS, Android, macOS.
 
 ## Favorites
-- Star a room with the ☆ button in the chat screen's top bar (on phones:
+- Star a room from **Chat info** (tap the room's name), by **swiping its
+  row right** in Rooms home, or from the room browser (formerly the ☆ in the top bar; on phones:
   tap the room's name → **Add to favorites**), or the star
   next to any room in the room browser. Tap again to unstar.
 - Favorites are kept per network (by server host), so `#help` on Libera.Chat
@@ -11,7 +12,9 @@ Status: done (unreleased). Platforms: iOS, Android, macOS.
 - With **Rejoin my favorite rooms** on (the default), connecting joins every
   favorite on that network, plus any rooms typed into "Rooms to join".
 - The room browser's **Favorites** chip shows only starred rooms.
-- Favorite rooms show a ★ in the conversation list.
+- Favorite rooms show as big tiles at the top of Rooms home (dimmed until
+  joined; tap to join), with a ★ in the list, and in their own
+  **Favorites** section of the sidebar.
 
 ## Recent rooms
 - Every room you join is added to that network's recent list (newest first,

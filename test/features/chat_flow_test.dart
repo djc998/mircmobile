@@ -11,8 +11,10 @@ import 'package:image/image.dart' as img;
 import 'package:irc_client/app/app.dart';
 import 'package:irc_client/core/irc/irc_transport.dart';
 import 'package:irc_client/core/storage/app_storage.dart';
+import 'package:irc_client/core/ui/composer.dart';
 import 'package:irc_client/features/chat/application/chat_controller.dart';
 import 'package:irc_client/features/chat/data/chat_history_store.dart';
+import 'package:irc_client/features/chat/presentation/chat_screen.dart';
 import 'package:irc_client/features/pictures/data/picture_crypto.dart';
 import 'package:irc_client/features/pictures/data/picture_service.dart';
 import 'package:irc_client/features/pictures/domain/picture_link.dart';
@@ -34,6 +36,35 @@ class FakeTransport implements IrcTransport {
 
   @override
   Future<void> close() async {}
+}
+
+/// The message field (other screens can have a search field too).
+final Finder composerField = find.descendant(
+  of: find.byType(Composer),
+  matching: find.byType(TextField),
+);
+
+/// Text in the open chat (rows in the lists show previews of it too).
+Finder chatText(String text) => find.descendant(
+  of: find.byType(ChatScreen),
+  matching: find.textContaining(text, findRichText: true),
+);
+
+/// Picks a place on the rail (small tablets) or tab bar (phones).
+Future<void> showTab(WidgetTester tester, String label) async {
+  final rail = find.descendant(
+    of: find.byType(NavigationRail),
+    matching: find.text(label),
+  );
+  await tester.tap(
+    rail.evaluate().isNotEmpty
+        ? rail
+        : find.descendant(
+            of: find.byType(NavigationBar),
+            matching: find.text(label),
+          ),
+  );
+  await tester.pumpAndSettle();
 }
 
 void main() {
@@ -81,19 +112,16 @@ void main() {
     await tester.pumpAndSettle();
 
     expect(transport.written, contains('JOIN #flutter'));
-    expect(find.text('#flutter'), findsOneWidget);
+    expect(find.widgetWithText(AppBar, '#flutter'), findsOneWidget);
     // The header counts people; the topic is in Chat info.
     expect(find.textContaining('2 people · '), findsOneWidget);
-    expect(find.textContaining('hi me!', findRichText: true), findsOneWidget);
+    expect(chatText('hi me!'), findsOneWidget);
 
-    await tester.enterText(find.byType(TextField), 'hello alice');
+    await tester.enterText(composerField, 'hello alice');
     await tester.tap(find.byTooltip('Send'));
     await tester.pumpAndSettle();
     expect(transport.written.last, 'PRIVMSG #flutter :hello alice');
-    expect(
-      find.textContaining('hello alice', findRichText: true),
-      findsOneWidget,
-    );
+    expect(chatText('hello alice'), findsOneWidget);
 
     await tester.tap(find.byTooltip('People'));
     await tester.pumpAndSettle();
@@ -168,7 +196,7 @@ void main() {
 
     transport.incoming.add(':me!u@h JOIN #tor');
     await tester.pumpAndSettle();
-    expect(find.text('#tor'), findsOneWidget);
+    expect(find.widgetWithText(AppBar, '#tor'), findsOneWidget);
 
     // Opening the browser again reuses the cached list.
     final sent = transport.written.length;
@@ -229,11 +257,17 @@ void main() {
       ..add(':me!u@h JOIN #second');
     await tester.pumpAndSettle();
 
-    // Star #second (the open room).
-    expect(find.text('#second'), findsOneWidget);
-    await tester.tap(find.byTooltip('Add to favorites'));
+    // Star #second (the open room) from Chat info.
+    expect(find.widgetWithText(AppBar, '#second'), findsOneWidget);
+    await tester.tap(find.byTooltip('Chat info'));
     await tester.pumpAndSettle();
-    expect(find.byTooltip('Remove from favorites'), findsOneWidget);
+    await tester.tap(find.text('Add to favorites'));
+    await tester.pumpAndSettle();
+    await tester.tap(find.byTooltip('Chat info'));
+    await tester.pumpAndSettle();
+    expect(find.text('Remove from favorites'), findsOneWidget);
+    await tester.tapAt(const Offset(10, 10));
+    await tester.pumpAndSettle();
 
     // Password went to the secret store, not plain settings.
     expect(secrets.values.values, contains('pw1'));
@@ -421,7 +455,7 @@ void main() {
     await tester.pumpAndSettle();
     expect(find.widgetWithText(AppBar, 'alice'), findsOneWidget);
 
-    await tester.enterText(find.byType(TextField), 'hi alice');
+    await tester.enterText(composerField, 'hi alice');
     await tester.tap(find.byTooltip('Send'));
     await tester.pumpAndSettle();
     expect(transport.written.last, 'PRIVMSG alice :hi alice');
@@ -480,15 +514,9 @@ void main() {
       ..add(':s 318 me alice :End of /WHOIS list.')
       ..add(':s 372 me :- MOTD line');
     await tester.pumpAndSettle();
-    expect(
-      find.textContaining(
-        'alice ~a host.example * Alice Example',
-        findRichText: true,
-      ),
-      findsOneWidget,
-    );
+    expect(chatText('alice ~a host.example * Alice Example'), findsOneWidget);
     // Unrelated server lines still go to the server tab.
-    expect(find.textContaining('MOTD line', findRichText: true), findsNothing);
+    expect(chatText('MOTD line'), findsNothing);
 
     await tester.pumpWidget(const SizedBox());
     await tester.pump(const Duration(seconds: 1));
@@ -531,9 +559,8 @@ void main() {
       ..add(':bob!b@h PRIVMSG #lib :hello from libera');
     await tester.pumpAndSettle();
 
-    // Add a second network from the menu; the first stays connected.
-    await tester.tap(find.byType(PopupMenuButton<String>));
-    await tester.pumpAndSettle();
+    // Add a second network from You; the first stays connected.
+    await showTab(tester, 'You');
     await tester.tap(find.text('Add a network'));
     await tester.pumpAndSettle();
     expect(find.text('Add a network'), findsOneWidget);
@@ -550,11 +577,10 @@ void main() {
       isNot(contains(startsWith('QUIT'))),
     );
 
-    // The conversation list groups both networks and shows OFTC's favorite.
-    await tester.tap(find.byTooltip('Open navigation menu'));
-    await tester.pumpAndSettle();
-    expect(find.text('Libera.Chat'), findsWidgets);
+    // Rooms lists both networks' chats and OFTC's favorite.
+    await showTab(tester, 'Rooms');
     expect(find.text('#lib'), findsOneWidget);
+    expect(find.text('Libera'), findsWidgets); // network chips
     expect(find.text('#fav'), findsOneWidget);
     await tester.tap(find.text('#fav'));
     await tester.pumpAndSettle();
@@ -595,11 +621,10 @@ void main() {
     expect(oftc.written.last, 'JOIN #oftcroom');
 
     // Disconnecting and reconnecting keeps the conversation.
-    await tester.tap(find.byTooltip('Open navigation menu'));
-    await tester.pumpAndSettle();
     await tester.tap(find.text('#lib'));
     await tester.pumpAndSettle();
-    await tester.tap(find.byType(PopupMenuButton<String>));
+    await showTab(tester, 'You');
+    await tester.tap(find.byTooltip('Options for Libera.Chat'));
     await tester.pumpAndSettle();
     await tester.tap(find.text('Disconnect from Libera.Chat'));
     await tester.runAsync(
@@ -610,7 +635,7 @@ void main() {
       transports['irc.libera.chat']!.written,
       contains(startsWith('QUIT')),
     );
-    await tester.tap(find.byType(PopupMenuButton<String>));
+    await tester.tap(find.byTooltip('Options for Libera.Chat'));
     await tester.pumpAndSettle();
     await tester.tap(find.text('Reconnect to Libera.Chat'));
     await tester.runAsync(
@@ -618,10 +643,7 @@ void main() {
     );
     await tester.pumpAndSettle();
     expect(transports['irc.libera.chat']!.written, contains('NICK me'));
-    expect(
-      find.textContaining('hello from libera', findRichText: true),
-      findsOneWidget,
-    );
+    expect(chatText('hello from libera'), findsOneWidget);
 
     await tester.pumpWidget(const SizedBox());
     await tester.pump(const Duration(seconds: 1));
@@ -685,33 +707,26 @@ void main() {
     transport.incoming.add(':me!u@h JOIN #room');
     await tester.pumpAndSettle();
     expect(find.widgetWithText(AppBar, '#room'), findsOneWidget);
+    // In the chat (and as the row's preview in Rooms).
     expect(
-      find.textContaining('remember this', findRichText: true),
+      find.descendant(
+        of: find.byType(ChatScreen),
+        matching: chatText('remember this'),
+      ),
       findsOneWidget,
     );
-    expect(
-      find.textContaining('Saved messages above', findRichText: true),
-      findsOneWidget,
-    );
+    expect(chatText('Saved messages above'), findsOneWidget);
 
-    await tester.tap(find.byTooltip('Open navigation menu'));
-    await tester.pumpAndSettle();
     await tester.tap(find.text('alice'));
     await tester.pumpAndSettle();
-    expect(
-      find.textContaining('secret hello', findRichText: true),
-      findsOneWidget,
-    );
+    expect(chatText('secret hello'), findsOneWidget);
 
-    // Clear history removes it on screen and on the device.
-    await tester.tap(find.byType(PopupMenuButton<String>));
+    // Clear history (in Chat info) removes it on screen and on the device.
+    await tester.tap(find.byTooltip('Chat info'));
     await tester.pumpAndSettle();
     await tester.tap(find.text('Clear history'));
     await tester.pumpAndSettle();
-    expect(
-      find.textContaining('secret hello', findRichText: true),
-      findsNothing,
-    );
+    expect(chatText('secret hello'), findsNothing);
     expect(history.conversations.containsKey('irc.libera.chat/alice'), false);
 
     await tester.pumpWidget(const SizedBox());
@@ -753,8 +768,7 @@ void main() {
     await tester.pumpAndSettle();
 
     // Create a room with a password, private and hidden by default.
-    await tester.tap(find.byType(PopupMenuButton<String>));
-    await tester.pumpAndSettle();
+    await showTab(tester, 'You');
     await tester.tap(find.text('Create a room'));
     await tester.pumpAndSettle();
     await tester.enterText(
@@ -781,19 +795,13 @@ void main() {
     expect(transport.written, contains('MODE #friends'));
     expect(transport.written.last, 'MODE #friends +istk pw');
     expect(find.widgetWithText(AppBar, '#friends'), findsOneWidget);
-    expect(
-      find.textContaining('You created #friends', findRichText: true),
-      findsOneWidget,
-    );
+    expect(chatText('You created #friends'), findsOneWidget);
     transport.incoming.add(':me!u@h MODE #friends +istk pw');
     await tester.pumpAndSettle();
-    expect(
-      find.textContaining('invite only on', findRichText: true),
-      findsOneWidget,
-    );
+    expect(chatText('invite only on'), findsOneWidget);
 
-    // Room settings: turn Private off, invite bob, keep the room.
-    await tester.tap(find.byType(PopupMenuButton<String>));
+    // Room settings (in Chat info): turn Private off, invite bob, keep it.
+    await tester.tap(find.byTooltip('Chat info'));
     await tester.pumpAndSettle();
     await tester.tap(find.text('Room settings'));
     await tester.pumpAndSettle();
@@ -832,8 +840,7 @@ void main() {
     expect(find.text('alice invited you to #club.'), findsNothing);
 
     // Creating a room someone else already runs changes nothing.
-    await tester.tap(find.byType(PopupMenuButton<String>));
-    await tester.pumpAndSettle();
+    await showTab(tester, 'You');
     await tester.tap(find.text('Create a room'));
     await tester.pumpAndSettle();
     await tester.enterText(
@@ -850,10 +857,7 @@ void main() {
       ..add(':s 324 me #taken +nt');
     await flush();
     expect(transport.written.last, 'MODE #taken');
-    expect(
-      find.textContaining('someone else runs it', findRichText: true),
-      findsOneWidget,
-    );
+    expect(chatText('someone else runs it'), findsOneWidget);
 
     await tester.pumpWidget(const SizedBox());
     await tester.pump(const Duration(seconds: 1));
@@ -888,16 +892,11 @@ void main() {
     await tester.pumpAndSettle();
 
     // Long-press alice's line (phones) and pick Reply.
-    await tester.longPress(
-      find.textContaining('anyone tried the beta?', findRichText: true),
-    );
+    await tester.longPress(chatText('anyone tried the beta?'));
     await tester.pumpAndSettle();
     await tester.tap(find.text('Reply to alice'));
     await tester.pumpAndSettle();
-    expect(
-      find.textContaining('Replying to alice', findRichText: true),
-      findsOneWidget,
-    );
+    expect(chatText('Replying to alice'), findsOneWidget);
     await tester.enterText(
       find.widgetWithText(TextField, 'Reply to alice'),
       'yes, it works',
@@ -905,27 +904,15 @@ void main() {
     await tester.tap(find.byTooltip('Send'));
     await tester.pumpAndSettle();
     expect(transport.written.last, 'PRIVMSG #chat :alice: yes, it works');
-    expect(
-      find.textContaining('Replying to', findRichText: true),
-      findsNothing,
-    );
+    expect(chatText('Replying to'), findsNothing);
 
     // Swiping a line right also replies; the X cancels.
-    await tester.drag(
-      find.textContaining('look at this', findRichText: true),
-      const Offset(300, 0),
-    );
+    await tester.drag(chatText('look at this'), const Offset(300, 0));
     await tester.pumpAndSettle();
-    expect(
-      find.textContaining('Replying to bob', findRichText: true),
-      findsOneWidget,
-    );
+    expect(chatText('Replying to bob'), findsOneWidget);
     await tester.tap(find.byTooltip('Cancel reply'));
     await tester.pumpAndSettle();
-    expect(
-      find.textContaining('Replying to', findRichText: true),
-      findsNothing,
-    );
+    expect(chatText('Replying to'), findsNothing);
 
     // The name menu offers Reply too.
     await tester.tap(find.byTooltip('People'));
@@ -937,18 +924,12 @@ void main() {
     await tester.pumpAndSettle();
     await tester.tap(find.text('Reply to bob here'));
     await tester.pumpAndSettle();
-    expect(
-      find.textContaining(
-        'Replying to bob: me: look at this',
-        findRichText: true,
-      ),
-      findsOneWidget,
-    );
+    expect(chatText('Replying to bob: me: look at this'), findsOneWidget);
     await tester.tap(find.byTooltip('Cancel reply'));
     await tester.pumpAndSettle();
 
     // Tab completes a name, addressed at the start of the line.
-    await tester.enterText(find.byType(TextField), 'al');
+    await tester.enterText(composerField, 'al');
     await tester.sendKeyEvent(LogicalKeyboardKey.tab);
     await tester.pumpAndSettle();
     expect(find.widgetWithText(TextField, 'alice: '), findsOneWidget);
@@ -956,8 +937,6 @@ void main() {
     // Your own line can't be replied to; private chats have no reply button.
     expect(find.byTooltip('Reply to me'), findsNothing);
     transport.incoming.add(':carol!c@h PRIVMSG me :hello there');
-    await tester.pumpAndSettle();
-    await tester.tap(find.byTooltip('Open navigation menu'));
     await tester.pumpAndSettle();
     await tester.tap(find.text('carol'));
     await tester.pumpAndSettle();
@@ -1007,7 +986,7 @@ void main() {
     expect(Theme.of(ctx()).colorScheme.surface, Colors.black);
   });
 
-  testWidgets('change nickname from the menu', (tester) async {
+  testWidgets('change nickname from You', (tester) async {
     tester.view.physicalSize = const Size(800, 1800);
     tester.view.devicePixelRatio = 1;
     addTearDown(tester.view.reset);
@@ -1033,10 +1012,16 @@ void main() {
       ..add(':me!u@h JOIN #chat');
     await tester.pumpAndSettle();
 
+    // Your nickname is on each network's row in You.
     Future<void> openDialog() async {
-      await tester.tap(find.byType(PopupMenuButton<String>));
-      await tester.pumpAndSettle();
-      await tester.tap(find.textContaining('Change nickname'));
+      await showTab(tester, 'You');
+      await tester.tap(
+        find.byWidgetPredicate(
+          (w) =>
+              w is ActionChip &&
+              (w.tooltip ?? '').startsWith('Change nickname on'),
+        ),
+      );
       await tester.pumpAndSettle();
     }
 
@@ -1065,10 +1050,7 @@ void main() {
     expect(find.textContaining('Connected as newme'), findsOneWidget);
     await tester.tapAt(const Offset(10, 10));
     await tester.pumpAndSettle();
-    expect(
-      find.textContaining('me is now known as newme', findRichText: true),
-      findsOneWidget,
-    );
+    expect(chatText('me is now known as newme'), findsOneWidget);
 
     // A taken name keeps the old one and says so.
     await openDialog();
@@ -1089,9 +1071,7 @@ void main() {
       findsOneWidget,
     );
 
-    // The same menu opens Appearance.
-    await tester.tap(find.byType(PopupMenuButton<String>));
-    await tester.pumpAndSettle();
+    // You also opens Appearance.
     await tester.tap(find.text('Appearance'));
     await tester.pumpAndSettle();
     expect(find.widgetWithText(AppBar, 'Appearance'), findsOneWidget);
@@ -1236,17 +1216,11 @@ void main() {
     // Blocked: new messages from bob don't show up.
     transport.incoming.add(':bob!b@h PRIVMSG me :are you there?');
     await tester.pumpAndSettle();
-    expect(
-      find.textContaining('are you there?', findRichText: true),
-      findsNothing,
-    );
+    expect(chatText('are you there?'), findsNothing);
     controller.unblockUser('bob');
     transport.incoming.add(':bob!b@h PRIVMSG me :hello again');
     await tester.pumpAndSettle();
-    expect(
-      find.textContaining('hello again', findRichText: true),
-      findsOneWidget,
-    );
+    expect(chatText('hello again'), findsOneWidget);
 
     await tester.pumpWidget(const SizedBox());
     await tester.pump(const Duration(seconds: 1));

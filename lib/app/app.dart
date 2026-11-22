@@ -2,7 +2,7 @@ import 'package:flutter_riverpod/flutter_riverpod.dart';
 import 'package:go_router/go_router.dart';
 import 'package:irc_client/core/theme/app_theme.dart';
 import 'package:irc_client/features/calls/presentation/call_widgets.dart';
-import 'package:irc_client/features/chat/presentation/chat_screen.dart';
+import 'package:irc_client/features/chat/presentation/chat_shell.dart';
 import 'package:irc_client/features/connection/presentation/network_picker_screen.dart';
 import 'package:irc_client/features/discovery/presentation/room_browser_screen.dart';
 import 'package:irc_client/features/settings/application/appearance_controller.dart';
@@ -25,7 +25,7 @@ final routerProvider = Provider<GoRouter>(
       ),
       GoRoute(
         path: '/chat',
-        builder: (context, state) => const ChatScreen(),
+        builder: (context, state) => const ChatShell(),
         routes: [
           GoRoute(
             path: 'rooms',

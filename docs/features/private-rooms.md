@@ -6,7 +6,7 @@ needed. The commands still work for people who like them.
 ## What the user sees
 
 ### Create a room
-**Create a room** is in the chat menu and on the room browser (the
+**Create a room** is in **You** and on the room browser (the
 **Create room** button). Type a name, then choose:
 
 - **Private:** only people you invite can join (mode `+i`). On by default.
@@ -20,7 +20,7 @@ already exists and someone else runs it, the app says so and changes
 nothing.
 
 ### Room settings
-**Room settings** (chat menu, in a room) shows and changes:
+**Room settings** (in a room's **Chat info**: tap its name) shows and changes:
 
 - the room's **Description** (its topic), shown at the top of the room and
   in the room list. Operators can always change it; others only when the

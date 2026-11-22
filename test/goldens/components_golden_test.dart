@@ -5,6 +5,7 @@ import 'package:irc_client/core/theme/app_theme.dart';
 import 'package:irc_client/core/ui/avatars.dart';
 import 'package:irc_client/core/ui/chat_dividers.dart';
 import 'package:irc_client/core/ui/composer.dart';
+import 'package:irc_client/core/ui/conversation_row.dart';
 import 'package:irc_client/core/ui/message_group.dart';
 import 'package:irc_client/core/ui/unread_badge.dart';
 import 'package:material_ui/material_ui.dart';
@@ -109,6 +110,63 @@ void main() {
           ),
         ],
       ),
+    ),
+    'conversation_row': SizedBox(
+      width: 380,
+      child: Column(
+        children: [
+          ConversationRow(
+            name: '#flutter',
+            isRoom: true,
+            network: 'Libera',
+            time: '10:15',
+            preview: 'alice: dennis, does IRCade run on the Mac too?',
+            unread: 12,
+            mention: true,
+            favorite: true,
+            onTap: () {},
+          ),
+          ConversationRow(
+            name: 'alice',
+            isRoom: false,
+            network: 'Libera',
+            time: '10:00',
+            preview: 'Can we do a quick video call later?',
+            unread: 2,
+            onTap: () {},
+          ),
+          ConversationRow(
+            name: '#linux',
+            isRoom: true,
+            time: 'Yesterday',
+            preview: 'tux42: Thanks!',
+            onTap: () {},
+          ),
+          ConversationRow(
+            name: '#python',
+            isRoom: true,
+            network: 'Libera',
+            unread: 3,
+            dense: true,
+            selected: true,
+            onTap: () {},
+          ),
+        ],
+      ),
+    ),
+    'favorite_tile': Row(
+      mainAxisSize: MainAxisSize.min,
+      children: [
+        FavoriteTile(
+          name: '#flutter',
+          isRoom: true,
+          unread: 12,
+          mention: true,
+          onTap: () {},
+        ),
+        FavoriteTile(name: '#linux', isRoom: true, onTap: () {}),
+        FavoriteTile(name: '#retro', isRoom: true, joined: false, onTap: () {}),
+      ],
     ),
     'composer': const SizedBox(
       width: 360,

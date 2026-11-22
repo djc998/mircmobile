@@ -7,12 +7,13 @@ Status: done (unreleased). Platforms: iOS, Android, macOS.
   choose **Send private message**.
 - **In the chat:** tap a nickname in a message (`<alice>`, `* alice`,
   `-alice-`) for the same menu.
-- **Envelope button** in the chat top bar: **New private message** (on phones:
+- **New private message** (pencil) at the top of Rooms home, **Message**
+  in You, or ⌘N on a Mac (formerly the envelope in the chat top bar; on phones:
   ☰ → **Message**), type a nickname, **Open chat**.
 - **Commands:** `/query nick` opens the chat, `/msg nick text` sends one
   message without switching.
 
-Private chats appear in the conversation list with a person avatar (or
+Private chats appear in Rooms home and the sidebar with a person avatar (or
 icon in Compact). When someone messages you first, their chat opens
 automatically. In Comfortable, messages show as bubbles: theirs on the
 left, yours on the right in the accent colour

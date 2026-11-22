@@ -96,7 +96,7 @@ label); the badge grows with the text.
 
 ## Where they're used in Phase 1
 
-- Chat list (`_BufferList` in `chat_screen.dart`): `RoomAvatar` for rooms,
+- Conversation lists (`ConversationRow` in `core/ui/conversation_row.dart`): `RoomAvatar` for rooms,
   `NickAvatar` for private chats (Comfortable), `UnreadBadge` for unread
   counts (both densities). Favorites keep a star.
 - People list (`_NickList`): `NickAvatar` with role rings (Comfortable).

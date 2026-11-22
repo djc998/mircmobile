@@ -19,6 +19,7 @@ import 'package:irc_client/features/chat/application/chat_controller.dart';
 import 'package:irc_client/features/chat/application/chat_layout.dart';
 import 'package:irc_client/features/chat/application/panel_prefs.dart';
 import 'package:irc_client/features/chat/presentation/change_nick_dialog.dart';
+import 'package:irc_client/features/chat/presentation/find_in_chat.dart';
 import 'package:irc_client/features/favorites/application/room_prefs_controller.dart';
 import 'package:irc_client/features/pictures/domain/picture_link.dart';
 import 'package:irc_client/features/pictures/presentation/picture_widgets.dart';
@@ -26,9 +27,28 @@ import 'package:irc_client/features/rooms/presentation/room_dialogs.dart';
 import 'package:irc_client/features/settings/application/appearance_controller.dart';
 import 'package:material_ui/material_ui.dart';
 
-/// The main chat view: conversation list, messages, input and nick list.
+/// Where the chat sits, which decides its top-left button.
+enum ChatLayout {
+  /// Phones: full screen, with a back button to Rooms home.
+  phone,
+
+  /// 600–899 pt: beside the rail and rooms list.
+  rail,
+
+  /// 900 pt and wider: beside the sidebar, which the top-left button hides
+  /// and shows; People can be pinned on the right.
+  sidebar,
+}
+
+/// The open conversation: header, messages, composer and (in rooms) the
+/// people list. `ChatShell` puts it beside the lists that pick it.
 class ChatScreen extends ConsumerWidget {
-  const ChatScreen({super.key});
+  const ChatScreen({this.layout = ChatLayout.sidebar, this.onBack, super.key});
+
+  final ChatLayout layout;
+
+  /// Phones: back to Rooms home.
+  final VoidCallback? onBack;
 
   @override
   Widget build(BuildContext context, WidgetRef ref) {
@@ -38,43 +58,15 @@ class ChatScreen extends ConsumerWidget {
     final net = state.activeNetwork;
     final isChannel = buffer?.isChannel ?? false;
     final channel = isChannel ? net?.client.channel(buffer!.name) : null;
-    final width = MediaQuery.sizeOf(context).width;
-    final wide = width >= pinnedPanelsMinWidth;
-    // Phone-sized: only the buttons for this chat stay in the title bar.
-    final compact = width < compactTitleBarMaxWidth;
+    final wide = layout == ChatLayout.sidebar;
+    final compact = layout == ChatLayout.phone;
     final panels = ref.watch(panelPrefsProvider);
     // Comfortable shows avatars in the chat and people lists.
     final comfortable =
         ref.watch(appearanceProvider).density == ChatDensity.comfortable;
     final panelsCtl = ref.read(panelPrefsProvider.notifier);
-    // On wide screens each side panel can be pinned open or hidden.
-    final showChats = wide && panels.chatsPinned;
+    // On wide screens the people panel can be pinned open or hidden.
     final showPeople = wide && panels.peoplePinned && channel != null;
-    final prefs = ref.watch(roomPrefsProvider);
-    final host = net?.id;
-    final isFavorite =
-        channel != null && host != null && prefs.isFavorite(host, channel.name);
-
-    final list = _BufferList(
-      state: state,
-      prefs: prefs,
-      controller: controller,
-      onChangeNick: (id) => showChangeNickDialog(context, ref, networkId: id),
-      comfortable: comfortable,
-      // On phones the drawer carries the actions that aren't about the open
-      // chat; wider screens keep them in the top bar and ⋮ menu.
-      actions: compact
-          ? _ListActions(
-              browse: () => context.go('/chat/rooms'),
-              message: () => _promptPrivateMessage(context, controller),
-              join: () => _promptJoin(context, controller),
-              createRoom: () => showCreateRoomDialog(context, ref),
-              appearance: () => context.push('/appearance'),
-              closeNetwork: (id) => _closeNetwork(context, ref, id),
-            )
-          : null,
-    );
-
     final people = channel == null
         ? null
         : _NickList(
@@ -96,15 +88,22 @@ class ChatScreen extends ConsumerWidget {
 
     return Scaffold(
       appBar: AppBar(
-        leading: wide
-            ? IconButton(
-                tooltip: panels.chatsPinned
-                    ? 'Hide servers and chats'
-                    : 'Show servers and chats',
-                icon: Icon(panels.chatsPinned ? Icons.menu_open : Icons.menu),
-                onPressed: () => unawaited(panelsCtl.toggleChats()),
-              )
-            : null,
+        automaticallyImplyLeading: false,
+        leading: switch (layout) {
+          ChatLayout.phone => IconButton(
+            tooltip: 'Back to rooms',
+            icon: const BackButtonIcon(),
+            onPressed: onBack,
+          ),
+          ChatLayout.sidebar => IconButton(
+            tooltip: panels.chatsPinned
+                ? 'Hide servers and chats'
+                : 'Show servers and chats',
+            icon: Icon(panels.chatsPinned ? Icons.menu_open : Icons.menu),
+            onPressed: () => unawaited(panelsCtl.toggleChats()),
+          ),
+          ChatLayout.rail => null,
+        },
         // Tap the name for this chat's info and actions.
         title: Builder(
           builder: (titleContext) => Tooltip(
@@ -155,37 +154,14 @@ class ChatScreen extends ConsumerWidget {
           ),
         ),
         actions: [
-          // On phones these are in the drawer and the chat info sheet, so
-          // the room or person's name has room to show.
-          if (!compact) ...[
-            IconButton(
-              tooltip: 'Browse rooms',
-              icon: const Icon(Icons.travel_explore),
-              onPressed: () => context.go('/chat/rooms'),
-            ),
-            IconButton(
-              tooltip: 'New private message',
-              icon: const Icon(Icons.mail_outline),
-              onPressed: () => _promptPrivateMessage(context, controller),
-            ),
-            IconButton(
-              tooltip: 'Join a room',
-              icon: const Icon(Icons.add_comment_outlined),
-              onPressed: () => _promptJoin(context, controller),
-            ),
-          ],
           // Calls are for private chats.
           if (buffer != null && !buffer.isStatus && !isChannel)
             ...callButtons(context, ref),
-          if (channel != null && host != null && !compact)
+          if (buffer != null)
             IconButton(
-              tooltip: isFavorite
-                  ? 'Remove from favorites'
-                  : 'Add to favorites',
-              icon: Icon(isFavorite ? Icons.star : Icons.star_border),
-              onPressed: () => ref
-                  .read(roomPrefsProvider.notifier)
-                  .toggleFavorite(host, channel.name),
+              tooltip: 'Search this chat',
+              icon: const Icon(Icons.search),
+              onPressed: () => unawaited(showFindInChat(context, buffer)),
             ),
           if (channel != null)
             Builder(
@@ -205,96 +181,15 @@ class ChatScreen extends ConsumerWidget {
                       onPressed: () => Scaffold.of(context).openEndDrawer(),
                     ),
             ),
-          if (compact) const SizedBox(width: 4),
-          if (!compact)
-            PopupMenuButton<String>(
-              onSelected: (v) async {
-                switch (v) {
-                  case 'close':
-                    controller.closeBuffer(buffer!.key);
-                  case 'clear':
-                    await controller.clearHistory(buffer!.key);
-                  case 'add':
-                    context.go('/');
-                  case 'nick':
-                    await showChangeNickDialog(context, ref);
-                  case 'appearance':
-                    await context.push('/appearance');
-                  case 'create':
-                    await showCreateRoomDialog(context, ref);
-                  case 'settings':
-                    await showRoomSettings(
-                      context,
-                      networkId: net!.id,
-                      channel: channel!.name,
-                    );
-                  case 'disconnect':
-                    await controller.disconnect();
-                  case 'reconnect':
-                    await controller.reconnect();
-                  case 'remove':
-                    await _closeNetwork(context, ref, net!.id);
-                }
-              },
-              itemBuilder: (_) => [
-                if (channel != null)
-                  const PopupMenuItem(
-                    value: 'settings',
-                    child: Text('Room settings'),
-                  ),
-                const PopupMenuItem(
-                  value: 'create',
-                  child: Text('Create a room'),
-                ),
-                if (buffer != null && !buffer.isStatus)
-                  PopupMenuItem(
-                    value: 'close',
-                    child: Text(isChannel ? 'Leave room' : 'Close chat'),
-                  ),
-                if (buffer != null && !buffer.isStatus)
-                  const PopupMenuItem(
-                    value: 'clear',
-                    child: Text('Clear history'),
-                  ),
-                const PopupMenuItem(value: 'add', child: Text('Add a network')),
-                if (net != null)
-                  PopupMenuItem(
-                    value: 'nick',
-                    child: Text('Change nickname (${net.nick})'),
-                  ),
-                const PopupMenuItem(
-                  value: 'appearance',
-                  child: Text('Appearance'),
-                ),
-                if (net != null &&
-                    net.status == IrcConnectionStatus.disconnected)
-                  PopupMenuItem(
-                    value: 'reconnect',
-                    child: Text('Reconnect to ${net.label}'),
-                  )
-                else if (net != null)
-                  PopupMenuItem(
-                    value: 'disconnect',
-                    child: Text('Disconnect from ${net.label}'),
-                  ),
-                if (net != null)
-                  PopupMenuItem(
-                    value: 'remove',
-                    child: Text('Close ${net.label}'),
-                  ),
-              ],
-            ),
+          const SizedBox(width: 4),
         ],
       ),
-      drawer: wide ? null : Drawer(child: SafeArea(child: list)),
       endDrawer: people == null || wide
           ? null
           : Drawer(child: SafeArea(child: people)),
       body: SafeArea(
         child: Row(
           children: [
-            if (showChats) SizedBox(width: 260, child: list),
-            if (showChats) const VerticalDivider(width: 1),
             Expanded(
               child: Column(
                 children: [
@@ -444,6 +339,8 @@ class ChatScreen extends ConsumerWidget {
     return net.label;
   }
 
+  static String statusLabel(NetworkSession s) => _statusLabel(s);
+
   static String _statusLabel(NetworkSession s) => switch (s.status) {
     IrcConnectionStatus.connected => 'Connected as ${s.nick}',
     IrcConnectionStatus.connecting => 'Connecting…',
@@ -452,7 +349,9 @@ class ChatScreen extends ConsumerWidget {
     IrcConnectionStatus.disconnected => 'Disconnected',
   };
 
-  Future<void> _closeNetwork(
+  /// Disconnects and forgets a network; back to the network picker when
+  /// it was the last one.
+  static Future<void> closeNetwork(
     BuildContext context,
     WidgetRef ref,
     String networkId,
@@ -596,7 +495,7 @@ class ChatScreen extends ConsumerWidget {
                   item(
                     Icons.close,
                     'Close ${net.label}',
-                    () => _closeNetwork(context, ref, net.id),
+                    () => closeNetwork(context, ref, net.id),
                   ),
                 ],
               ],
@@ -607,7 +506,8 @@ class ChatScreen extends ConsumerWidget {
     );
   }
 
-  Future<void> _promptPrivateMessage(
+  /// Asks for a nickname and opens a private chat with them.
+  static Future<void> promptPrivateMessage(
     BuildContext context,
     ChatController controller,
   ) async {
@@ -624,7 +524,8 @@ class ChatScreen extends ConsumerWidget {
     }
   }
 
-  Future<void> _promptJoin(
+  /// Asks for a room name and joins it.
+  static Future<void> promptJoin(
     BuildContext context,
     ChatController controller,
   ) async {
@@ -642,9 +543,9 @@ class ChatScreen extends ConsumerWidget {
   }
 }
 
-/// Actions the phone drawer offers that aren't about the open chat.
-class _ListActions {
-  const _ListActions({
+/// Actions that aren't about the open chat, for [NetworksPanel].
+class NetworkActions {
+  const NetworkActions({
     required this.browse,
     required this.message,
     required this.join,
@@ -663,27 +564,30 @@ class _ListActions {
 
 /// Conversations grouped by network. Favorite rooms that aren't open are
 /// listed under their network so they can be joined with one tap.
-class _BufferList extends StatelessWidget {
-  const _BufferList({
+/// Your networks and everything that isn't about one chat: Browse /
+/// Message / Join at the top; per network your nickname, a menu to
+/// reconnect, disconnect or close it, its server messages and favorite rooms
+/// not joined yet; then Create a room, Add a network and Appearance. Shown
+/// in the "You" tab and panel.
+class NetworksPanel extends StatelessWidget {
+  const NetworksPanel({
     required this.state,
     required this.prefs,
     required this.controller,
     required this.onChangeNick,
-    this.comfortable = false,
-    this.actions,
+    required this.actions,
+    this.onOpenServer,
+    super.key,
   });
 
   final ChatState state;
   final RoomPrefs prefs;
   final ChatController controller;
   final Future<void> Function(String networkId) onChangeNick;
+  final NetworkActions? actions;
 
-  /// Avatars instead of icons (Comfortable density).
-  final bool comfortable;
-
-  /// Shown on phones: Browse / Message / Join at the top, a menu on each
-  /// network, and Create a room and Appearance at the bottom.
-  final _ListActions? actions;
+  /// After a network's server messages are picked (phones open the chat).
+  final VoidCallback? onOpenServer;
 
   void _closeDrawer(BuildContext context) {
     if (Scaffold.maybeOf(context)?.isDrawerOpen ?? false) {
@@ -821,46 +725,18 @@ class _BufferList extends StatelessWidget {
             ),
           ),
           for (final b in state.buffersFor(net.id))
-            ListTile(
-              dense: true,
-              selected: b.key == state.activeKey,
-              leading: comfortable && !b.isStatus
-                  ? (b.isChannel
-                        ? RoomAvatar(name: b.name, size: 32)
-                        : NickAvatar(nick: b.name, size: 28))
-                  : Icon(
-                      b.isStatus
-                          ? Icons.dns_outlined
-                          : prefs.isFavorite(net.id, b.name)
-                          ? Icons.star
-                          : b.isChannel
-                          ? Icons.tag
-                          : Icons.person_outline,
-                    ),
-              title: Text(b.isStatus ? 'Server messages' : b.name),
-              trailing: Row(
-                mainAxisSize: MainAxisSize.min,
-                children: [
-                  if (comfortable &&
-                      !b.isStatus &&
-                      prefs.isFavorite(net.id, b.name))
-                    Padding(
-                      padding: const EdgeInsets.only(right: 6),
-                      child: Icon(
-                        Icons.star,
-                        size: 16,
-                        semanticLabel: 'Favorite',
-                        color: theme.colorScheme.onSurfaceVariant,
-                      ),
-                    ),
-                  UnreadBadge(count: b.unread, mention: b.mentioned),
-                ],
+            if (b.isStatus)
+              ListTile(
+                dense: true,
+                leading: const Icon(Icons.dns_outlined),
+                title: const Text('Server messages'),
+                trailing: UnreadBadge(count: b.unread, mention: b.mentioned),
+                onTap: () {
+                  controller.selectBuffer(b.key);
+                  _closeDrawer(context);
+                  onOpenServer?.call();
+                },
               ),
-              onTap: () {
-                controller.selectBuffer(b.key);
-                _closeDrawer(context);
-              },
-            ),
           for (final room in prefs.favoritesFor(net.id))
             if (!state.buffers.containsKey(ChatState.bufferKey(net.id, room)))
               ListTile(

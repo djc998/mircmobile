@@ -7,6 +7,12 @@ and the project uses [Semantic Versioning](https://semver.org/).
 ## [Unreleased]
 
 ### Changed
+- New navigation, Phase 3 of the redesign (iOS, Android, macOS). It
+  replaces the ☰ drawer and the ⋮ menu: Browse, Message, Join, Create a
+  room, Add a network, Appearance and each network's options are now in
+  **Rooms** home and **You**; favorite, room settings and clear history are
+  in **Chat info** (tap the chat's name). See
+  [docs/features/navigation.md](docs/features/navigation.md).
 - Replying on a phone is now swipe or long-press only (no faint ↩ on
   every line); screen readers get a Reply action. On a Mac the ↩ appears
   on hover.
@@ -27,6 +33,19 @@ and the project uses [Semantic Versioning](https://semver.org/).
   too. See [docs/features/pinned-panels.md](docs/features/pinned-panels.md).
 
 ### Added
+- Navigation by screen size, Phase 3 of the redesign (iOS, Android,
+  macOS). **Phones:** bottom tabs (**Rooms**, **Discover**, **Mentions**
+  with a badge, **You**) and chats full screen with a back arrow. **Rooms
+  home:** search, favorite tiles, and every chat by latest activity with a
+  network chip, time, preview and unread badge; swipe right to favorite,
+  left to leave. **Mentions** lists every message that mentions you.
+  **Tablets (600–899 pt):** a rail, the rooms list and the chat side by
+  side. **iPad and Mac (900 pt+):** a sidebar with Home, Discover, Mentions
+  and your chats in Favorites, Rooms and Private chats, the chat, and People.
+  **Mac:** a menu bar (File, Edit, View, Room, Window), ⌘K to jump to any
+  room or person, ⌘1–9 for the sidebar's chats, ⌘F to find in the chat
+  (also a search button in every chat), Enter to send and Shift+Enter for a
+  new line (Ctrl on other computers).
 - New chat screen, Phase 2 of the redesign (iOS, Android, macOS). In
   Comfortable, room messages from one person within 5 minutes are grouped
   under one avatar, name, **OP** tag and time; mentions get a coral bar and

@@ -4,8 +4,8 @@ Available on iOS, Android and macOS (shared Flutter code).
 
 ## What the user sees
 
-Open **Appearance** from the palette button on the start screen or from
-the chat menu.
+Open **Appearance** from the palette button on the start screen, from
+**You** ([navigation.md](navigation.md)), or with ⌘, on a Mac.
 
 - **Mode:** System (follows the device), Light or Dark.
 - **Theme:** each theme has a light and a dark version, and its card shows

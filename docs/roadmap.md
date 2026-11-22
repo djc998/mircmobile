@@ -5,6 +5,8 @@
 - [x] Network picker and basic chat screen
 - [x] Modern chat screen: grouped messages, bubbles, dividers, composer chips
       (redesign Phase 2)
+- [x] Navigation by screen size: phone tabs, tablet rail, iPad/Mac sidebar,
+      Mac menu bar and shortcuts (redesign Phase 3)
 - [x] Room browser: search and sort LIST results, one-tap join
 - [x] Several networks at once; room browser and favorites across them
 - [ ] mIRC colour and style rendering

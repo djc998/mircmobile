@@ -152,6 +152,19 @@ class _ComposerState extends State<Composer> {
     _insert(done);
   }
 
+  /// Shift+Enter: a line break where the cursor is.
+  void _newLine() {
+    final v = _controller.value;
+    final sel = v.selection.isValid
+        ? v.selection
+        : TextSelection.collapsed(offset: v.text.length);
+    final text = v.text.replaceRange(sel.start, sel.end, '\n');
+    _controller.value = TextEditingValue(
+      text: text,
+      selection: TextSelection.collapsed(offset: sel.start + 1),
+    );
+  }
+
   void _send() {
     final text = _controller.text;
     if (text.trim().isEmpty) return;
@@ -193,6 +206,12 @@ class _ComposerState extends State<Composer> {
   @override
   Widget build(BuildContext context) {
     final tokens = AppTokens.of(context);
+    final desktop = switch (Theme.of(context).platform) {
+      TargetPlatform.macOS ||
+      TargetPlatform.windows ||
+      TargetPlatform.linux => true,
+      _ => false,
+    };
     final reply = widget.replyTo;
     final circle = RoundedRectangleBorder(
       borderRadius: BorderRadius.circular(tokens.radius(18)),
@@ -320,6 +339,16 @@ class _ComposerState extends State<Composer> {
                       bindings: {
                         const SingleActivator(LogicalKeyboardKey.tab):
                             _complete,
+                        // Computers: Enter sends, Shift+Enter starts a new
+                        // line. Phones use the keyboard's Send key.
+                        if (desktop) ...{
+                          const SingleActivator(LogicalKeyboardKey.enter):
+                              _send,
+                          const SingleActivator(
+                            LogicalKeyboardKey.enter,
+                            shift: true,
+                          ): _newLine,
+                        },
                       },
                       child: TextField(
                         controller: _controller,

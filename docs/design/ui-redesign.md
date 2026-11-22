@@ -149,6 +149,11 @@ phases: typing indicator and "Seen" (need IRCv3 `typing` and read markers),
 the call history card (Phase 5), an emoji button, and room search
 (Phase 3). The topic moved from the header into Chat info.
 
+Phase 3 done ([navigation.md](../features/navigation.md)). Room search
+became Find in Chat (⌘F). Left for later: Mute on the swipe actions and
+grouped People (Phase 5, with Room info and profile cards) and online dots
+(need MONITOR/WATCH).
+
 1. **Foundation**: tokens, Default (Indigo) + Classic mIRC themes, accent
    picker, density setting, `NickAvatar`, `RoomAvatar`, `UnreadBadge`,
    rename display name to IRCade. Docs: `docs/features/design-system.md`,

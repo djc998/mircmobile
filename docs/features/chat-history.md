@@ -11,7 +11,7 @@ Available on iOS, Android and macOS (shared Flutter code).
 - **Open conversations come back.** The app remembers which rooms and
   private chats were open on each network. **Continue** rejoins those rooms
   (after your favorites) and reopens those private chats. Closing a network
-  (**Close X** in the chat menu) forgets its open conversations, but keeps
+  (**Close X** on its ⋮ in You) forgets its open conversations, but keeps
   their saved messages.
 - **What is saved:** messages, actions (`/me`), notices and your own
   messages, up to the last 1,000 per conversation shown and about 2,000 kept
@@ -22,7 +22,7 @@ Available on iOS, Android and macOS (shared Flutter code).
     deleted.
   - **Delete saved history** deletes every saved conversation after a
     confirmation.
-- **Clear history** in the chat menu deletes the open conversation's saved
+- **Clear history** in **Chat info** (tap the chat's name) deletes the open conversation's saved
   messages and clears it on screen.
 
 ## Where it is stored

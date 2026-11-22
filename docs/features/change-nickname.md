@@ -4,8 +4,9 @@ Available on iOS, Android and macOS (shared Flutter code).
 
 ## What the user sees
 
-- **Change nickname (yourname)** in the chat menu, or tap your name next to
-  a network in the conversation list.
+- Tap your name next to a network in **You** (the tab on phones, the rail
+  on tablets, your name at the bottom of the sidebar on iPad and Mac), or
+  **Change nickname (yourname)** in a server tab's Chat info.
 - The dialog has your current name selected. It checks the name (letters,
   numbers and `_-[]{}|^`, starting with a letter) before sending.
 - With several networks open, **Change it on all my networks** changes it

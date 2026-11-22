@@ -11,7 +11,11 @@ import 'package:material_ui/material_ui.dart';
 /// Lists every room on every connected network, with search, sort, a size
 /// filter and a network filter.
 class RoomBrowserScreen extends ConsumerStatefulWidget {
-  const RoomBrowserScreen({super.key});
+  const RoomBrowserScreen({this.onDone, super.key});
+
+  /// Called after joining or creating a room when the browser is a tab
+  /// (Discover) rather than its own page, so the shell can leave it.
+  final VoidCallback? onDone;
 
   @override
   ConsumerState<RoomBrowserScreen> createState() => _RoomBrowserScreenState();
@@ -46,7 +50,10 @@ class _RoomBrowserScreenState extends ConsumerState<RoomBrowserScreen> {
     ref
         .read(chatControllerProvider.notifier)
         .joinRoom(name, networkId: networkId);
-    if (context.canPop()) {
+    final done = widget.onDone;
+    if (done != null) {
+      done();
+    } else if (context.canPop()) {
       context.pop();
     } else {
       context.go('/chat');
@@ -105,7 +112,10 @@ class _RoomBrowserScreenState extends ConsumerState<RoomBrowserScreen> {
               label: const Text('Create room'),
               onPressed: () async {
                 final created = await showCreateRoomDialog(context, ref);
-                if (created && context.mounted && context.canPop()) {
+                if (!created || !context.mounted) return;
+                if (widget.onDone != null) {
+                  widget.onDone!();
+                } else if (context.canPop()) {
                   context.pop();
                 }
               },
