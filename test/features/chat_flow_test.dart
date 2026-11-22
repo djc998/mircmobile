@@ -1,14 +1,22 @@
 import 'dart:async';
+import 'dart:convert';
 import 'dart:io';
 
 import 'package:flutter/services.dart';
 import 'package:flutter_riverpod/flutter_riverpod.dart';
 import 'package:flutter_test/flutter_test.dart';
+import 'package:http/http.dart' as http;
+import 'package:http/testing.dart';
+import 'package:image/image.dart' as img;
 import 'package:irc_client/app/app.dart';
 import 'package:irc_client/core/irc/irc_transport.dart';
 import 'package:irc_client/core/storage/app_storage.dart';
 import 'package:irc_client/features/chat/application/chat_controller.dart';
 import 'package:irc_client/features/chat/data/chat_history_store.dart';
+import 'package:irc_client/features/pictures/data/picture_crypto.dart';
+import 'package:irc_client/features/pictures/data/picture_service.dart';
+import 'package:irc_client/features/pictures/domain/picture_link.dart';
+import 'package:irc_client/features/pictures/presentation/picture_widgets.dart';
 import 'package:material_ui/material_ui.dart';
 
 class FakeTransport implements IrcTransport {
@@ -993,6 +1001,252 @@ void main() {
     await launch();
     expect(Theme.of(ctx()).brightness, Brightness.dark);
     expect(Theme.of(ctx()).colorScheme.surface, Colors.black);
+  });
+
+  testWidgets('change nickname from the menu', (tester) async {
+    tester.view.physicalSize = const Size(800, 1800);
+    tester.view.devicePixelRatio = 1;
+    addTearDown(tester.view.reset);
+    final store = MemoryKeyValueStore();
+    final transport = FakeTransport();
+    await tester.pumpWidget(
+      ProviderScope(
+        overrides: [
+          keyValueStoreProvider.overrideWithValue(store),
+          transportFactoryProvider.overrideWithValue(
+            (host, port, {required useTls, trustedFingerprints = const {}}) =>
+                transport,
+          ),
+        ],
+        child: const IrcApp(),
+      ),
+    );
+    await tester.enterText(find.widgetWithText(TextField, 'Nickname'), 'me');
+    await tester.tap(find.text('Libera.Chat'));
+    await tester.pumpAndSettle();
+    transport.incoming
+      ..add(':s 001 me :Welcome')
+      ..add(':me!u@h JOIN #chat');
+    await tester.pumpAndSettle();
+
+    Future<void> openDialog() async {
+      await tester.tap(find.byType(PopupMenuButton<String>));
+      await tester.pumpAndSettle();
+      await tester.tap(find.textContaining('Change nickname'));
+      await tester.pumpAndSettle();
+    }
+
+    // A bad name is refused in the dialog.
+    await openDialog();
+    await tester.enterText(
+      find.widgetWithText(TextField, 'New nickname'),
+      '9 lives',
+    );
+    await tester.tap(find.widgetWithText(FilledButton, 'Change'));
+    await tester.pumpAndSettle();
+    expect(find.textContaining('starting with a letter'), findsOneWidget);
+
+    await tester.enterText(
+      find.widgetWithText(TextField, 'New nickname'),
+      'newme',
+    );
+    await tester.tap(find.widgetWithText(FilledButton, 'Change'));
+    await tester.pumpAndSettle();
+    expect(transport.written.last, 'NICK newme');
+    expect(store.values['savedConnection'], contains('"nick":"newme"'));
+    transport.incoming.add(':me!u@h NICK :newme');
+    await tester.pumpAndSettle();
+    expect(find.text('Connected as newme'), findsOneWidget);
+    expect(
+      find.textContaining('me is now known as newme', findRichText: true),
+      findsOneWidget,
+    );
+
+    // A taken name keeps the old one and says so.
+    await openDialog();
+    await tester.enterText(
+      find.widgetWithText(TextField, 'New nickname'),
+      'bob',
+    );
+    await tester.tap(find.widgetWithText(FilledButton, 'Change'));
+    await tester.pumpAndSettle();
+    transport.incoming.add(':s 433 newme bob :Nickname is already in use');
+    await tester.pumpAndSettle();
+    expect(
+      find.textContaining(
+        "Couldn't change your nickname: Nickname is already in use. "
+        "You're still newme.",
+        findRichText: true,
+      ),
+      findsOneWidget,
+    );
+
+    // The same menu opens Appearance.
+    await tester.tap(find.byType(PopupMenuButton<String>));
+    await tester.pumpAndSettle();
+    await tester.tap(find.text('Appearance'));
+    await tester.pumpAndSettle();
+    expect(find.widgetWithText(AppBar, 'Appearance'), findsOneWidget);
+
+    await tester.pumpWidget(const SizedBox());
+    await tester.pump(const Duration(seconds: 1));
+  });
+
+  testWidgets('pictures in a private chat: show, send, report and block', (
+    tester,
+  ) async {
+    tester.view.physicalSize = const Size(900, 1800);
+    tester.view.devicePixelRatio = 1;
+    addTearDown(tester.view.reset);
+    final store = MemoryKeyValueStore();
+    final transport = FakeTransport();
+    const id = 'abcdefghijklmnopqrstuv';
+    final picture = img.encodePng(img.Image(width: 120, height: 90));
+    final (:sealed, :key) = (await tester.runAsync(
+      () => sealPicture(picture),
+    ))!;
+    final reports = <Map<String, Object?>>[];
+    final client = MockClient((req) async {
+      if (req.url.path == '/p/$id/raw') return http.Response.bytes(sealed, 200);
+      if (req.url.path == '/upload') {
+        return http.Response(
+          '{"id":"$id","url":"https://pics.test/p/$id"}',
+          201,
+        );
+      }
+      if (req.url.path == '/report') {
+        reports.add(jsonDecode(req.body) as Map<String, Object?>);
+        return http.Response('{"ok":true}', 201);
+      }
+      return http.Response('', 404);
+    });
+    await tester.pumpWidget(
+      ProviderScope(
+        overrides: [
+          keyValueStoreProvider.overrideWithValue(store),
+          pictureServiceProvider.overrideWithValue(
+            PictureService(
+              host: 'https://pics.test',
+              client: client,
+              prepare: (b) async => b,
+            ),
+          ),
+          transportFactoryProvider.overrideWithValue(
+            (host, port, {required useTls, trustedFingerprints = const {}}) =>
+                transport,
+          ),
+        ],
+        child: const IrcApp(),
+      ),
+    );
+    await tester.enterText(find.widgetWithText(TextField, 'Nickname'), 'me');
+    await tester.tap(find.text('Libera.Chat'));
+    await tester.pumpAndSettle();
+    transport.incoming
+      ..add(':s 001 me :Welcome')
+      ..add(':me!u@h JOIN #chat');
+    await tester.pumpAndSettle();
+    // No picture button in rooms.
+    expect(find.byTooltip('Send a picture'), findsNothing);
+
+    final container = ProviderScope.containerOf(
+      tester.element(find.byType(IrcApp)),
+    );
+    final controller = container.read(chatControllerProvider.notifier);
+    final link = 'https://pics.test/p/$id#k=$key';
+    transport.incoming.add(
+      ':bob!b@h PRIVMSG me :📷 Picture (disappears in 4 hours): $link',
+    );
+    await tester.pumpAndSettle();
+    controller.selectBuffer(ChatState.bufferKey('irc.libera.chat', 'bob'));
+    await tester.pumpAndSettle();
+
+    // From someone you haven't written to: hidden until tapped.
+    expect(find.byTooltip('Send a picture'), findsOneWidget);
+    expect(find.text('Show picture from bob'), findsOneWidget);
+    await tester.tap(find.text('Show picture from bob'));
+    await tester.pump();
+    // Download and decrypt run on real time.
+    await tester.runAsync(
+      () => Future<void>.delayed(const Duration(milliseconds: 200)),
+    );
+    await tester.pumpAndSettle();
+    expect(find.text('Show picture from bob'), findsNothing);
+    expect(find.bySemanticsLabel(RegExp('Picture from bob')), findsOneWidget);
+
+    // Tap for full size (after the image has decoded and has a size).
+    await tester.runAsync(
+      () => Future<void>.delayed(const Duration(milliseconds: 200)),
+    );
+    await tester.pump();
+    await tester.tap(
+      find.descendant(
+        of: find.byType(PictureBubble),
+        matching: find.byType(Image),
+      ),
+    );
+    await tester.pumpAndSettle();
+    expect(find.text('From bob'), findsOneWidget);
+    await tester.tap(find.byTooltip('Close'));
+    await tester.pumpAndSettle();
+
+    // Sending: the link goes out as a private message.
+    final error = await tester.runAsync(
+      () => controller.sendPicture(
+        Uint8List.fromList(picture),
+        expiry: PictureExpiry.hour,
+      ),
+    );
+    expect(error, isNull);
+    await tester.runAsync(
+      () => Future<void>.delayed(const Duration(milliseconds: 1600)),
+    );
+    await tester.pumpAndSettle();
+    expect(
+      transport.written.last,
+      startsWith(
+        'PRIVMSG bob :📷 Picture (view once, disappears in 1 hour): '
+        'https://pics.test/p/$id#k=',
+      ),
+    );
+    expect(transport.written.last, endsWith('&o=1'));
+
+    // Report: sent with the full link, and bob is blocked.
+    await tester.tap(find.byTooltip('Picture options').first);
+    await tester.pumpAndSettle();
+    await tester.tap(find.text('Report picture'));
+    await tester.pumpAndSettle();
+    await tester.tap(find.text('Spam or scam'));
+    await tester.pump();
+    await tester.tap(find.widgetWithText(FilledButton, 'Report'));
+    await tester.pump();
+    await tester.runAsync(
+      () => Future<void>.delayed(const Duration(milliseconds: 200)),
+    );
+    await tester.pumpAndSettle();
+    expect(reports.single['link'], link);
+    expect(reports.single['sender'], 'bob');
+    expect(controller.isBlocked('BOB'), isTrue);
+    expect(store.values['blockedNicks'], '["bob"]');
+    expect(find.text('Picture reported'), findsOneWidget);
+
+    // Blocked: new messages from bob don't show up.
+    transport.incoming.add(':bob!b@h PRIVMSG me :are you there?');
+    await tester.pumpAndSettle();
+    expect(
+      find.textContaining('are you there?', findRichText: true),
+      findsNothing,
+    );
+    controller.unblockUser('bob');
+    transport.incoming.add(':bob!b@h PRIVMSG me :hello again');
+    await tester.pumpAndSettle();
+    expect(
+      find.textContaining('hello again', findRichText: true),
+      findsOneWidget,
+    );
+
+    await tester.pumpWidget(const SizedBox());
+    await tester.pump(const Duration(seconds: 1));
   });
 }
 

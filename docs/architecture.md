@@ -26,6 +26,11 @@ lib/
   features/connection/data/  SavedConnection (nick, network, account)
   features/discovery/        Room browser: filterRooms() and its screen
   features/favorites/        Favorite and recent rooms per network
+  features/pictures/         Encrypted picture links: prepare, seal,
+                             upload/download/report (PictureService),
+                             picture bubble, send sheet, viewer
+server/picture-host/         Cloudflare Worker + R2 that stores the
+                             encrypted pictures (see its README)
 ```
 
 ## Data flow

@@ -43,13 +43,14 @@ class IrcConnectionConfig {
   final Set<String> trustedFingerprints;
 
   IrcConnectionConfig copyWith({
+    String? nick,
     int? port,
     bool? useTls,
     Set<String>? trustedFingerprints,
     List<String>? autoJoin,
   }) => IrcConnectionConfig(
     host: host,
-    nick: nick,
+    nick: nick ?? this.nick,
     port: port ?? this.port,
     useTls: useTls ?? this.useTls,
     username: username,

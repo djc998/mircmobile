@@ -102,6 +102,13 @@ class SavedConnectionRepository {
     }
   }
 
+  /// Saves a new nickname, keeping the other settings.
+  Future<void> rememberNick(String nick) async {
+    final saved = load();
+    final json = saved?.toJson() ?? {'networkHost': ''};
+    await _store.setString(_key, jsonEncode({...json, 'nick': nick}));
+  }
+
   /// Forgets [host] as an open network, after the user closed it.
   Future<void> removeNetwork(String host) async {
     final saved = load();
