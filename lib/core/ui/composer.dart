@@ -45,6 +45,7 @@ class Composer extends StatefulWidget {
     this.replyText = '',
     this.onCancelReply,
     this.onAttach,
+    this.onTakePhoto,
     this.uploading = false,
     this.nicks = const [],
     this.rooms = const [],
@@ -64,6 +65,9 @@ class Composer extends StatefulWidget {
 
   /// Shows the Send a photo button (and adds it to the + menu) when set.
   final VoidCallback? onAttach;
+
+  /// Takes a photo with the camera and sends it; shown in the + menu.
+  final VoidCallback? onTakePhoto;
 
   /// A picture is being uploaded.
   final bool uploading;
@@ -344,6 +348,13 @@ class _ComposerState extends State<Composer> {
                   title: const Text('Send a photo'),
                   enabled: !widget.uploading,
                   onTap: () => Navigator.pop(sheet, widget.onAttach),
+                ),
+              if (widget.onTakePhoto != null)
+                ListTile(
+                  leading: const Icon(Icons.photo_camera_outlined),
+                  title: const Text('Take a photo'),
+                  enabled: !widget.uploading,
+                  onTap: () => Navigator.pop(sheet, widget.onTakePhoto),
                 ),
               for (final c in widget.commands)
                 ListTile(

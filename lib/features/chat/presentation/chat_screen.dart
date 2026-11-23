@@ -25,6 +25,7 @@ import 'package:irc_client/features/chat/presentation/change_nick_dialog.dart';
 import 'package:irc_client/features/chat/presentation/find_in_chat.dart';
 import 'package:irc_client/features/favorites/application/room_prefs_controller.dart';
 import 'package:irc_client/features/pictures/domain/picture_link.dart';
+import 'package:irc_client/features/pictures/presentation/camera_capture.dart';
 import 'package:irc_client/features/pictures/presentation/picture_widgets.dart';
 import 'package:irc_client/features/rooms/presentation/room_info.dart';
 import 'package:irc_client/features/settings/application/appearance_controller.dart';
@@ -306,6 +307,19 @@ class ChatScreen extends ConsumerWidget {
                     // Pictures are for private chats.
                     onAttach: buffer != null && !buffer.isStatus && !isChannel
                         ? () => unawaited(sendPicture(context, ref))
+                        : null,
+                    onTakePhoto:
+                        buffer != null &&
+                            !buffer.isStatus &&
+                            !isChannel &&
+                            canTakePhotos(Theme.of(context).platform)
+                        ? () => unawaited(
+                            sendPicture(
+                              context,
+                              ref,
+                              source: PhotoSource.camera,
+                            ),
+                          )
                         : null,
                     nicks: [
                       if (channel != null)

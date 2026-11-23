@@ -5,14 +5,19 @@ import 'dart:async';
 import 'dart:typed_data';
 
 import 'package:flutter_riverpod/flutter_riverpod.dart';
-import 'package:image_picker/image_picker.dart';
 import 'package:irc_client/features/chat/application/chat_controller.dart';
 import 'package:irc_client/features/pictures/data/picture_service.dart';
 import 'package:irc_client/features/pictures/domain/picture_link.dart';
+import 'package:irc_client/features/pictures/presentation/camera_capture.dart';
 import 'package:material_ui/material_ui.dart';
 
-/// Picks a photo, asks how long it should last, then sends it.
-Future<void> sendPicture(BuildContext context, WidgetRef ref) async {
+/// Gets a photo from [source] (or asks: library or camera), asks how long
+/// it should last, then sends it.
+Future<void> sendPicture(
+  BuildContext context,
+  WidgetRef ref, {
+  PhotoSource? source,
+}) async {
   final messenger = ScaffoldMessenger.of(context);
   if (!ref.read(pictureServiceProvider).isConfigured) {
     messenger.showSnackBar(
@@ -20,54 +25,53 @@ Future<void> sendPicture(BuildContext context, WidgetRef ref) async {
     );
     return;
   }
-  final phone = switch (Theme.of(context).platform) {
-    TargetPlatform.iOS || TargetPlatform.android => true,
-    _ => false,
-  };
-  var source = ImageSource.gallery;
-  if (phone) {
-    final picked = await showModalBottomSheet<ImageSource>(
-      context: context,
-      showDragHandle: true,
-      builder: (sheet) => SafeArea(
-        child: Column(
-          mainAxisSize: MainAxisSize.min,
-          children: [
-            ListTile(
-              leading: const Icon(Icons.photo_library_outlined),
-              title: const Text('Choose a photo'),
-              onTap: () => Navigator.pop(sheet, ImageSource.gallery),
-            ),
-            ListTile(
-              leading: const Icon(Icons.photo_camera_outlined),
-              title: const Text('Take a photo'),
-              onTap: () => Navigator.pop(sheet, ImageSource.camera),
-            ),
-          ],
+  var from = source;
+  if (from == null) {
+    if (!canTakePhotos(Theme.of(context).platform)) {
+      from = PhotoSource.library;
+    } else {
+      from = await showModalBottomSheet<PhotoSource>(
+        context: context,
+        showDragHandle: true,
+        builder: (sheet) => SafeArea(
+          child: Column(
+            mainAxisSize: MainAxisSize.min,
+            children: [
+              ListTile(
+                leading: const Icon(Icons.photo_library_outlined),
+                title: const Text('Choose a photo'),
+                onTap: () => Navigator.pop(sheet, PhotoSource.library),
+              ),
+              ListTile(
+                leading: const Icon(Icons.photo_camera_outlined),
+                title: const Text('Take a photo'),
+                onTap: () => Navigator.pop(sheet, PhotoSource.camera),
+              ),
+            ],
+          ),
+        ),
+      );
+      if (from == null) return;
+    }
+  }
+  if (!context.mounted) return;
+  final Uint8List? picked;
+  try {
+    picked = await ref.read(photoPickerProvider)(context, from);
+  } on Object {
+    messenger.showSnackBar(
+      SnackBar(
+        content: Text(
+          from == PhotoSource.camera
+              ? "Couldn't open the camera."
+              : "Couldn't open your photos.",
         ),
       ),
     );
-    if (picked == null) return;
-    source = picked;
-  }
-  final XFile? file;
-  try {
-    // The platform shrinks big photos first; the app then strips metadata.
-    file = await ImagePicker().pickImage(
-      source: source,
-      maxWidth: 2048,
-      maxHeight: 2048,
-      imageQuality: 90,
-    );
-  } on Object {
-    messenger.showSnackBar(
-      const SnackBar(content: Text("Couldn't open your photos.")),
-    );
     return;
   }
-  if (file == null) return;
-  final bytes = await file.readAsBytes();
-  if (!context.mounted) return;
+  final bytes = picked;
+  if (bytes == null || !context.mounted) return;
   final choice = await showModalBottomSheet<_SendChoice>(
     context: context,
     showDragHandle: true,
