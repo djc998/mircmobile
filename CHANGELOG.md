@@ -7,6 +7,9 @@ and the project uses [Semantic Versioning](https://semver.org/).
 ## [Unreleased]
 
 ### Changed
+- Tapping a room's name opens Room info instead of the Chat info sheet;
+  Room settings are inside it. "Block" on a person is now **Ignore**
+  (same list). The welcome's network heading wraps at large text sizes.
 - The start screen's room, account, username and history options moved
   under **Advanced options**; Discover's size, sort and favorites chips
   moved into **Filters**.
@@ -36,6 +39,22 @@ and the project uses [Semantic Versioning](https://semver.org/).
   too. See [docs/features/pinned-panels.md](docs/features/pinned-panels.md).
 
 ### Added
+- Polish, Phase 5 of the redesign (iOS, Android, macOS). **Room info**: one
+  page (a side panel on wide screens) with the topic, favorite, **Mute**,
+  people, every room setting, clear history and leave. **Mute** a chat from
+  Room info or by long-pressing (right-clicking) it: grey badge, out of the
+  Mentions count. **Profile cards** with role and away status, Message,
+  Call and Mention buttons, **Ignore** and **Report**. **People** grouped
+  into Operators, Voiced, Members and Away (from IRCv3 away-notify).
+  **Calls**: dark stage, draggable self-view, blurred controls, a richer
+  incoming card, and **Back to chat** with a green in-call pill.
+  **Settings** page (⌘, on a Mac) with history, calls, ignored people,
+  muted chats and About. **Monospace** message font. New messages fade and
+  slide in (off with Reduce Motion). An **accessibility audit** checks tap
+  targets, labels, contrast and large text on every main screen. See
+  [docs/features/room-info.md](docs/features/room-info.md),
+  [docs/features/settings.md](docs/features/settings.md) and
+  [docs/accessibility.md](docs/accessibility.md).
 - Discover and welcome, Phase 4 of the redesign (iOS, Android, macOS).
   **Discover** shows rooms as cards (avatar, people, category, "Busy now",
   two-line topic, Join or Open) with category chips (Popular, Tech, Gaming,

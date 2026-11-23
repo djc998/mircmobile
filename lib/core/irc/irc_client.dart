@@ -74,6 +74,9 @@ class IrcMember {
 
   /// The highest-ranked prefix symbol, or an empty string.
   String get topPrefix => prefixes.isEmpty ? '' : prefixes[0];
+
+  /// Marked away (IRCv3 `away-notify`, or the H/G flag in a WHO reply).
+  bool away = false;
 }
 
 /// Local state for a joined channel.
@@ -549,6 +552,18 @@ class IrcClient {
         _onPart(m.param(0) ?? '', m.param(1) ?? '', m.param(2), from, time);
       case 'QUIT':
         _onQuit(from, m.param(0), time);
+      case '315':
+        // RPL_ENDOFWHO: the WHO after joining is only for away flags.
+        break;
+      case 'AWAY':
+        // away-notify: a message means away, none means back.
+        _setAway(from, away: (m.param(0) ?? '').isNotEmpty);
+      case '352':
+        // RPL_WHOREPLY: me #chan user host server nick H|G[*@+] :hops name
+        final flags = m.param(6) ?? '';
+        if (flags.isNotEmpty) {
+          _setAway(m.param(5) ?? '', away: flags.startsWith('G'));
+        }
       case 'MODE':
         _onMode(m);
       case '324':
@@ -597,6 +612,14 @@ class IrcClient {
         final name = m.param(1) ?? '';
         _namesInProgress.remove(_isupport.fold(name));
         _emit(MembersChangedEvent(name));
+        // With away-notify, one WHO tells us who's away already; later
+        // changes arrive as AWAY. Skipped for big rooms to spare the server.
+        final joined = channel(name);
+        if (capabilities.contains('away-notify') &&
+            joined != null &&
+            joined.members.length <= whoAwayMaxMembers) {
+          _flood.send('WHO $name');
+        }
       case '321':
         _listBuffer.clear();
       case '322':
@@ -689,6 +712,22 @@ class IrcClient {
       ),
     );
     _emit(MembersChangedEvent(name));
+  }
+
+  /// Rooms up to this size get a WHO after joining to learn who's away.
+  static const int whoAwayMaxMembers = 200;
+
+  /// Marks [nick] away or back in every room you share.
+  void _setAway(String nick, {required bool away}) {
+    if (nick.isEmpty) return;
+    final key = _isupport.fold(nick);
+    for (final c in channels.values) {
+      final member = c.members[key];
+      if (member != null && member.away != away) {
+        member.away = away;
+        _emit(MembersChangedEvent(c.name));
+      }
+    }
   }
 
   void _onQuit(String nick, String? reason, DateTime? time) {

@@ -16,6 +16,7 @@ import 'package:irc_client/core/ui/room_card.dart';
 import 'package:irc_client/features/chat/application/chat_controller.dart';
 import 'package:irc_client/features/chat/data/chat_history_store.dart';
 import 'package:irc_client/features/chat/presentation/chat_screen.dart';
+import 'package:irc_client/features/chat/presentation/chat_shell.dart';
 import 'package:irc_client/features/pictures/data/picture_crypto.dart';
 import 'package:irc_client/features/pictures/data/picture_service.dart';
 import 'package:irc_client/features/pictures/domain/picture_link.dart';
@@ -166,7 +167,7 @@ void main() {
       ),
     );
     await tester.enterText(find.widgetWithText(TextField, 'Nickname'), 'me');
-    await tester.tap(find.text('OFTC'));
+    await tapNetwork(tester, 'OFTC');
     await tester.pumpAndSettle();
     transport.incoming
       ..add(':s CAP * LS :server-time')
@@ -290,16 +291,15 @@ void main() {
       ..add(':me!u@h JOIN #second');
     await tester.pumpAndSettle();
 
-    // Star #second (the open room) from Chat info.
+    // Star #second (the open room) from Room info.
     expect(find.widgetWithText(AppBar, '#second'), findsOneWidget);
     await tester.tap(find.byTooltip('Chat info'));
     await tester.pumpAndSettle();
+    expect(find.text('Room info'), findsOneWidget);
     await tester.tap(find.text('Add to favorites'));
     await tester.pumpAndSettle();
-    await tester.tap(find.byTooltip('Chat info'));
-    await tester.pumpAndSettle();
     expect(find.text('Remove from favorites'), findsOneWidget);
-    await tester.tapAt(const Offset(10, 10));
+    await tester.tap(find.byTooltip('Close room info'));
     await tester.pumpAndSettle();
 
     // Password went to the secret store, not plain settings.
@@ -433,7 +433,7 @@ void main() {
       ),
     );
     await tester.enterText(find.widgetWithText(TextField, 'Nickname'), 'me');
-    await tester.tap(find.text('OFTC'));
+    await tapNetwork(tester, 'OFTC');
     await tester.pump();
     await tester.pump(const Duration(milliseconds: 100));
 
@@ -599,7 +599,7 @@ void main() {
     await tester.pumpAndSettle();
     expect(find.text('Add a network'), findsOneWidget);
     expect(find.widgetWithText(Chip, 'Connected'), findsOneWidget);
-    await tester.tap(find.text('OFTC'));
+    await tapNetwork(tester, 'OFTC');
     await tester.pumpAndSettle();
     final oftc = transports['irc.oftc.net']!;
     oftc.incoming
@@ -841,10 +841,10 @@ void main() {
     await tester.pumpAndSettle();
     expect(chatText('invite only on'), findsOneWidget);
 
-    // Room settings (in Chat info): turn Private off, invite bob, keep it.
+    // Room settings (in Room info): turn Private off, invite bob, keep it.
     await tester.tap(find.byTooltip('Chat info'));
     await tester.pumpAndSettle();
-    await tester.tap(find.text('Room settings'));
+    await tester.ensureVisible(find.text('Room settings'));
     await tester.pumpAndSettle();
     expect(find.textContaining('You run this room'), findsOneWidget);
     await tester.tap(find.widgetWithText(SwitchListTile, 'Private'));
@@ -1013,6 +1013,12 @@ void main() {
     await tester.pumpAndSettle();
     await tester.tap(find.text('High contrast'));
     await tester.pumpAndSettle();
+    await tester.scrollUntilVisible(
+      find.text('Large'),
+      200,
+      scrollable: find.byType(Scrollable).first,
+    );
+    await tester.pumpAndSettle();
     await tester.tap(find.text('Large'));
     await tester.pumpAndSettle();
 
@@ -1086,11 +1092,11 @@ void main() {
     expect(store.values['savedConnection'], contains('"nick":"newme"'));
     transport.incoming.add(':me!u@h NICK :newme');
     await tester.pumpAndSettle();
-    await tester.tap(find.byTooltip('Chat info'));
-    await tester.pumpAndSettle();
-    expect(find.textContaining('Connected as newme'), findsOneWidget);
-    await tester.tapAt(const Offset(10, 10));
-    await tester.pumpAndSettle();
+    // You shows the new name.
+    expect(
+      find.descendant(of: find.byType(YouView), matching: find.text('newme')),
+      findsWidgets,
+    );
     expect(chatText('me is now known as newme'), findsOneWidget);
 
     // A taken name keeps the old one and says so.

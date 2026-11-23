@@ -14,6 +14,7 @@ import 'package:irc_client/core/ui/chat_dividers.dart';
 import 'package:irc_client/core/ui/composer.dart';
 import 'package:irc_client/core/ui/message_group.dart';
 import 'package:irc_client/core/ui/unread_badge.dart';
+import 'package:irc_client/features/calls/application/call_controller.dart';
 import 'package:irc_client/features/calls/presentation/call_widgets.dart';
 import 'package:irc_client/features/chat/application/chat_controller.dart';
 import 'package:irc_client/features/chat/application/chat_layout.dart';
@@ -23,7 +24,7 @@ import 'package:irc_client/features/chat/presentation/find_in_chat.dart';
 import 'package:irc_client/features/favorites/application/room_prefs_controller.dart';
 import 'package:irc_client/features/pictures/domain/picture_link.dart';
 import 'package:irc_client/features/pictures/presentation/picture_widgets.dart';
-import 'package:irc_client/features/rooms/presentation/room_dialogs.dart';
+import 'package:irc_client/features/rooms/presentation/room_info.dart';
 import 'package:irc_client/features/settings/application/appearance_controller.dart';
 import 'package:material_ui/material_ui.dart';
 
@@ -82,6 +83,8 @@ class ChatScreen extends ConsumerWidget {
                 room: channel.name,
                 onReply: () =>
                     controller.startReply(_lastLineFrom(buffer!, nick)),
+                onMention: () => controller.startReply(_mentionOf(nick)),
+                onCall: () => unawaited(_call(context, ref, nick)),
               ),
             ),
           );
@@ -221,48 +224,56 @@ class ChatScreen extends ConsumerWidget {
                         ],
                       ),
                   Expanded(
-                    child: _MessageList(
-                      // A new list per conversation: scroll and the "new"
-                      // pill start fresh.
-                      key: ValueKey(buffer?.key),
-                      lines: buffer?.lines ?? [],
-                      ownNick: net?.nick ?? '',
-                      networkId: net?.id ?? '',
-                      style: buffer == null || buffer.isStatus || !comfortable
-                          ? _ChatStyle.lines
-                          : isChannel
-                          ? _ChatStyle.groups
-                          : _ChatStyle.bubbles,
-                      unreadMarker: buffer?.unreadMarker,
-                      roleOf: channel == null
-                          ? null
-                          : (nick) {
-                              final m = channel.members[nick.toLowerCase()];
-                              return m == null
-                                  ? NickRole.member
-                                  : nickRoleOf(m);
-                            },
-                      // Pictures load on their own only in a private chat
-                      // where you've written to the other person.
-                      autoShowPictures:
-                          buffer != null &&
-                          !buffer.isStatus &&
-                          !isChannel &&
-                          buffer.lines.any((l) => l.kind == ChatLineKind.own),
-                      onReply: isChannel ? controller.startReply : null,
-                      onNickTap: (nick) => unawaited(
-                        showUserActions(
-                          context,
-                          controller,
-                          net?.nick ?? '',
-                          nick,
-                          network: net,
-                          room: channel?.name,
-                          onReply: isChannel
-                              ? () => controller.startReply(
-                                  _lastLineFrom(buffer!, nick),
-                                )
-                              : null,
+                    child: _withMessageFont(
+                      context,
+                      ref.watch(appearanceProvider).font,
+                      _MessageList(
+                        // A new list per conversation: scroll and the "new"
+                        // pill start fresh.
+                        key: ValueKey(buffer?.key),
+                        lines: buffer?.lines ?? [],
+                        ownNick: net?.nick ?? '',
+                        networkId: net?.id ?? '',
+                        style: buffer == null || buffer.isStatus || !comfortable
+                            ? _ChatStyle.lines
+                            : isChannel
+                            ? _ChatStyle.groups
+                            : _ChatStyle.bubbles,
+                        unreadMarker: buffer?.unreadMarker,
+                        roleOf: channel == null
+                            ? null
+                            : (nick) {
+                                final m = channel.members[nick.toLowerCase()];
+                                return m == null
+                                    ? NickRole.member
+                                    : nickRoleOf(m);
+                              },
+                        // Pictures load on their own only in a private chat
+                        // where you've written to the other person.
+                        autoShowPictures:
+                            buffer != null &&
+                            !buffer.isStatus &&
+                            !isChannel &&
+                            buffer.lines.any((l) => l.kind == ChatLineKind.own),
+                        onReply: isChannel ? controller.startReply : null,
+                        onNickTap: (nick) => unawaited(
+                          showUserActions(
+                            context,
+                            controller,
+                            net?.nick ?? '',
+                            nick,
+                            network: net,
+                            room: channel?.name,
+                            onReply: isChannel
+                                ? () => controller.startReply(
+                                    _lastLineFrom(buffer!, nick),
+                                  )
+                                : null,
+                            onMention: isChannel
+                                ? () => controller.startReply(_mentionOf(nick))
+                                : null,
+                            onCall: () => unawaited(_call(context, ref, nick)),
+                          ),
                         ),
                       ),
                     ),
@@ -341,6 +352,25 @@ class ChatScreen extends ConsumerWidget {
 
   static String statusLabel(NetworkSession s) => _statusLabel(s);
 
+  /// A bare line naming [nick]: replying to it writes `nick: ` in front of
+  /// your message, which is how IRC mentions someone.
+  static ChatLine _mentionOf(String nick) =>
+      ChatLine(text: '', sender: nick, kind: ChatLineKind.message);
+
+  /// Opens a private chat with [nick] and starts a voice call there.
+  static Future<void> _call(
+    BuildContext context,
+    WidgetRef ref,
+    String nick,
+  ) async {
+    final messenger = ScaffoldMessenger.of(context);
+    ref.read(chatControllerProvider.notifier).openPrivateChat(nick);
+    final error = await ref
+        .read(callControllerProvider.notifier)
+        .startCall(video: false);
+    if (error != null) messenger.showSnackBar(SnackBar(content: Text(error)));
+  }
+
   static String _statusLabel(NetworkSession s) => switch (s.status) {
     IrcConnectionStatus.connected => 'Connected as ${s.nick}',
     IrcConnectionStatus.connecting => 'Connecting…',
@@ -379,10 +409,17 @@ class ChatScreen extends ConsumerWidget {
     final channel = !isStatus && buffer.isChannel
         ? net.client.channel(buffer.name)
         : null;
-    final isFavorite =
-        channel != null &&
-        ref.read(roomPrefsProvider).isFavorite(net.id, channel.name);
-
+    // Rooms get the full Room info page.
+    if (channel != null) {
+      return showRoomInfo(
+        context,
+        networkId: net.id,
+        channel: channel.name,
+        onPeople: phone || layout == ChatLayout.rail
+            ? () => Scaffold.of(context).openEndDrawer()
+            : null,
+      );
+    }
     return showModalBottomSheet<void>(
       context: context,
       showDragHandle: true,
@@ -434,30 +471,7 @@ class ChatScreen extends ConsumerWidget {
                   ),
                 ),
                 const Divider(height: 1),
-                if (channel != null) ...[
-                  item(
-                    isFavorite ? Icons.star : Icons.star_border,
-                    isFavorite ? 'Remove from favorites' : 'Add to favorites',
-                    () => ref
-                        .read(roomPrefsProvider.notifier)
-                        .toggleFavorite(net.id, channel.name),
-                  ),
-                  if (phone)
-                    item(
-                      Icons.people_outline,
-                      'People (${channel.members.length})',
-                      () => Scaffold.of(context).openEndDrawer(),
-                    ),
-                  item(
-                    Icons.tune,
-                    'Room settings',
-                    () => showRoomSettings(
-                      context,
-                      networkId: net.id,
-                      channel: channel.name,
-                    ),
-                  ),
-                ] else if (!isStatus)
+                if (!isStatus)
                   item(
                     Icons.info_outline,
                     'Who is this? (whois)',
@@ -471,7 +485,7 @@ class ChatScreen extends ConsumerWidget {
                   ),
                   item(
                     Icons.logout,
-                    channel != null ? 'Leave room' : 'Close chat',
+                    'Close chat',
                     () => controller.closeBuffer(buffer.key),
                   ),
                 ] else ...[
@@ -775,6 +789,15 @@ class NetworksPanel extends StatelessWidget {
             title: const Text('Appearance'),
             onTap: () => run(actions.appearance),
           ),
+        ListTile(
+          dense: true,
+          leading: const Icon(Icons.settings_outlined),
+          title: const Text('Settings'),
+          onTap: () {
+            _closeDrawer(context);
+            unawaited(context.push('/settings'));
+          },
+        ),
       ],
     );
   }
@@ -782,6 +805,9 @@ class NetworksPanel extends StatelessWidget {
 
 /// Actions for another user: private message, whois, copy nick, invite,
 /// and (for the room's operators) make operator, remove and ban.
+/// The profile card for [nick]: avatar with their role, then Message,
+/// Call and Mention, then whois, copy, invite, Ignore and Report, and (for
+/// the room's operators) moderation.
 Future<void> showUserActions(
   BuildContext context,
   ChatController controller,
@@ -790,6 +816,8 @@ Future<void> showUserActions(
   NetworkSession? network,
   String? room,
   VoidCallback? onReply,
+  VoidCallback? onMention,
+  VoidCallback? onCall,
 }) async {
   final isMe = nick.toLowerCase() == ownNick.toLowerCase();
   final client = network?.client;
@@ -819,9 +847,48 @@ Future<void> showUserActions(
         child: Column(
           mainAxisSize: MainAxisSize.min,
           children: [
-            ListTile(
-              title: Text(nick, style: Theme.of(sheet).textTheme.titleMedium),
+            _ProfileHeader(
+              nick: nick,
+              member: member,
+              room: room,
+              network: network,
+              isMe: isMe,
             ),
+            if (!isMe)
+              Padding(
+                padding: const EdgeInsets.fromLTRB(16, 4, 16, 8),
+                child: Row(
+                  children: [
+                    _QuickAction(
+                      icon: Icons.chat_bubble_outline,
+                      label: 'Message',
+                      onTap: () {
+                        Navigator.pop(sheet);
+                        controller.openPrivateChat(nick);
+                      },
+                    ),
+                    if (onCall != null)
+                      _QuickAction(
+                        icon: Icons.call_outlined,
+                        label: 'Call',
+                        onTap: () {
+                          Navigator.pop(sheet);
+                          onCall();
+                        },
+                      ),
+                    if (onMention != null)
+                      _QuickAction(
+                        icon: Icons.alternate_email,
+                        label: 'Mention',
+                        onTap: () {
+                          Navigator.pop(sheet);
+                          onMention();
+                        },
+                      ),
+                  ],
+                ),
+              ),
+            const Divider(height: 1),
             if (!isMe && onReply != null)
               ListTile(
                 leading: const Icon(Icons.reply),
@@ -859,14 +926,20 @@ Future<void> showUserActions(
             if (!isMe)
               ListTile(
                 leading: Icon(
-                  controller.isBlocked(nick) ? Icons.undo : Icons.block,
+                  controller.isBlocked(nick)
+                      ? Icons.visibility_outlined
+                      : Icons.visibility_off_outlined,
                 ),
                 title: Text(
-                  controller.isBlocked(nick) ? 'Unblock $nick' : 'Block $nick',
+                  controller.isBlocked(nick)
+                      ? 'Stop ignoring $nick'
+                      : 'Ignore $nick',
                 ),
                 subtitle: controller.isBlocked(nick)
                     ? null
-                    : const Text('Hide their messages and pictures'),
+                    : const Text(
+                        'Hide their messages, pictures and invitations',
+                      ),
                 onTap: () {
                   Navigator.pop(sheet);
                   if (controller.isBlocked(nick)) {
@@ -874,6 +947,23 @@ Future<void> showUserActions(
                   } else {
                     controller.blockUser(nick);
                   }
+                },
+              ),
+            if (!isMe)
+              ListTile(
+                leading: const Icon(Icons.flag_outlined),
+                title: Text('Report $nick'),
+                onTap: () {
+                  Navigator.pop(sheet);
+                  unawaited(
+                    _showReport(
+                      context,
+                      controller,
+                      nick,
+                      room: room,
+                      network: network,
+                    ),
+                  );
                 },
               ),
             for (final c in inviteTo)
@@ -956,10 +1046,200 @@ Future<void> showUserActions(
   );
 }
 
+/// The top of the profile card: avatar with role ring, nick, and what we
+/// know (role in the room, away, network).
+class _ProfileHeader extends StatelessWidget {
+  const _ProfileHeader({
+    required this.nick,
+    required this.isMe,
+    this.member,
+    this.room,
+    this.network,
+  });
+
+  final String nick;
+  final bool isMe;
+  final IrcMember? member;
+  final String? room;
+  final NetworkSession? network;
+
+  @override
+  Widget build(BuildContext context) {
+    final tokens = AppTokens.of(context);
+    final m = member;
+    final role = m == null ? NickRole.member : nickRoleOf(m);
+    final details = [
+      if (isMe) 'You',
+      if (role == NickRole.op && room != null) 'Operator of $room',
+      if (role == NickRole.voiced && room != null) 'Has a voice in $room',
+      if (m?.away ?? false) 'Away',
+      ?network?.label,
+    ].join(' · ');
+    return Padding(
+      padding: const EdgeInsets.fromLTRB(16, 0, 16, 8),
+      child: Row(
+        children: [
+          NickAvatar(nick: nick, size: 64, role: role, away: m?.away ?? false),
+          const SizedBox(width: 14),
+          Expanded(
+            child: Column(
+              crossAxisAlignment: CrossAxisAlignment.start,
+              children: [
+                Text(
+                  nick,
+                  style: TypeScale.title.copyWith(
+                    color: ChatColors.of(context).nickColor(nick),
+                  ),
+                ),
+                if (details.isNotEmpty)
+                  Text(
+                    details,
+                    style: TypeScale.meta.copyWith(color: tokens.textMuted),
+                  ),
+              ],
+            ),
+          ),
+        ],
+      ),
+    );
+  }
+}
+
+/// A round button with a label under it, for the profile card.
+class _QuickAction extends StatelessWidget {
+  const _QuickAction({
+    required this.icon,
+    required this.label,
+    required this.onTap,
+  });
+
+  final IconData icon;
+  final String label;
+  final VoidCallback onTap;
+
+  @override
+  Widget build(BuildContext context) {
+    final tokens = AppTokens.of(context);
+    return Expanded(
+      child: Semantics(
+        button: true,
+        label: label,
+        excludeSemantics: true,
+        child: InkWell(
+          borderRadius: BorderRadius.circular(tokens.radius(Radii.card)),
+          onTap: onTap,
+          child: Padding(
+            padding: const EdgeInsets.symmetric(vertical: 8),
+            child: Column(
+              children: [
+                Container(
+                  width: 44,
+                  height: 44,
+                  decoration: BoxDecoration(
+                    color: Color.alphaBlend(tokens.accentSoft, tokens.surface),
+                    shape: BoxShape.circle,
+                  ),
+                  child: Icon(icon, color: tokens.onAccentSoft),
+                ),
+                const SizedBox(height: 4),
+                Text(
+                  label,
+                  style: TypeScale.meta.copyWith(color: tokens.textPrimary),
+                ),
+              ],
+            ),
+          ),
+        ),
+      ),
+    );
+  }
+}
+
+/// IRC has no app-wide report button: this says who can act (the room's
+/// operators and the network's staff) and offers to message an operator or
+/// ignore the person.
+Future<void> _showReport(
+  BuildContext context,
+  ChatController controller,
+  String nick, {
+  String? room,
+  NetworkSession? network,
+}) {
+  final ops = [
+    if (room != null)
+      for (final m
+          in network?.client.channel(room)?.members.values ??
+              const <IrcMember>[])
+        if (nickRoleOf(m) == NickRole.op &&
+            m.nick.toLowerCase() != nick.toLowerCase() &&
+            m.nick.toLowerCase() != network?.nick.toLowerCase())
+          m.nick,
+  ];
+  return showDialog<void>(
+    context: context,
+    builder: (dialog) => AlertDialog(
+      title: Text('Report $nick'),
+      content: SingleChildScrollView(
+        child: Column(
+          mainAxisSize: MainAxisSize.min,
+          crossAxisAlignment: CrossAxisAlignment.start,
+          children: [
+            Text(
+              'IRC rooms are run by their operators, and each network has '
+              'its own staff. ${ops.isEmpty ? 'Ask the network staff '
+                        '(often in #help) for help.' : 'You can tell an '
+                        'operator of $room what happened:'}',
+            ),
+            for (final op in ops.take(5))
+              ListTile(
+                contentPadding: EdgeInsets.zero,
+                leading: NickAvatar(nick: op, size: 32, role: NickRole.op),
+                title: Text(op),
+                trailing: TextButton(
+                  onPressed: () {
+                    Navigator.pop(dialog);
+                    controller.openPrivateChat(op);
+                  },
+                  child: const Text('Message'),
+                ),
+              ),
+          ],
+        ),
+      ),
+      actions: [
+        TextButton(
+          onPressed: () => Navigator.pop(dialog),
+          child: const Text('Close'),
+        ),
+        if (!controller.isBlocked(nick))
+          FilledButton(
+            onPressed: () {
+              Navigator.pop(dialog);
+              controller.blockUser(nick);
+            },
+            child: Text('Ignore $nick'),
+          ),
+      ],
+    ),
+  );
+}
+
 void _copyNick(String text) {
   // Clipboard errors are harmless here; nothing to report.
   Clipboard.setData(ClipboardData(text: text)).ignore();
 }
+
+/// Messages in the font picked in Appearance.
+Widget _withMessageFont(BuildContext context, MessageFont font, Widget child) =>
+    font == MessageFont.mono
+    ? DefaultTextStyle.merge(
+        style: TextStyle(
+          fontFamily: MessageFont.monoFamilyFor(Theme.of(context).platform),
+          fontFamilyFallback: MessageFont.monoFamilies,
+        ),
+        child: child,
+      )
+    : child;
 
 /// How the open conversation's messages are drawn.
 enum _ChatStyle {
@@ -1019,6 +1299,16 @@ class _MessageListState extends State<_MessageList> {
   /// The newest line seen while at the bottom; later ones are "new".
   ChatLine? _lastSeen;
 
+  /// Lines already here when the chat opened don't animate in; each later
+  /// line animates once.
+  final Set<ChatLine> _initial = Set.identity();
+  final Set<ChatLine> _animated = Set.identity();
+  bool _primed = false;
+
+  /// Whether [line] should fade and slide in (only the first time).
+  bool _animate(ChatLine line) =>
+      _primed && !_initial.contains(line) && _animated.add(line);
+
   @override
   void initState() {
     super.initState();
@@ -1046,6 +1336,10 @@ class _MessageListState extends State<_MessageList> {
   @override
   Widget build(BuildContext context) {
     final lines = widget.lines;
+    if (!_primed) {
+      _initial.addAll(lines);
+      _primed = true;
+    }
     if (_atBottom || _lastSeen == null) {
       _lastSeen = lines.isEmpty ? null : lines.last;
     }
@@ -1068,7 +1362,18 @@ class _MessageListState extends State<_MessageList> {
         vertical: 8,
       ),
       itemCount: items.length,
-      itemBuilder: (context, i) => _item(context, items[items.length - 1 - i]),
+      itemBuilder: (context, i) {
+        final item = items[items.length - 1 - i];
+        final first = switch (item) {
+          GroupItem(:final lines) || PresenceItem(:final lines) => lines.first,
+          SystemItem(:final line) || LineItem(:final line) => line,
+          DayItem() || UnreadItem() => null,
+        };
+        final child = _item(context, item);
+        return first != null && _animate(first)
+            ? _Appear(key: child.key, child: child)
+            : child;
+      },
     );
     return Stack(
       children: [
@@ -1171,12 +1476,15 @@ class _MessageListState extends State<_MessageList> {
         mentioned: group.mentioned,
         onNickTap: () => widget.onNickTap(sender),
         children: [
-          for (final line in group.lines) ...[
-            _LineActions(
-              key: ObjectKey(line),
-              line: line,
-              onReply: _replyTo(line),
-              child: _LineBody(line: line, ownNick: widget.ownNick),
+          for (final (i, line) in group.lines.indexed) ...[
+            _appearIf(
+              i > 0 && _animate(line),
+              _LineActions(
+                key: ObjectKey(line),
+                line: line,
+                onReply: _replyTo(line),
+                child: _LineBody(line: line, ownNick: widget.ownNick),
+              ),
             ),
             ?_picture(line, indent: 0),
           ],
@@ -1198,17 +1506,20 @@ class _MessageListState extends State<_MessageList> {
         children: [
           for (final (i, line) in group.lines.indexed) ...[
             if (i > 0) const SizedBox(height: 2),
-            _LineActions(
-              key: ObjectKey(line),
-              line: line,
-              onReply: _replyTo(line),
-              child: MessageBubble(
-                own: own,
-                continued: i > 0,
-                child: _LineBody(
-                  line: line,
-                  ownNick: widget.ownNick,
-                  bubble: true,
+            _appearIf(
+              i > 0 && _animate(line),
+              _LineActions(
+                key: ObjectKey(line),
+                line: line,
+                onReply: _replyTo(line),
+                child: MessageBubble(
+                  own: own,
+                  continued: i > 0,
+                  child: _LineBody(
+                    line: line,
+                    ownNick: widget.ownNick,
+                    bubble: true,
+                  ),
                 ),
               ),
             ),
@@ -1228,6 +1539,60 @@ class _MessageListState extends State<_MessageList> {
       ),
     );
   }
+}
+
+Widget _appearIf(bool animate, Widget child) =>
+    animate ? _Appear(key: child.key, child: child) : child;
+
+/// A new message fading in and sliding up 8 pt (none with Reduce Motion).
+class _Appear extends StatefulWidget {
+  const _Appear({required this.child, super.key});
+
+  final Widget child;
+
+  @override
+  State<_Appear> createState() => _AppearState();
+}
+
+class _AppearState extends State<_Appear> with SingleTickerProviderStateMixin {
+  late final AnimationController _t = AnimationController(vsync: this);
+
+  @override
+  void didChangeDependencies() {
+    super.didChangeDependencies();
+    if (_t.status == AnimationStatus.dismissed) {
+      final d = Motion.of(context);
+      if (d == Duration.zero) {
+        _t.value = 1;
+      } else {
+        _t
+          ..duration = d
+          ..forward();
+      }
+    }
+  }
+
+  @override
+  void dispose() {
+    _t.dispose();
+    super.dispose();
+  }
+
+  @override
+  Widget build(BuildContext context) => AnimatedBuilder(
+    animation: _t,
+    child: widget.child,
+    builder: (context, child) {
+      final v = Motion.curve.transform(_t.value);
+      return Opacity(
+        opacity: v,
+        child: Transform.translate(
+          offset: Offset(0, 8 * (1 - v)),
+          child: child,
+        ),
+      );
+    },
+  );
 }
 
 String _time(BuildContext context, DateTime t) =>
@@ -1537,8 +1902,13 @@ class _MessageTileState extends State<_MessageTile> {
       ),
     };
     final mentioned = lineMentions(line, widget.ownNick);
+    // The message font from Appearance arrives as the default text style.
+    final inherited = DefaultTextStyle.of(context).style;
     final span = TextSpan(
-      style: theme.textTheme.bodyMedium,
+      style: theme.textTheme.bodyMedium?.copyWith(
+        fontFamily: inherited.fontFamily,
+        fontFamilyFallback: inherited.fontFamilyFallback,
+      ),
       children: [
         TextSpan(
           text: '$time  ',
@@ -1581,6 +1951,7 @@ class _NickList extends StatelessWidget {
 
   @override
   Widget build(BuildContext context) {
+    final tokens = AppTokens.of(context);
     final members = channel.members.values.toList()
       ..sort((a, b) {
         final rank = _rank(a).compareTo(_rank(b));
@@ -1588,6 +1959,59 @@ class _NickList extends StatelessWidget {
             ? rank
             : a.nick.toLowerCase().compareTo(b.nick.toLowerCase());
       });
+    // Away people go last whatever their role, dimmed.
+    final groups = <(String, List<IrcMember>)>[
+      (
+        'Operators',
+        [
+          for (final m in members)
+            if (!m.away && _role(m) == NickRole.op) m,
+        ],
+      ),
+      (
+        'Voiced',
+        [
+          for (final m in members)
+            if (!m.away && _role(m) == NickRole.voiced) m,
+        ],
+      ),
+      (
+        'Members',
+        [
+          for (final m in members)
+            if (!m.away && _role(m) == NickRole.member) m,
+        ],
+      ),
+      (
+        'Away',
+        [
+          for (final m in members)
+            if (m.away) m,
+        ],
+      ),
+    ];
+
+    Widget tile(BuildContext context, IrcMember m) => Opacity(
+      opacity: m.away ? 0.6 : 1,
+      child: ListTile(
+        dense: true,
+        onTap: () {
+          // Closes the slide-out list on phones; does nothing when the list
+          // is pinned at the side.
+          Scaffold.of(context).closeEndDrawer();
+          onNickTap(m.nick);
+        },
+        leading: comfortable
+            ? NickAvatar(nick: m.nick, size: 28, role: _role(m), away: m.away)
+            : null,
+        trailing: const Icon(Icons.more_horiz, size: 18),
+        title: Text(
+          '${m.topPrefix}${m.nick}',
+          style: TextStyle(color: ChatColors.of(context).nickColor(m.nick)),
+        ),
+      ),
+    );
+
     return Column(
       crossAxisAlignment: CrossAxisAlignment.stretch,
       children: [
@@ -1599,30 +2023,31 @@ class _NickList extends StatelessWidget {
           ),
         ),
         Expanded(
-          child: ListView.builder(
-            itemCount: members.length,
-            itemBuilder: (context, i) {
-              final m = members[i];
-              return ListTile(
-                dense: true,
-                onTap: () {
-                  // Closes the slide-out list on phones; does nothing when
-                  // the list is pinned at the side.
-                  Scaffold.of(context).closeEndDrawer();
-                  onNickTap(m.nick);
-                },
-                leading: comfortable
-                    ? NickAvatar(nick: m.nick, size: 28, role: _role(m))
-                    : null,
-                trailing: const Icon(Icons.more_horiz, size: 18),
-                title: Text(
-                  '${m.topPrefix}${m.nick}',
-                  style: TextStyle(
-                    color: ChatColors.of(context).nickColor(m.nick),
+          child: CustomScrollView(
+            slivers: [
+              for (final (title, list) in groups)
+                if (list.isNotEmpty) ...[
+                  SliverToBoxAdapter(
+                    child: Padding(
+                      padding: const EdgeInsets.fromLTRB(16, 8, 16, 4),
+                      child: Semantics(
+                        header: true,
+                        child: Text(
+                          '$title · ${list.length}',
+                          style: TypeScale.meta.copyWith(
+                            color: tokens.textMuted,
+                            fontWeight: FontWeight.w600,
+                          ),
+                        ),
+                      ),
+                    ),
                   ),
-                ),
-              );
-            },
+                  SliverList.builder(
+                    itemCount: list.length,
+                    itemBuilder: (context, i) => tile(context, list[i]),
+                  ),
+                ],
+            ],
           ),
         ),
       ],

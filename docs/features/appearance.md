@@ -25,6 +25,8 @@ Open **Appearance** from the palette button on the start screen, from
 - **Density:** **Comfortable** (avatars next to rooms and people, grouped
   messages in rooms, bubbles in private chats) or **Compact** (no avatars,
   classic `HH:MM <nick>` lines). See [chat-screen.md](chat-screen.md).
+- **Message font:** System or **Monospace** (even-width letters, for code
+  and ASCII art; Menlo on Apple devices, the system monospace elsewhere).
 - **Text size:** Small, Normal, Large or Larger. It applies to the whole
   app, on top of the device's own text size setting.
 

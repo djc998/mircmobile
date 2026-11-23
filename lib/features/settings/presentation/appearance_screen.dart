@@ -93,6 +93,29 @@ class AppearanceScreen extends ConsumerWidget {
               style: theme.textTheme.bodySmall,
             ),
             const SizedBox(height: 24),
+            Text('Message font', style: theme.textTheme.titleMedium),
+            const SizedBox(height: 8),
+            SegmentedButton<MessageFont>(
+              segments: [
+                for (final f in MessageFont.values)
+                  ButtonSegment(
+                    value: f,
+                    label: Text(
+                      f.label,
+                      style: f == MessageFont.mono
+                          ? const TextStyle(
+                              fontFamilyFallback: MessageFont.monoFamilies,
+                            )
+                          : null,
+                    ),
+                  ),
+              ],
+              selected: {appearance.font},
+              onSelectionChanged: (s) => controller.setFont(s.first),
+            ),
+            const SizedBox(height: 4),
+            Text(appearance.font.description, style: theme.textTheme.bodySmall),
+            const SizedBox(height: 24),
             Text('Text size', style: theme.textTheme.titleMedium),
             const SizedBox(height: 8),
             SegmentedButton<double>(

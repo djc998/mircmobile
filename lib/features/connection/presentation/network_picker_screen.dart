@@ -599,16 +599,18 @@ class _Step extends StatelessWidget {
             children: [
               ConstrainedBox(
                 constraints: const BoxConstraints(minHeight: 28),
-                child: Row(
+                // The button drops under the title when both don't fit
+                // (large text).
+                child: Wrap(
+                  alignment: WrapAlignment.spaceBetween,
+                  crossAxisAlignment: WrapCrossAlignment.center,
                   children: [
-                    Expanded(
-                      child: Semantics(
-                        header: true,
-                        child: Text(
-                          title,
-                          style: TypeScale.heading.copyWith(
-                            color: tokens.textPrimary,
-                          ),
+                    Semantics(
+                      header: true,
+                      child: Text(
+                        title,
+                        style: TypeScale.heading.copyWith(
+                          color: tokens.textPrimary,
                         ),
                       ),
                     ),

@@ -34,8 +34,9 @@ view changes layout as it's resized.
   unread badge (coral `@ n` when it mentions you). The time is accent when
   there's something unread and coral with a mention.
 - **Swipe a row right** to favorite or unfavorite a room; **swipe left** to
-  leave the room or close the chat. Screen readers get the same as actions
-  on the row.
+  leave the room or close the chat. **Long-press** (or right-click in the
+  sidebar) for **Mute**, Favorite and Leave. Screen readers get all three
+  as actions on the row ([room-info.md](room-info.md)).
 
 ## Mentions
 
@@ -99,11 +100,7 @@ first. In the composer, **Enter** sends, **Shift+Enter** starts a new line
 
 ## Not in this phase
 
-- **Mute** on the swipe actions: needs per-room notification settings,
-  which come with Room info in Phase 5.
 - **Online dot** on private chats: IRC needs MONITOR or WATCH for this.
-- People grouped into Operators, Voiced, Members and Away: Phase 5 with
-  profile cards.
 
 ## Code
 

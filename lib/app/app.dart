@@ -7,6 +7,7 @@ import 'package:irc_client/features/connection/presentation/network_picker_scree
 import 'package:irc_client/features/discovery/presentation/room_browser_screen.dart';
 import 'package:irc_client/features/settings/application/appearance_controller.dart';
 import 'package:irc_client/features/settings/presentation/appearance_screen.dart';
+import 'package:irc_client/features/settings/presentation/settings_screen.dart';
 import 'package:material_ui/material_ui.dart';
 
 /// The app's name, shown in the task switcher and window title.
@@ -22,6 +23,10 @@ final routerProvider = Provider<GoRouter>(
       GoRoute(
         path: '/appearance',
         builder: (context, state) => const AppearanceScreen(),
+      ),
+      GoRoute(
+        path: '/settings',
+        builder: (context, state) => const SettingsScreen(),
       ),
       GoRoute(
         path: '/chat',

@@ -53,6 +53,7 @@ class ConversationRow extends StatelessWidget {
     this.mention = false,
     this.selected = false,
     this.favorite = false,
+    this.muted = false,
     this.dense = false,
     this.avatars = true,
     super.key,
@@ -76,6 +77,9 @@ class ConversationRow extends StatelessWidget {
 
   /// Shows a small star (sidebar rows in other sections don't need it).
   final bool favorite;
+
+  /// Muted: a bell-off icon and a grey badge.
+  final bool muted;
   final bool dense;
   final VoidCallback onTap;
 
@@ -84,6 +88,7 @@ class ConversationRow extends StatelessWidget {
     if (isRoom) 'Room $name' else name,
     if (network != null) 'on $network',
     if (favorite) 'favorite',
+    if (muted) 'muted',
     if (unread > 0) '$unread unread ${unread == 1 ? 'message' : 'messages'}',
     if (unread > 0 && mention) 'mentions you',
     if (time != null) 'last active $time',
@@ -131,6 +136,14 @@ class ConversationRow extends StatelessWidget {
           const SizedBox(width: 4),
           Icon(Icons.star, size: 14, color: tokens.textMuted),
         ],
+        if (muted) ...[
+          const SizedBox(width: 4),
+          Icon(
+            Icons.notifications_off_outlined,
+            size: 14,
+            color: tokens.textMuted,
+          ),
+        ],
         if (network != null) ...[
           const SizedBox(width: 6),
           Flexible(child: NetworkChip(network!)),
@@ -146,7 +159,7 @@ class ConversationRow extends StatelessWidget {
           const SizedBox(width: 10),
           Expanded(child: titleLine),
           const SizedBox(width: 6),
-          UnreadBadge(count: unread, mention: mention),
+          UnreadBadge(count: unread, mention: mention, muted: muted),
         ],
       );
     } else {
@@ -191,7 +204,11 @@ class ConversationRow extends StatelessWidget {
                     ),
                     if (unread > 0) ...[
                       const SizedBox(width: 8),
-                      UnreadBadge(count: unread, mention: mention),
+                      UnreadBadge(
+                        count: unread,
+                        mention: mention,
+                        muted: muted,
+                      ),
                     ],
                   ],
                 ),

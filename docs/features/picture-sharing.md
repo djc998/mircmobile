@@ -30,9 +30,10 @@ and delete themselves after a set time.
   the picture in their browser.
 - **Report and block:** the ⋮ next to someone else's picture offers
   **Report picture** (pick a reason, optional details) and **Block bob**.
-  Reporting also blocks the sender. **Block / Unblock** is in the people
-  menu too (tap a name). Blocked people's messages, pictures and room
-  invitations are hidden on every network.
+  Reporting also blocks the sender. Blocking is the same as **Ignore** on a
+  profile card (tap a name), and Settings → Ignored people lists everyone
+  blocked. Their messages, pictures and room invitations are hidden on
+  every network.
 
 ## Privacy and safety
 

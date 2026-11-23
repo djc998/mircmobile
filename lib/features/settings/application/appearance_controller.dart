@@ -5,6 +5,8 @@ library;
 import 'dart:async';
 import 'dart:convert';
 
+import 'package:flutter/foundation.dart';
+
 import 'package:flutter_riverpod/flutter_riverpod.dart';
 import 'package:irc_client/core/storage/app_storage.dart';
 import 'package:irc_client/core/theme/app_theme.dart';
@@ -29,6 +31,34 @@ enum ChatDensity {
   final String description;
 }
 
+/// The typeface for messages.
+enum MessageFont {
+  system('System', 'The device font'),
+  mono('Monospace', 'Even-width letters, for code and ASCII art');
+
+  MessageFont(this.label, this.description);
+
+  final String label;
+  final String description;
+
+  /// The monospace family each platform ships.
+  static String monoFamilyFor(TargetPlatform platform) => switch (platform) {
+    TargetPlatform.iOS || TargetPlatform.macOS => 'Menlo',
+    TargetPlatform.windows => 'Consolas',
+    _ => 'monospace',
+  };
+
+  /// Font families to try for monospace, first that exists wins.
+  static const List<String> monoFamilies = [
+    'JetBrains Mono',
+    'SF Mono',
+    'Menlo',
+    'Roboto Mono',
+    'Consolas',
+    'monospace',
+  ];
+}
+
 class Appearance {
   const Appearance({
     this.mode = AppearanceMode.system,
@@ -36,6 +66,7 @@ class Appearance {
     this.accent = AccentColor.indigo,
     this.density = ChatDensity.comfortable,
     this.textScale = 1,
+    this.font = MessageFont.system,
   });
 
   /// Reads saved settings. Settings saved before the redesign have no
@@ -57,6 +88,7 @@ class Appearance {
           ChatDensity.values.asNameMap()[json['density']] ??
           ChatDensity.comfortable,
       textScale: (json['textScale'] as num?)?.toDouble() ?? 1,
+      font: MessageFont.values.asNameMap()[json['font']] ?? MessageFont.system,
     );
   }
 
@@ -71,6 +103,9 @@ class Appearance {
   final ChatDensity density;
   final double textScale;
 
+  /// Typeface for message text.
+  final MessageFont font;
+
   /// Whether [accent] changes [preset]'s colours.
   bool get accentApplies => preset == ThemePreset.indigo;
 
@@ -80,12 +115,14 @@ class Appearance {
     AccentColor? accent,
     ChatDensity? density,
     double? textScale,
+    MessageFont? font,
   }) => Appearance(
     mode: mode ?? this.mode,
     preset: preset ?? this.preset,
     accent: accent ?? this.accent,
     density: density ?? this.density,
     textScale: textScale ?? this.textScale,
+    font: font ?? this.font,
   );
 
   Map<String, Object?> toJson() => {
@@ -95,6 +132,7 @@ class Appearance {
     'accent': accent.name,
     'density': density.name,
     'textScale': textScale,
+    'font': font.name,
   };
 }
 
@@ -141,6 +179,8 @@ class AppearanceController extends Notifier<Appearance> {
       _set(state.copyWith(density: density));
 
   void setTextScale(double scale) => _set(state.copyWith(textScale: scale));
+
+  void setFont(MessageFont font) => _set(state.copyWith(font: font));
 }
 
 final appearanceProvider = NotifierProvider<AppearanceController, Appearance>(

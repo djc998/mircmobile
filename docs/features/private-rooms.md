@@ -20,7 +20,8 @@ already exists and someone else runs it, the app says so and changes
 nothing.
 
 ### Room settings
-**Room settings** (in a room's **Chat info**: tap its name) shows and changes:
+**Room settings** (in **Room info**: tap the room's name; see
+[room-info.md](room-info.md)) shows and changes:
 
 - the room's **Description** (its topic), shown at the top of the room and
   in the room list. Operators can always change it; others only when the

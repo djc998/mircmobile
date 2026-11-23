@@ -5,6 +5,15 @@ macOS. People on other IRC apps can join from a browser.
 
 ## Using it
 
+The call screen (restyled in Phase 5) is always dark: the other person's
+video or a large avatar, your own camera in a draggable preview with
+rounded corners that snaps to the nearest corner, and the controls (Mute,
+Camera, Switch camera, Speaker, a red **Hang up**) on a blurred pill. **Back
+to chat** (the arrow at the top) shrinks the call to a green pill with the
+person and the time at the top of the app; tap it to return. Incoming calls
+show a card with the caller's avatar, the kind of call, and red
+**Decline** and green **Accept** buttons.
+
 - **Call:** open a private chat and tap **Voice call** (📞) or **Video call**
   (🎥) in the chat's top bar. The other person gets a private message like
   `🎥 Video call from dennis: https://<host>/c/<id>#video`, and you see

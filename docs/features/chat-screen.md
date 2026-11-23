@@ -78,6 +78,12 @@ Available on iOS, Android and macOS (shared Flutter code). Phase 2 of the
   it has keyboard focus).
 - See [replies-and-mentions.md](replies-and-mentions.md).
 
+### Motion
+
+New messages fade in and slide up 8 pt (200 ms, ease-out). Messages that
+were already there when you opened the chat don't animate, and nothing
+moves with Reduce Motion on.
+
 ### Accessibility
 
 - Each message reads as "alice, 10:42, message" (plus "mentions you"),

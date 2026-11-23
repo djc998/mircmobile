@@ -143,9 +143,15 @@ List<MentionInfo> mentionsIn(ChatState state, {int limit = 100}) {
   return found.take(limit).toList();
 }
 
-/// Conversations with an unread mention (the Mentions tab badge).
-int unreadMentionChats(ChatState state) =>
-    state.buffers.values.where((b) => b.mentioned).length;
+/// Conversations with an unread mention (the Mentions tab badge). Muted
+/// chats don't count when [prefs] is given.
+int unreadMentionChats(ChatState state, [RoomPrefs? prefs]) => state
+    .buffers
+    .values
+    .where(
+      (b) => b.mentioned && !(prefs?.isMuted(b.networkId, b.name) ?? false),
+    )
+    .length;
 
 /// A short network name for the chip on each row: `Libera.Chat` → `Libera`,
 /// `irc.oftc.net` → `oftc`.

@@ -177,6 +177,7 @@ class _ChatShellState extends ConsumerState<ChatShell> {
       onMentions: () => _showTab(HomeTab.mentions),
       onAddNetwork: () => context.go('/'),
       onAppearance: () => unawaited(context.push('/appearance')),
+      onSettings: () => unawaited(context.push('/settings')),
       onToggleSidebar: () =>
           unawaited(ref.read(panelPrefsProvider.notifier).toggleChats()),
       onTogglePeople: () =>
@@ -332,7 +333,7 @@ class _ChatShellState extends ConsumerState<ChatShell> {
 }
 
 /// An icon for a tab, with the Mentions badge and your avatar on You.
-class _TabIcon extends StatelessWidget {
+class _TabIcon extends ConsumerWidget {
   const _TabIcon({
     required this.tab,
     required this.state,
@@ -344,11 +345,11 @@ class _TabIcon extends StatelessWidget {
   final bool selected;
 
   @override
-  Widget build(BuildContext context) {
+  Widget build(BuildContext context, WidgetRef ref) {
     final icon = Icon(selected ? tab.selectedIcon : tab.icon);
     switch (tab) {
       case HomeTab.mentions:
-        final n = unreadMentionChats(state);
+        final n = unreadMentionChats(state, ref.watch(roomPrefsProvider));
         return n == 0
             ? icon
             : Badge(
@@ -368,7 +369,7 @@ class _TabIcon extends StatelessWidget {
   }
 }
 
-class _TabBar extends StatelessWidget {
+class _TabBar extends ConsumerWidget {
   const _TabBar({
     required this.selected,
     required this.onSelect,
@@ -380,8 +381,8 @@ class _TabBar extends StatelessWidget {
   final ChatState state;
 
   @override
-  Widget build(BuildContext context) {
-    final mentions = unreadMentionChats(state);
+  Widget build(BuildContext context, WidgetRef ref) {
+    final mentions = unreadMentionChats(state, ref.watch(roomPrefsProvider));
     return NavigationBar(
       selectedIndex: selected.index,
       onDestinationSelected: (i) => onSelect(HomeTab.values[i]),
@@ -602,6 +603,7 @@ class _RoomsHomeState extends ConsumerState<RoomsHome> {
                 unread: c.buffer.unread,
                 mention: c.buffer.mentioned,
                 favorite: c.isRoom && prefs.isFavorite(c.network.id, c.name),
+                muted: prefs.isMuted(c.network.id, c.name),
                 selected: widget.compact && c.key == state.activeKey,
                 onTap: () => widget.onOpen(c.key),
               ),
@@ -610,6 +612,61 @@ class _RoomsHomeState extends ConsumerState<RoomsHome> {
       ),
     );
   }
+}
+
+/// Mute, favorite and leave for one chat: long-press a row in Rooms home,
+/// or right-click it in the sidebar.
+Future<void> showConversationMenu(
+  BuildContext context,
+  WidgetRef ref,
+  ConversationInfo c,
+) {
+  final prefs = ref.read(roomPrefsProvider);
+  final notifier = ref.read(roomPrefsProvider.notifier);
+  final muted = prefs.isMuted(c.network.id, c.name);
+  final favorite = c.isRoom && prefs.isFavorite(c.network.id, c.name);
+  return showModalBottomSheet<void>(
+    context: context,
+    showDragHandle: true,
+    builder: (sheet) {
+      Widget item(IconData icon, String label, VoidCallback run) => ListTile(
+        leading: Icon(icon),
+        title: Text(label),
+        onTap: () {
+          Navigator.pop(sheet);
+          run();
+        },
+      );
+      return SafeArea(
+        child: Column(
+          mainAxisSize: MainAxisSize.min,
+          children: [
+            item(
+              muted
+                  ? Icons.notifications_active_outlined
+                  : Icons.notifications_off_outlined,
+              muted ? 'Unmute ${c.name}' : 'Mute ${c.name}',
+              () => notifier.toggleMute(c.network.id, c.name),
+            ),
+            if (c.isRoom)
+              item(
+                favorite ? Icons.star_border : Icons.star,
+                favorite
+                    ? 'Remove ${c.name} from favorites'
+                    : 'Add ${c.name} to favorites',
+                () => notifier.toggleFavorite(c.network.id, c.name),
+              ),
+            item(
+              Icons.logout,
+              c.isRoom ? 'Leave ${c.name}' : 'Close chat with ${c.name}',
+              () =>
+                  ref.read(chatControllerProvider.notifier).closeBuffer(c.key),
+            ),
+          ],
+        ),
+      );
+    },
+  );
 }
 
 /// Swipe right to favorite or unfavorite a room; left to leave the room or
@@ -639,6 +696,12 @@ class _SwipeRow extends ConsumerWidget {
         .toggleFavorite(c.network.id, c.name);
     void close() =>
         ref.read(chatControllerProvider.notifier).closeBuffer(c.key);
+    final muted = ref.watch(roomPrefsProvider).isMuted(c.network.id, c.name);
+    final mute = muted ? 'Unmute ${c.name}' : 'Mute ${c.name}';
+    void toggleMute() =>
+        ref.read(roomPrefsProvider.notifier).toggleMute(c.network.id, c.name);
+
+    Future<void> menu() => showConversationMenu(context, ref, c);
     Widget background(
       IconData icon,
       String label,
@@ -665,38 +728,43 @@ class _SwipeRow extends ConsumerWidget {
     );
     return Semantics(
       customSemanticsActions: {
+        CustomSemanticsAction(label: mute): toggleMute,
         if (c.isRoom) CustomSemanticsAction(label: fav): toggleFavorite,
         CustomSemanticsAction(label: leave): close,
       },
-      child: Dismissible(
-        key: ValueKey('swipe-${c.key}'),
-        direction: c.isRoom
-            ? DismissDirection.horizontal
-            : DismissDirection.endToStart,
-        confirmDismiss: (direction) async {
-          if (direction == DismissDirection.startToEnd) {
-            toggleFavorite();
-          } else {
-            close();
-          }
-          // The list rebuilds without the row (leave) or with the new star.
-          return false;
-        },
-        background: background(
-          favorite ? Icons.star_border : Icons.star,
-          favorite ? 'Unfavorite' : 'Favorite',
-          tokens.accentSoft,
-          tokens.onAccentSoft,
-          false,
+      child: GestureDetector(
+        onLongPress: () => unawaited(menu()),
+        onSecondaryTap: () => unawaited(menu()),
+        child: Dismissible(
+          key: ValueKey('swipe-${c.key}'),
+          direction: c.isRoom
+              ? DismissDirection.horizontal
+              : DismissDirection.endToStart,
+          confirmDismiss: (direction) async {
+            if (direction == DismissDirection.startToEnd) {
+              toggleFavorite();
+            } else {
+              close();
+            }
+            // The list rebuilds without the row (leave) or with the new star.
+            return false;
+          },
+          background: background(
+            favorite ? Icons.star_border : Icons.star,
+            favorite ? 'Unfavorite' : 'Favorite',
+            tokens.accentSoft,
+            tokens.onAccentSoft,
+            false,
+          ),
+          secondaryBackground: background(
+            Icons.logout,
+            c.isRoom ? 'Leave' : 'Close',
+            tokens.mention,
+            tokens.onMention,
+            true,
+          ),
+          child: child,
         ),
-        secondaryBackground: background(
-          Icons.logout,
-          c.isRoom ? 'Leave' : 'Close',
-          tokens.mention,
-          tokens.onMention,
-          true,
-        ),
-        child: child,
       ),
     );
   }
@@ -866,7 +934,7 @@ class Sidebar extends ConsumerWidget {
     final sections = sidebarSections(state, prefs);
     final multi = state.networks.length > 1;
     final isMac = Theme.of(context).platform == TargetPlatform.macOS;
-    final mentions = unreadMentionChats(state);
+    final mentions = unreadMentionChats(state, prefs);
     final net = state.activeNetwork ?? state.networks.values.firstOrNull;
     final connected = state.connectedNetworks.length;
 
@@ -1004,20 +1072,28 @@ class Sidebar extends ConsumerWidget {
                         ),
                       ),
                       for (final c in list)
-                        ConversationRow(
-                          avatars:
-                              ref.watch(appearanceProvider).density ==
-                              ChatDensity.comfortable,
-                          dense: true,
-                          name: c.name,
-                          isRoom: c.isRoom,
-                          network: multi
-                              ? shortNetworkName(c.network.label)
-                              : null,
-                          unread: c.buffer.unread,
-                          mention: c.buffer.mentioned,
-                          selected: current == null && c.key == state.activeKey,
-                          onTap: () => onOpen(c.key),
+                        GestureDetector(
+                          onSecondaryTap: () =>
+                              unawaited(showConversationMenu(context, ref, c)),
+                          onLongPress: () =>
+                              unawaited(showConversationMenu(context, ref, c)),
+                          child: ConversationRow(
+                            avatars:
+                                ref.watch(appearanceProvider).density ==
+                                ChatDensity.comfortable,
+                            dense: true,
+                            name: c.name,
+                            isRoom: c.isRoom,
+                            network: multi
+                                ? shortNetworkName(c.network.label)
+                                : null,
+                            unread: c.buffer.unread,
+                            mention: c.buffer.mentioned,
+                            muted: prefs.isMuted(c.network.id, c.name),
+                            selected:
+                                current == null && c.key == state.activeKey,
+                            onTap: () => onOpen(c.key),
+                          ),
                         ),
                     ],
                 ],
@@ -1151,6 +1227,7 @@ class _MacMenus extends StatelessWidget {
     required this.onMentions,
     required this.onAddNetwork,
     required this.onAppearance,
+    required this.onSettings,
     required this.onToggleSidebar,
     required this.onTogglePeople,
     required this.onCloseChat,
@@ -1166,6 +1243,7 @@ class _MacMenus extends StatelessWidget {
   final VoidCallback onMentions;
   final VoidCallback onAddNetwork;
   final VoidCallback onAppearance;
+  final VoidCallback onSettings;
   final VoidCallback onToggleSidebar;
   final VoidCallback onTogglePeople;
   final VoidCallback onCloseChat;
@@ -1228,7 +1306,7 @@ class _MacMenus extends StatelessWidget {
         sidebar: onToggleSidebar,
         people: onTogglePeople,
         close: onCloseChat,
-        settings: onAppearance,
+        settings: onSettings,
         for (final (i, d) in _digits.indexed) key(d): () => onJumpTo(i),
       },
       child: Focus(autofocus: true, child: child),
@@ -1254,7 +1332,8 @@ class _MacMenus extends StatelessWidget {
                 const PlatformProvidedMenuItem(
                   type: PlatformProvidedMenuItemType.about,
                 ),
-                item('Settings…', onAppearance, settings),
+                item('Settings…', onSettings, settings),
+                item('Appearance…', onAppearance),
               ],
             ),
             const PlatformMenuItemGroup(

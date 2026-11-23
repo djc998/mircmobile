@@ -366,6 +366,15 @@ void main() {
       await settle(tester);
       expect(find.text('00:00'), findsOneWidget);
 
+      // Back to chat shrinks the call to a green pill; tapping it returns.
+      await tester.tap(find.byTooltip('Back to chat'));
+      await settle(tester);
+      expect(find.byTooltip('Hang up'), findsNothing);
+      expect(find.text('bob · 00:00'), findsOneWidget);
+      await tester.tap(find.text('bob · 00:00'));
+      await settle(tester);
+      expect(find.byTooltip('Hang up'), findsOneWidget);
+
       // Bob hangs up.
       signaling.receive({'type': 'bye'});
       await settle(tester);

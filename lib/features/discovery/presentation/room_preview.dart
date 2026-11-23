@@ -49,7 +49,7 @@ Future<void> showRoomPreview(
                         child: Column(
                           crossAxisAlignment: CrossAxisAlignment.start,
                           children: [
-                            SelectableText(
+                            Text(
                               room.name,
                               style: TypeScale.title.copyWith(
                                 color: tokens.textPrimary,
