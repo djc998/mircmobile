@@ -78,6 +78,7 @@ class MessageEvent extends IrcEvent {
     this.isAction = false,
     this.isNotice = false,
     this.tags = const {},
+    this.history = false,
     super.time,
   });
 
@@ -89,6 +90,12 @@ class MessageEvent extends IrcEvent {
   final bool isAction;
   final bool isNotice;
   final Map<String, String> tags;
+
+  /// Sent again from the server's history (CHATHISTORY), not live.
+  final bool history;
+
+  /// The server's id for the message (IRCv3 `msgid`), if it gave one.
+  String? get msgid => tags['msgid'];
 }
 
 class JoinEvent extends IrcEvent {
@@ -229,4 +236,27 @@ class InviteEvent extends IrcEvent {
 
   final String from;
   final String channel;
+}
+
+/// A CHATHISTORY reply for [target] finished; [count] messages came in it.
+/// [failed] when the server refused the request (FAIL CHATHISTORY), in which
+/// case [target] may be null.
+class HistoryBatchEvent extends IrcEvent {
+  HistoryBatchEvent({
+    required this.target,
+    required this.count,
+    this.failed = false,
+  });
+
+  final String? target;
+  final int count;
+  final bool failed;
+}
+
+/// Conversations with messages in a time range (CHATHISTORY TARGETS): rooms
+/// and people, each with the time of its latest message.
+class HistoryTargetsEvent extends IrcEvent {
+  HistoryTargetsEvent(this.targets);
+
+  final List<({String name, DateTime latest})> targets;
 }

@@ -164,6 +164,8 @@ class IrcClient {
   // Ban masks arriving (367) per case-folded channel, until 368.
   final _banBuffer = <String, List<String>>{};
   final Set<String> _namesInProgress = {};
+  // Open IRCv3 batches by reference.
+  final _batches = <String, _Batch>{};
 
   IrcConnectionStatus _status = IrcConnectionStatus.disconnected;
   late String _nick;
@@ -182,6 +184,48 @@ class IrcClient {
 
   /// Enabled IRCv3 capabilities.
   Set<String> get capabilities => _cap?.enabled ?? const {};
+
+  /// Whether the server keeps history we can ask for (CHATHISTORY).
+  bool get supportsHistory =>
+      capabilities.contains('draft/chathistory') ||
+      capabilities.contains('chathistory');
+
+  /// How many messages to ask for at once: the server's limit, at most 100.
+  int get historyLimit {
+    final max = _isupport.chathistoryLimit;
+    return max == null || max <= 0 || max > 100 ? 100 : max;
+  }
+
+  static String _timestamp(DateTime t) =>
+      'timestamp=${t.toUtc().toIso8601String()}';
+
+  /// Asks for the latest messages in [target]: those after [after], or the
+  /// newest [limit] when [after] is null. Replies come as [MessageEvent]s
+  /// with `history` set, then a [HistoryBatchEvent].
+  void requestHistory(String target, {DateTime? after, int? limit}) {
+    if (!supportsHistory) return;
+    final since = after == null ? '*' : _timestamp(after);
+    sendRaw('CHATHISTORY LATEST $target $since ${limit ?? historyLimit}');
+  }
+
+  /// Asks for up to [limit] messages in [target] from before [before].
+  void requestHistoryBefore(String target, DateTime before, {int? limit}) {
+    if (!supportsHistory) return;
+    sendRaw(
+      'CHATHISTORY BEFORE $target ${_timestamp(before)} '
+      '${limit ?? historyLimit}',
+    );
+  }
+
+  /// Asks which conversations had messages between [from] and [to]; the
+  /// answer is a [HistoryTargetsEvent].
+  void requestHistoryTargets(DateTime from, DateTime to, {int? limit}) {
+    if (!supportsHistory) return;
+    sendRaw(
+      'CHATHISTORY TARGETS ${_timestamp(from)} ${_timestamp(to)} '
+      '${limit ?? historyLimit}',
+    );
+  }
 
   /// Joined channels keyed by case-folded name.
   final Map<String, IrcChannel> channels = {};
@@ -301,6 +345,7 @@ class IrcClient {
     if (_status == IrcConnectionStatus.disconnected) return;
     _rejoin.addAll(channels.values.map((c) => c.name));
     channels.clear();
+    _batches.clear();
     unawaited(_teardown());
     if (_userQuit || !config.autoReconnect) {
       _setStatus(IrcConnectionStatus.disconnected, reason: reason);
@@ -640,6 +685,18 @@ class IrcClient {
         _listBuffer.clear();
       case 'PRIVMSG' || 'NOTICE':
         _onMessage(m, from, time);
+      case 'BATCH':
+        _onBatch(m);
+      case 'CHATHISTORY' when m.param(0) == 'TARGETS':
+        final batch = _batches[m.tags['batch']];
+        final at = DateTime.tryParse(
+          (m.param(2) ?? '').replaceFirst('timestamp=', ''),
+        );
+        if (batch != null && at != null) {
+          batch.targets.add((m.param(1) ?? '', at));
+        }
+      case 'FAIL' when m.param(0) == 'CHATHISTORY':
+        _emit(HistoryBatchEvent(target: null, count: 0, failed: true));
       case 'ERROR':
         _emit(ServerErrorEvent(code: 'ERROR', text: m.trailing ?? ''));
       default:
@@ -897,6 +954,29 @@ class IrcClient {
     _emit(TopicEvent(channel: name, topic: topic, setBy: setBy));
   }
 
+  /// BATCH +ref type params… opens a batch; BATCH -ref closes it.
+  void _onBatch(IrcMessage m) {
+    final ref = m.param(0) ?? '';
+    if (ref.startsWith('+') && ref.length > 1) {
+      _batches[ref.substring(1)] = _Batch(m.param(1) ?? '', m.param(2));
+    } else if (ref.startsWith('-')) {
+      final batch = _batches.remove(ref.substring(1));
+      if (batch == null) return;
+      if (_isHistoryBatch(batch.type)) {
+        _emit(HistoryBatchEvent(target: batch.target, count: batch.count));
+      } else if (batch.type.endsWith('chathistory-targets')) {
+        _emit(
+          HistoryTargetsEvent([
+            for (final t in batch.targets) (name: t.$1, latest: t.$2),
+          ]),
+        );
+      }
+    }
+  }
+
+  static bool _isHistoryBatch(String type) =>
+      type == 'chathistory' || type == 'draft/chathistory';
+
   /// Some servers prefix LIST topics with channel modes like `[+nt] `.
   static String _stripListModes(String topic) =>
       topic.replaceFirst(RegExp(r'^\[\+[A-Za-z]*(?: [^\]]*)?\]\s?'), '');
@@ -915,6 +995,12 @@ class IrcClient {
     }
 
     final isOwn = isMe(from);
+    final batch = _batches[m.tags['batch']];
+    final history = batch != null && _isHistoryBatch(batch.type);
+    // Ergo replays joins and parts as messages from HistServ ("bob joined
+    // the channel") to clients without event-playback: not chat.
+    if (history && from == 'HistServ') return;
+    if (history) batch.count++;
     // Server notices before/after registration go to the status window.
     if (m.prefix == null || m.prefix!.isServer || target == '*') {
       _emit(ServerNoticeEvent(m, text: text));
@@ -932,7 +1018,8 @@ class IrcClient {
         isAction = true;
         text = arg;
       } else {
-        if (!isNotice && !isOwn) _replyCtcp(from, ctcp, arg);
+        // Never answer a CTCP request again from history.
+        if (!isNotice && !isOwn && !history) _replyCtcp(from, ctcp, arg);
         return;
       }
     }
@@ -951,6 +1038,7 @@ class IrcClient {
         isAction: isAction,
         isNotice: isNotice,
         tags: m.tags,
+        history: history,
         time: time,
       ),
     );
@@ -993,4 +1081,15 @@ class IrcClient {
 
   /// Reported in CTCP VERSION replies.
   static String clientVersion = 'IRCage (Flutter) 0.1.0';
+}
+
+/// An open IRCv3 batch: its type, first parameter (the conversation, for
+/// chathistory), the messages counted in it and any TARGETS lines.
+class _Batch {
+  _Batch(this.type, this.target);
+
+  final String type;
+  final String? target;
+  int count = 0;
+  final List<(String, DateTime)> targets = [];
 }

@@ -13,6 +13,10 @@ class ISupport {
   String? networkName;
   String caseMapping = 'rfc1459';
 
+  /// The most messages one CHATHISTORY request may ask for (0: no limit);
+  /// null when the server didn't say.
+  int? chathistoryLimit;
+
   /// Applies the params of one 005 line (excluding our nick and the trailer).
   void apply(List<String> params) {
     for (final token in params) {
@@ -34,6 +38,8 @@ class ISupport {
           networkName = value;
         case 'CASEMAPPING':
           caseMapping = value.toLowerCase();
+        case 'CHATHISTORY':
+          chathistoryLimit = int.tryParse(value);
       }
     }
   }

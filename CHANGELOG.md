@@ -7,6 +7,13 @@ and the project uses [Semantic Versioning](https://semver.org/).
 ## [Unreleased]
 
 ### Added
+- **Missed and older messages** from servers and bouncers that keep them
+  (IRCv3 chathistory: Ergo, soju and others), on iOS, Android and macOS.
+  Joining a room or reconnecting brings back what was said while you were
+  away, in time order and without repeats. Private chats that got messages
+  while you were offline open with them, as unread. Scrolling to the top of
+  a chat (or **Load earlier messages**) fetches older ones until there are
+  none. See [docs/features/chathistory.md](docs/features/chathistory.md).
 - `server/picture-host/check-reports.sh`: lists message and photo reports,
   newest first, with the last 24 hours marked NEW (asks for the admin
   token; `--json` for the raw list).

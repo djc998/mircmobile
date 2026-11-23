@@ -45,6 +45,7 @@ class ChatLine {
     DateTime? time,
     this.presence,
     this.subject,
+    this.msgid,
   }) : time = time ?? DateTime.now();
 
   factory ChatLine.fromStored(StoredLine line) => ChatLine(
@@ -52,6 +53,7 @@ class ChatLine {
     sender: line.sender,
     time: line.time.toLocal(),
     kind: ChatLineKind.values.asNameMap()[line.kind] ?? ChatLineKind.message,
+    msgid: line.msgid,
   );
 
   final DateTime time;
@@ -65,6 +67,10 @@ class ChatLine {
   /// Who [presence] is about.
   final String? subject;
 
+  /// The server's id for the message (IRCv3 `msgid`), when it gave one;
+  /// used to skip messages that come again from history.
+  final String? msgid;
+
   /// Whether this kind of line is kept in saved history.
   bool get isSaved => switch (kind) {
     ChatLineKind.message ||
@@ -74,12 +80,29 @@ class ChatLine {
     ChatLineKind.event || ChatLineKind.error => false,
   };
 
-  StoredLine toStored() =>
-      StoredLine(time: time, kind: kind.name, text: text, sender: sender);
+  StoredLine toStored() => StoredLine(
+    time: time,
+    kind: kind.name,
+    text: text,
+    sender: sender,
+    msgid: msgid,
+  );
+
+  /// Whether [other] is the same message (from history, say): the same
+  /// msgid, or the same sender and text within a few seconds.
+  bool sameMessage(ChatLine other) {
+    if (msgid != null && other.msgid != null) return msgid == other.msgid;
+    return sender == other.sender &&
+        text == other.text &&
+        time.difference(other.time).abs() < const Duration(seconds: 3);
+  }
 }
 
 /// One conversation on one network: its status window, a channel or a
 /// private chat.
+/// What a CHATHISTORY request for a conversation is for.
+enum HistoryWant { missed, older }
+
 class ChatBuffer {
   ChatBuffer(this.networkId, this.name);
 
@@ -105,6 +128,35 @@ class ChatBuffer {
   /// [pendingSave] so they aren't saved twice.
   bool restoring = false;
   final List<StoredLine> pendingSave = [];
+
+  /// Done once saved history has been read (right away when there's none).
+  Future<void> restored = Future.value();
+
+  /// A CHATHISTORY request for this conversation is out: older messages
+  /// ([HistoryWant.older]) or missed ones ([HistoryWant.missed]).
+  HistoryWant? historyWant;
+
+  /// Messages the current history request actually added.
+  int historyAdded = 0;
+
+  /// The server has nothing older than what's shown.
+  bool historyExhausted = false;
+
+  /// The newest chat line (message, action, notice or own), if any.
+  ChatLine? get newestMessage {
+    for (var i = lines.length - 1; i >= 0; i--) {
+      if (lines[i].isSaved) return lines[i];
+    }
+    return null;
+  }
+
+  /// The oldest chat line, if any.
+  ChatLine? get oldestMessage {
+    for (final l in lines) {
+      if (l.isSaved) return l;
+    }
+    return null;
+  }
 
   /// Unique across networks; see [ChatState.bufferKey].
   String get key => ChatState.bufferKey(networkId, name);
@@ -139,6 +191,13 @@ class NetworkSession {
   /// Name the network gives itself (ISUPPORT NETWORK), once known.
   String name = '';
   String nick;
+
+  /// When [ChatController] last saved "messages seen until" for this
+  /// network; writes are kept to one a minute.
+  DateTime? seenSavedAt;
+
+  /// The "seen until" time the last catch-up asked the server from.
+  DateTime? historySince;
 
   /// Rooms from the last LIST on this network.
   List<ChannelListEntry> rooms = const [];
@@ -295,6 +354,10 @@ class ChatController extends Notifier<ChatState> {
   static const _saveHistoryKey = 'saveHistory';
   static const _blockedKey = 'blockedNicks';
   static const _openConversationsKey = 'openConversations';
+
+  /// Per network: when messages were last seen live, so a reconnect can
+  /// ask the server which private chats had messages since.
+  static const _historySeenKey = 'historySeen';
 
   KeyValueStore get _store => ref.read(keyValueStoreProvider);
   ChatHistoryStore get _history => ref.read(chatHistoryStoreProvider);
@@ -488,29 +551,29 @@ class ChatController extends Notifier<ChatState> {
   void _restoreHistory(ChatBuffer buffer) {
     if (!saveHistory) return;
     buffer.restoring = true;
-    unawaited(
-      _history.load(buffer.networkId, buffer.name).then((saved) {
-        buffer.restoring = false;
-        for (final line in buffer.pendingSave) {
-          _history.append(buffer.networkId, buffer.name, line);
-        }
-        buffer.pendingSave.clear();
-        if (saved.isEmpty || state.buffers[buffer.key] != buffer) return;
-        final restored = [
-          for (final l in saved) ChatLine.fromStored(l),
-          ChatLine(
-            text: 'Saved messages above',
-            kind: ChatLineKind.event,
-            time: saved.last.time.toLocal(),
-          ),
-        ];
-        buffer.lines.insertAll(0, restored);
-        if (buffer.lines.length > maxLinesPerBuffer) {
-          buffer.lines.removeRange(0, buffer.lines.length - maxLinesPerBuffer);
-        }
-        _touch();
-      }),
-    );
+    buffer.restored = _history.load(buffer.networkId, buffer.name).then((
+      saved,
+    ) {
+      buffer.restoring = false;
+      for (final line in buffer.pendingSave) {
+        _history.append(buffer.networkId, buffer.name, line);
+      }
+      buffer.pendingSave.clear();
+      if (saved.isEmpty || state.buffers[buffer.key] != buffer) return;
+      final restored = [
+        for (final l in saved) ChatLine.fromStored(l),
+        ChatLine(
+          text: 'Saved messages above',
+          kind: ChatLineKind.event,
+          time: saved.last.time.toLocal(),
+        ),
+      ];
+      buffer.lines.insertAll(0, restored);
+      if (buffer.lines.length > maxLinesPerBuffer) {
+        buffer.lines.removeRange(0, buffer.lines.length - maxLinesPerBuffer);
+      }
+      _touch();
+    });
   }
 
   void _saveLine(ChatBuffer buffer, ChatLine line) {
@@ -1088,16 +1151,149 @@ class ChatController extends Notifier<ChatState> {
     if (buffer.lines.length > maxLinesPerBuffer) {
       buffer.lines.removeRange(0, buffer.lines.length - maxLinesPerBuffer);
     }
-    if (state.activeKey != buffer.key && countUnread) {
-      if (buffer.unread == 0) buffer.firstUnread = line;
-      buffer.unread++;
-      if (session.nick.isNotEmpty &&
-          line.kind == ChatLineKind.message &&
-          mentions(line.text, session.nick)) {
-        buffer.mentioned = true;
+    if (countUnread) _countUnread(session, buffer, line);
+    if (line.isSaved && !buffer.isStatus) _markSeen(session);
+    _touch();
+  }
+
+  void _countUnread(NetworkSession session, ChatBuffer buffer, ChatLine line) {
+    if (state.activeKey == buffer.key) return;
+    if (buffer.unread == 0) buffer.firstUnread = line;
+    buffer.unread++;
+    if (session.nick.isNotEmpty &&
+        line.kind == ChatLineKind.message &&
+        mentions(line.text, session.nick)) {
+      buffer.mentioned = true;
+    }
+  }
+
+  // ---------------------------------------------------------------------
+  // History from the server (IRCv3 CHATHISTORY: Ergo, soju and others)
+  // ---------------------------------------------------------------------
+
+  DateTime? _seenAt(String networkId) {
+    try {
+      final all = jsonDecode(
+        _store.getString(_historySeenKey) ?? '{}',
+      ) as Map<String, Object?>;
+      final ms = all[networkId];
+      return ms is int ? DateTime.fromMillisecondsSinceEpoch(ms) : null;
+    } on Object {
+      return null;
+    }
+  }
+
+  /// Notes that this network's messages were seen up to now (at most one
+  /// write a minute).
+  void _markSeen(NetworkSession session, {bool force = false}) {
+    final now = DateTime.now();
+    final last = session.seenSavedAt;
+    if (!force && last != null && now.difference(last).inSeconds < 60) {
+      return;
+    }
+    session.seenSavedAt = now;
+    Map<String, Object?> all;
+    try {
+      all = jsonDecode(
+        _store.getString(_historySeenKey) ?? '{}',
+      ) as Map<String, Object?>;
+    } on Object {
+      all = {};
+    }
+    all[session.id] = now.millisecondsSinceEpoch;
+    unawaited(_store.setString(_historySeenKey, jsonEncode(all)));
+  }
+
+  /// After logging in: asks which private chats had messages since the app
+  /// last saw this network, and what open private chats missed.
+  void _catchUp(NetworkSession session) {
+    final client = session.client;
+    if (!client.supportsHistory) return;
+    final since =
+        _seenAt(session.id) ?? DateTime.now().subtract(const Duration(days: 1));
+    session.historySince = since;
+    _markSeen(session, force: true);
+    client.requestHistoryTargets(
+      since,
+      DateTime.now().add(const Duration(minutes: 1)),
+    );
+    for (final b in state.buffers.values.toList()) {
+      if (b.networkId == session.id && !b.isStatus && !b.isChannel) {
+        unawaited(_fetchMissed(session, b));
       }
     }
+  }
+
+  /// Asks for what [buffer] missed: messages after its newest one, or the
+  /// latest ones when it has none.
+  Future<void> _fetchMissed(NetworkSession session, ChatBuffer buffer) async {
+    await buffer.restored;
+    if (buffer.historyWant != null || !session.client.supportsHistory) return;
+    buffer
+      ..historyWant = HistoryWant.missed
+      ..historyAdded = 0;
+    final newest = buffer.newestMessage;
+    session.client.requestHistory(
+      buffer.name,
+      after: newest?.time,
+      limit: newest == null ? 50 : null,
+    );
+  }
+
+  /// Whether older messages can be fetched for [buffer] from the server.
+  bool canLoadOlder(ChatBuffer buffer) =>
+      !buffer.isStatus &&
+      !buffer.historyExhausted &&
+      (state.networks[buffer.networkId]?.client.supportsHistory ?? false) &&
+      state.networks[buffer.networkId]?.status == IrcConnectionStatus.connected;
+
+  /// Fetches up to 50 messages from before the oldest one shown.
+  void loadOlder(String key) {
+    final buffer = state.buffers[key];
+    if (buffer == null || buffer.historyWant != null || !canLoadOlder(buffer)) {
+      return;
+    }
+    buffer
+      ..historyWant = HistoryWant.older
+      ..historyAdded = 0;
+    state.networks[buffer.networkId]!.client.requestHistoryBefore(
+      buffer.name,
+      buffer.oldestMessage?.time ?? DateTime.now(),
+      limit: 50,
+    );
     _touch();
+  }
+
+  /// A message from history: skipped if it's already shown, otherwise put
+  /// in time order. Ones newer than everything shown were missed, so they
+  /// are saved and count as unread.
+  void _addHistoryLine(NetworkSession session, String name, ChatLine line) {
+    final buffer = _ensureBuffer(session, name);
+    if (buffer.lines.any(line.sameMessage)) return;
+    final newest = buffer.newestMessage;
+    var i = buffer.lines.length;
+    while (i > 0 && buffer.lines[i - 1].time.isAfter(line.time)) {
+      i--;
+    }
+    buffer.lines.insert(i, line);
+    buffer.historyAdded++;
+    if (newest == null || line.time.isAfter(newest.time)) {
+      _saveLine(buffer, line);
+      _countUnread(session, buffer, line);
+    }
+    _touch();
+  }
+
+  ChatBuffer? _bufferNamed(NetworkSession session, String? name) {
+    if (name == null) return null;
+    final fold = session.client.isupport.fold(name);
+    for (final b in state.buffers.values) {
+      if (b.networkId == session.id &&
+          session.client.isupport.fold(b.name) == fold) {
+        return b;
+      }
+    }
+    return null;
   }
 
   void _onEvent(NetworkSession session, IrcEvent e) {
@@ -1160,6 +1356,7 @@ class ChatController extends Notifier<ChatState> {
           ),
           countUnread: false,
         );
+        _catchUp(session);
       case ServerInfoEvent(:final network):
         if (network != session.name) {
           session.name = network;
@@ -1177,6 +1374,50 @@ class ChatController extends Notifier<ChatState> {
       case MessageEvent(:final sender, :final isOwn)
           when !isOwn && isBlocked(sender):
         return;
+      case MessageEvent(:final history) when history:
+        _addHistoryLine(
+          session,
+          e.target,
+          ChatLine(
+            sender: e.sender,
+            text: e.text,
+            time: e.time,
+            msgid: e.msgid,
+            kind: e.isOwn
+                ? ChatLineKind.own
+                : e.isAction
+                ? ChatLineKind.action
+                : e.isNotice
+                ? ChatLineKind.notice
+                : ChatLineKind.message,
+          ),
+        );
+      case HistoryBatchEvent(:final target, :final failed):
+        final buffers = failed
+            ? [
+                for (final b in state.buffers.values)
+                  if (b.networkId == session.id && b.historyWant != null) b,
+              ]
+            : [?_bufferNamed(session, target)];
+        for (final b in buffers) {
+          if (b.historyWant == HistoryWant.older && b.historyAdded == 0) {
+            b.historyExhausted = true;
+          }
+          b.historyWant = null;
+        }
+        _touch();
+      case HistoryTargetsEvent(:final targets):
+        final since = session.historySince;
+        for (final t in targets) {
+          if (session.client.isChannel(t.name) ||
+              t.name == '*' ||
+              session.client.isMe(t.name) ||
+              isBlocked(t.name) ||
+              (since != null && !t.latest.isAfter(since))) {
+            continue;
+          }
+          unawaited(_fetchMissed(session, _ensureBuffer(session, t.name)));
+        }
       case MessageEvent():
         _maybeRing(session, e);
         add(
@@ -1186,6 +1427,7 @@ class ChatController extends Notifier<ChatState> {
             // Raw, with mIRC codes; the chat view draws them.
             text: e.text,
             time: e.time,
+            msgid: e.msgid,
             kind: e.isOwn
                 ? ChatLineKind.own
                 : e.isAction
@@ -1216,6 +1458,9 @@ class ChatController extends Notifier<ChatState> {
             selectBuffer(ChatState.bufferKey(session.id, channel));
           }
           ref.read(roomPrefsProvider.notifier).addRecent(session.id, channel);
+          // What the room said while we were away, if the server keeps it.
+          final room = _bufferNamed(session, channel);
+          if (room != null) unawaited(_fetchMissed(session, room));
         }
       case PartEvent(:final channel, :final nick, :final isSelf):
         final what = e.kickedBy != null

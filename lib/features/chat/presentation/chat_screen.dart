@@ -267,6 +267,12 @@ class ChatScreen extends ConsumerWidget {
                                 (l) => l.kind == ChatLineKind.own,
                               ),
                           onReply: isChannel ? controller.startReply : null,
+                          onLoadOlder:
+                              buffer != null && controller.canLoadOlder(buffer)
+                              ? () => controller.loadOlder(buffer.key)
+                              : null,
+                          loadingOlder:
+                              buffer?.historyWant == HistoryWant.older,
                           onReport: buffer == null || buffer.isStatus
                               ? null
                               : (line) => unawaited(
@@ -1351,6 +1357,8 @@ class _MessageList extends StatefulWidget {
     this.roleOf,
     this.onReply,
     this.onReport,
+    this.onLoadOlder,
+    this.loadingOlder = false,
     super.key,
   });
 
@@ -1368,6 +1376,13 @@ class _MessageList extends StatefulWidget {
 
   /// Reports someone else's message; null on the server tab.
   final void Function(ChatLine line)? onReport;
+
+  /// Fetches older messages from the server (CHATHISTORY); null when it
+  /// has none to give. Called when the top of the list comes into view.
+  final VoidCallback? onLoadOlder;
+
+  /// An older-messages request is out.
+  final bool loadingOlder;
 
   @override
   State<_MessageList> createState() => _MessageListState();
@@ -1399,6 +1414,14 @@ class _MessageListState extends State<_MessageList> {
     _scroll.addListener(() {
       final at = !_scroll.hasClients || _scroll.offset <= _bottomSlack;
       if (at != _atBottom) setState(() => _atBottom = at);
+      // Near the top (the end of the reversed list): fetch older messages.
+      final older = widget.onLoadOlder;
+      if (older != null &&
+          !widget.loadingOlder &&
+          _scroll.hasClients &&
+          _scroll.position.extentAfter < 300) {
+        older();
+      }
     });
   }
 
@@ -1407,6 +1430,31 @@ class _MessageListState extends State<_MessageList> {
     _scroll.dispose();
     super.dispose();
   }
+
+  bool get _hasOlderRow => widget.onLoadOlder != null || widget.loadingOlder;
+
+  /// The top row: a spinner while older messages load, otherwise a button
+  /// to load them (scrolling up also does).
+  Widget _olderRow(BuildContext context) => Padding(
+    key: const ValueKey('older-messages'),
+    padding: const EdgeInsets.symmetric(vertical: 8),
+    child: Center(
+      child: widget.loadingOlder
+          ? Semantics(
+              label: 'Loading earlier messages',
+              child: const SizedBox(
+                width: 20,
+                height: 20,
+                child: CircularProgressIndicator.adaptive(strokeWidth: 2),
+              ),
+            )
+          : TextButton.icon(
+              icon: const Icon(Icons.history),
+              label: const Text('Load earlier messages'),
+              onPressed: widget.onLoadOlder,
+            ),
+    ),
+  );
 
   void _jumpToLatest() {
     final d = Motion.of(context, Motion.slow);
@@ -1445,8 +1493,10 @@ class _MessageListState extends State<_MessageList> {
         horizontal: widget.style == _ChatStyle.lines ? 12 : 10,
         vertical: 8,
       ),
-      itemCount: items.length,
+      // One more row at the top for older messages from the server.
+      itemCount: items.length + (_hasOlderRow ? 1 : 0),
       itemBuilder: (context, i) {
+        if (i == items.length) return _olderRow(context);
         final item = items[items.length - 1 - i];
         final first = switch (item) {
           GroupItem(:final lines) || PresenceItem(:final lines) => lines.first,

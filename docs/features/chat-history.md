@@ -2,6 +2,10 @@
 
 Available on iOS, Android and macOS (shared Flutter code).
 
+This is history kept **on the device**. On servers and bouncers that keep
+history themselves, the app also fetches what you missed and older
+messages from them: see [chathistory.md](chathistory.md).
+
 ## What the user sees
 
 - **Conversations keep their messages.** Rooms and private chats are saved

@@ -28,6 +28,10 @@ const Set<String> defaultWantedCaps = {
   'cap-notify',
   'userhost-in-names',
   'batch',
+  // Missed and older messages from servers and bouncers that keep them
+  // (Ergo, soju). The draft name is what servers ship today.
+  'draft/chathistory',
+  'chathistory',
 };
 
 /// Drives the CAP/SASL exchange during registration.

@@ -31,8 +31,11 @@
 - [x] App name and icon: **IRCage**, with its icon on iOS, Android (adaptive) and macOS
 
 ## v2
-- [ ] Bouncer support (soju/ZNC) and push notifications
-- [ ] IRCv3 chathistory
+- [ ] Bouncer support (soju/ZNC) and push notifications (missed messages
+      already work through chathistory; still to do: soju's network list
+      and push)
+- [x] IRCv3 chathistory: missed messages on join and reconnect, missed
+      private chats, older messages from the top of a chat
 - [ ] IRCv3 typing indicator and read markers ("Seen")
 - [ ] Android foreground service option
 - [x] Themes, including a classic mIRC skin (Classic mIRC theme + Compact density)
