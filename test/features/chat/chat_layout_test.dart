@@ -66,7 +66,11 @@ void main() {
       presence('sam', PresenceChange.left),
       msg('bob', 'hi', minute: 1),
       presence('zoe', PresenceChange.joined, minute: 2),
-      ChatLine(text: 'bob set the topic: hi', kind: ChatLineKind.event),
+      ChatLine(
+        text: 'bob set the topic: hi',
+        kind: ChatLineKind.event,
+        time: t0.add(const Duration(minutes: 3)),
+      ),
     ]);
     expect(items.map((i) => i.runtimeType), [
       DayItem,
