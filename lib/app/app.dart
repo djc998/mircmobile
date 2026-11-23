@@ -1,10 +1,13 @@
 import 'package:flutter_riverpod/flutter_riverpod.dart';
 import 'package:go_router/go_router.dart';
+import 'package:irc_client/core/safety/content_filter.dart';
 import 'package:irc_client/core/theme/app_theme.dart';
 import 'package:irc_client/features/calls/presentation/call_widgets.dart';
 import 'package:irc_client/features/chat/presentation/chat_shell.dart';
 import 'package:irc_client/features/connection/presentation/network_picker_screen.dart';
 import 'package:irc_client/features/discovery/presentation/room_browser_screen.dart';
+import 'package:irc_client/features/safety/application/safety_controller.dart';
+import 'package:irc_client/features/safety/presentation/terms_screen.dart';
 import 'package:irc_client/features/settings/application/appearance_controller.dart';
 import 'package:irc_client/features/settings/presentation/appearance_screen.dart';
 import 'package:irc_client/features/settings/presentation/settings_screen.dart';
@@ -15,10 +18,20 @@ const String appName = 'IRCage';
 
 final routerProvider = Provider<GoRouter>(
   (ref) => GoRouter(
+    // The terms come first, once (and again when they change).
+    redirect: (context, state) {
+      if (ref.read(safetyProvider).agreedToTerms) return null;
+      return state.matchedLocation == '/terms' ? null : '/terms';
+    },
     routes: [
       GoRoute(
         path: '/',
         builder: (context, state) => const NetworkPickerScreen(),
+      ),
+      GoRoute(
+        path: '/terms',
+        builder: (context, state) =>
+            TermsScreen(readOnly: state.uri.queryParameters['read'] == '1'),
       ),
       GoRoute(
         path: '/appearance',
@@ -73,7 +86,10 @@ class IrcApp extends ConsumerWidget {
             MediaQuery.textScalerOf(context).scale(appearance.textScale),
           ),
         ),
-        child: CallOverlay(child: child!),
+        child: ContentFilter(
+          enabled: ref.watch(safetyProvider.select((s) => s.filterWords)),
+          child: CallOverlay(child: child!),
+        ),
       ),
     );
   }

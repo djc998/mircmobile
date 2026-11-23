@@ -11,6 +11,7 @@ import 'package:flutter_riverpod/flutter_riverpod.dart';
 import 'package:go_router/go_router.dart';
 import 'package:irc_client/app/app.dart';
 import 'package:irc_client/core/irc/irc_events.dart';
+import 'package:irc_client/core/safety/content_filter.dart';
 import 'package:irc_client/core/theme/app_theme.dart';
 import 'package:irc_client/core/theme/tokens.dart';
 import 'package:irc_client/core/ui/avatars.dart';
@@ -599,7 +600,7 @@ class _RoomsHomeState extends ConsumerState<RoomsHome> {
                 isRoom: c.isRoom,
                 network: multi ? shortNetworkName(c.network.label) : null,
                 time: activityLabel(context, c.lastActivity),
-                preview: c.preview,
+                preview: ContentFilter.clean(context, c.preview),
                 unread: c.buffer.unread,
                 mention: c.buffer.mentioned,
                 favorite: c.isRoom && prefs.isFavorite(c.network.id, c.name),

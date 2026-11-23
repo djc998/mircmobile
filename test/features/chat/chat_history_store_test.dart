@@ -44,7 +44,9 @@ void main() {
       'line 13',
       'line 14',
     ]);
-    // Trimmed back to half of maxLines on disk.
+    // Trimmed back to half of maxLines on disk (once the trim has landed:
+    // load waits for queued writes).
+    await store.load('n', 'alice');
     final reread = await FileChatHistoryStore(
       dir,
       maxLines: 10,

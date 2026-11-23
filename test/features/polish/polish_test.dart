@@ -199,6 +199,8 @@ void main() {
       scrollable: find.byType(Scrollable).last,
     );
     expect(find.text('#flutter'), findsOneWidget);
+    await tester.ensureVisible(find.text('Unmute'));
+    await tester.pumpAndSettle();
     await tester.tap(find.text('Unmute'));
     await tester.pumpAndSettle();
     expect(find.text('None'), findsOneWidget);

@@ -9,6 +9,7 @@ import 'package:irc_client/features/chat/application/chat_controller.dart';
 import 'package:irc_client/features/pictures/data/picture_service.dart';
 import 'package:irc_client/features/pictures/domain/picture_link.dart';
 import 'package:irc_client/features/pictures/presentation/camera_capture.dart';
+import 'package:irc_client/features/safety/presentation/report_dialog.dart';
 import 'package:material_ui/material_ui.dart';
 
 /// Gets a photo from [source] (or asks: library or camera), asks how long
@@ -220,7 +221,12 @@ class _PictureBubbleState extends ConsumerState<PictureBubble> {
   Future<void> _report() async {
     final reason = await showDialog<String>(
       context: context,
-      builder: (_) => _ReportDialog(sender: widget.sender),
+      builder: (_) => ReportDialog(
+        title: 'Report photo',
+        explanation:
+            'The photo is sent for review and ${widget.sender} is '
+            'ignored, so you stop seeing their messages.',
+      ),
     );
     if (reason == null || !mounted) return;
     final messenger = ScaffoldMessenger.of(context);
@@ -361,92 +367,6 @@ class _PictureBubbleState extends ConsumerState<PictureBubble> {
         const SizedBox(width: 6),
         Flexible(
           child: Text(text, style: TextStyle(color: muted)),
-        ),
-      ],
-    );
-  }
-}
-
-class _ReportDialog extends StatefulWidget {
-  const _ReportDialog({required this.sender});
-
-  final String sender;
-
-  @override
-  State<_ReportDialog> createState() => _ReportDialogState();
-}
-
-class _ReportDialogState extends State<_ReportDialog> {
-  static const _reasons = [
-    'Nudity or sexual content',
-    'Harassment or hate',
-    'Violence',
-    'Spam or scam',
-    'Something else',
-  ];
-  String? _reason;
-  final _details = TextEditingController();
-
-  @override
-  void dispose() {
-    _details.dispose();
-    super.dispose();
-  }
-
-  @override
-  Widget build(BuildContext context) {
-    return AlertDialog(
-      title: const Text('Report photo'),
-      content: SingleChildScrollView(
-        child: Column(
-          mainAxisSize: MainAxisSize.min,
-          crossAxisAlignment: CrossAxisAlignment.start,
-          children: [
-            Text(
-              'The photo is sent for review and ${widget.sender} is '
-              'blocked, so you stop seeing their messages.',
-            ),
-            const SizedBox(height: 8),
-            RadioGroup<String>(
-              groupValue: _reason,
-              onChanged: (v) => setState(() => _reason = v),
-              child: Column(
-                children: [
-                  for (final r in _reasons)
-                    RadioListTile<String>(
-                      contentPadding: EdgeInsets.zero,
-                      title: Text(r),
-                      value: r,
-                    ),
-                ],
-              ),
-            ),
-            TextField(
-              controller: _details,
-              maxLength: 500,
-              decoration: const InputDecoration(
-                labelText: 'Details (optional)',
-              ),
-            ),
-          ],
-        ),
-      ),
-      actions: [
-        TextButton(
-          onPressed: () => Navigator.pop(context),
-          child: const Text('Cancel'),
-        ),
-        FilledButton(
-          onPressed: _reason == null
-              ? null
-              : () => Navigator.pop(
-                  context,
-                  [
-                    _reason!,
-                    _details.text.trim(),
-                  ].where((s) => s.isNotEmpty).join(': '),
-                ),
-          child: const Text('Report'),
         ),
       ],
     );

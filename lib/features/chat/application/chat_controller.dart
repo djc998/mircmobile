@@ -402,6 +402,34 @@ class ChatController extends Notifier<ChatState> {
     }
   }
 
+  /// Reports [line] (someone else's message, in [room] or a private chat)
+  /// to the app's makers and ignores its sender. Returns an error message,
+  /// or null.
+  Future<String?> reportMessage(
+    ChatLine line, {
+    required String networkId,
+    required String reason,
+    String? room,
+  }) async {
+    final sender = line.sender;
+    if (sender == null) return "That message can't be reported.";
+    blockUser(sender);
+    try {
+      await ref
+          .read(pictureServiceProvider)
+          .reportMessage(
+            text: stripFormatting(line.text),
+            sender: sender,
+            network: networkId,
+            room: room,
+            reason: reason,
+          );
+      return null;
+    } on PictureException catch (e) {
+      return e.message;
+    }
+  }
+
   /// Whether conversations are saved on this device (on by default).
   bool get saveHistory => _store.getString(_saveHistoryKey) != 'false';
 

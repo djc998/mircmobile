@@ -5,6 +5,7 @@ library;
 import 'dart:async';
 
 import 'package:flutter_riverpod/flutter_riverpod.dart';
+import 'package:irc_client/core/safety/content_filter.dart';
 import 'package:irc_client/core/theme/tokens.dart';
 import 'package:irc_client/core/ui/avatars.dart';
 import 'package:irc_client/core/ui/mirc_text.dart';
@@ -149,6 +150,7 @@ class RoomInfoScreen extends ConsumerWidget {
                               background: tokens.surfaceRaised,
                               textColor: tokens.textPrimary,
                               colours: ref.watch(appearanceProvider).ircColours,
+                              filter: ContentFilter.of(context),
                             ),
                     ),
                   ),

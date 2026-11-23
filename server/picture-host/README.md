@@ -66,6 +66,14 @@ Each report has the picture's address (without its key), the sender,
 network, reason and time. No copy of the picture is kept, so reports are
 about who sent what, not the picture itself.
 
+Reports of chat messages have `"kind": "message"` with the message `text`
+as the reporter saw it, the `sender`, `network`, `room` (null for a private
+chat), reason and time.
+
+The app's terms promise reports are reviewed **within 24 hours** (Apple
+asks for this), so check this list at least daily. Redeploy the Worker
+(`npx wrangler deploy`) to accept message reports.
+
 ## Test
 
 ```sh

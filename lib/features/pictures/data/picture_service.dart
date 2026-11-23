@@ -171,6 +171,41 @@ class PictureService {
     }
   }
 
+  /// Reports a message to the app's makers (stored on the picture host
+  /// for review). [room] is null for a private chat.
+  Future<void> reportMessage({
+    required String text,
+    required String sender,
+    required String network,
+    required String reason,
+    String? room,
+  }) async {
+    final base = host;
+    if (base == null) {
+      throw const PictureException("Reporting isn't set up yet.");
+    }
+    final http.Response res;
+    try {
+      res = await _http.post(
+        base.resolve('/report'),
+        headers: {'content-type': 'application/json'},
+        body: jsonEncode({
+          'kind': 'message',
+          'text': text,
+          'sender': sender,
+          'network': network,
+          'room': ?room,
+          'reason': reason,
+        }),
+      );
+    } on Object {
+      throw const PictureException("Couldn't send the report.");
+    }
+    if (res.statusCode != 201) {
+      throw const PictureException("Couldn't send the report.");
+    }
+  }
+
   static String? _errorText(http.Response res) {
     try {
       return (jsonDecode(res.body) as Map<String, Object?>)['error'] as String?;
