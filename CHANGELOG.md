@@ -7,6 +7,19 @@ and the project uses [Semantic Versioning](https://semver.org/).
 ## [Unreleased]
 
 ### Added
+- **Typing indicators** (iOS, Android, macOS): "bob is typing…" above the
+  message box, and others see when you type, on servers with IRCv3 message
+  tags (Ergo, soju and more). Turn yours off in Settings → Safety → **Show
+  when I'm typing**.
+- **Read position across your devices** (IRCv3 read markers, soju and
+  Ergo): read a chat on one device and it's read on the others; unread
+  counts and mentions follow. See
+  [docs/features/typing-and-read-markers.md](docs/features/typing-and-read-markers.md).
+
+### Fixed
+- Timestamps sent to the server (missed-message requests, read markers)
+  now have exactly milliseconds. soju refused the microseconds Dart adds,
+  so asking for messages since your newest one could fail.
 - **soju bouncers** (iOS, Android, macOS): add the bouncer once (Add your own
   network, with your soju username under Advanced options and your
   password as the server password) and each network on it opens as its own

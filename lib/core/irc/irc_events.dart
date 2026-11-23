@@ -282,3 +282,24 @@ class BouncerNetwork {
   String? get host => attributes['host'];
   String get state => attributes['state'] ?? 'disconnected';
 }
+
+/// Someone's typing state in a conversation (IRCv3 `+typing`): `active`,
+/// `paused` or `done`.
+class TypingEvent extends IrcEvent {
+  TypingEvent({required this.target, required this.nick, required this.state});
+
+  /// The channel, or for a private chat the other person's nick.
+  final String target;
+  final String nick;
+  final String state;
+}
+
+/// Where you've read up to in [target], from the server (IRCv3
+/// `draft/read-marker`), e.g. after reading it on another device. Null
+/// [readUntil] means the server doesn't know yet.
+class ReadMarkerEvent extends IrcEvent {
+  ReadMarkerEvent({required this.target, required this.readUntil});
+
+  final String target;
+  final DateTime? readUntil;
+}

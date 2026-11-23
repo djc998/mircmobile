@@ -5,6 +5,8 @@ import 'dart:async';
 import 'dart:convert';
 import 'dart:typed_data';
 
+import 'package:clock/clock.dart';
+import 'package:flutter/widgets.dart' show AppLifecycleState, WidgetsBinding;
 import 'package:flutter_riverpod/flutter_riverpod.dart';
 import 'package:irc_client/core/irc/cap_negotiator.dart';
 import 'package:irc_client/core/irc/formatting.dart';
@@ -24,6 +26,7 @@ import 'package:irc_client/features/favorites/application/room_prefs_controller.
 import 'package:irc_client/features/pictures/data/picture_service.dart';
 import 'package:irc_client/features/pictures/domain/picture_link.dart';
 import 'package:irc_client/features/rooms/domain/room_modes.dart';
+import 'package:irc_client/features/safety/application/safety_controller.dart';
 
 /// Name of the server/status buffer.
 const String statusBuffer = '*status';
@@ -141,6 +144,31 @@ class ChatBuffer {
 
   /// The server has nothing older than what's shown.
   bool historyExhausted = false;
+
+  /// Who's typing here (IRCv3 `+typing`), by case-folded nick, and until
+  /// when it counts: 6 seconds after "active", 30 after "paused".
+  final Map<String, ({String nick, DateTime until})> typing = {};
+
+  /// Redraws the typing line when the next one runs out.
+  Timer? typingTimer;
+
+  /// When we last told others we're typing here; null once done.
+  DateTime? typingSentAt;
+
+  /// Read up to here, as the server knows it (draft/read-marker).
+  DateTime? readUntil;
+
+  /// Sends the read position after a short pause, not on every message.
+  Timer? readTimer;
+
+  /// Who's typing right now, in the order they started.
+  List<String> get typingNicks {
+    final now = clock.now();
+    return [
+      for (final t in typing.values)
+        if (t.until.isAfter(now)) t.nick,
+    ];
+  }
 
   /// The newest chat line (message, action, notice or own), if any.
   ChatLine? get newestMessage {
@@ -356,9 +384,16 @@ class ChatController extends Notifier<ChatState> {
         unawaited(n.subscription?.cancel());
         unawaited(n.client.dispose());
       }
+      for (final b in _timedBuffers) {
+        b.typingTimer?.cancel();
+        b.readTimer?.cancel();
+      }
     });
     return const ChatState();
   }
+
+  /// Conversations with a typing or read timer running, to cancel them.
+  final Set<ChatBuffer> _timedBuffers = {};
 
   static const _saveHistoryKey = 'saveHistory';
   static const _blockedKey = 'blockedNicks';
@@ -1007,6 +1042,7 @@ class ChatController extends Notifier<ChatState> {
       ..unread = 0
       ..mentioned = false;
     state = state.copyWith(activeKey: key);
+    _syncRead(buffer);
   }
 
   /// Closes a conversation, leaving the channel if needed.
@@ -1094,6 +1130,8 @@ class ChatController extends Notifier<ChatState> {
     final session = state.activeNetwork;
     final buffer = state.activeBuffer;
     if (session == null || buffer == null) return;
+    // Sending a message ends "typing" for everyone else.
+    buffer.typingSentAt = null;
     if (session.status == IrcConnectionStatus.disconnected) {
       _addLine(
         session,
@@ -1166,6 +1204,118 @@ class ChatController extends Notifier<ChatState> {
     }
     if (countUnread) _countUnread(session, buffer, line);
     if (line.isSaved && !buffer.isStatus) _markSeen(session);
+    if (line.isSaved && state.activeKey == buffer.key) _syncRead(buffer);
+    _touch();
+  }
+
+  // ---------------------------------------------------------------------
+  // Typing notifications and read markers (IRCv3)
+  // ---------------------------------------------------------------------
+
+  /// What's in the open conversation's message box changed: tell others
+  /// we're typing (at most every 3 seconds), or that we stopped.
+  void noteTyping(String text) {
+    final buffer = state.activeBuffer;
+    final session = state.activeNetwork;
+    if (buffer == null || session == null || buffer.isStatus) return;
+    if (!ref.read(safetyProvider).sendTyping || !session.isConnected) return;
+    final now = clock.now();
+    final typing = text.trim().isNotEmpty && !text.startsWith('/');
+    if (!typing) {
+      if (buffer.typingSentAt != null) {
+        buffer.typingSentAt = null;
+        session.client.sendTyping(buffer.name, 'done');
+      }
+      return;
+    }
+    final last = buffer.typingSentAt;
+    if (last == null || now.difference(last) >= const Duration(seconds: 3)) {
+      buffer.typingSentAt = now;
+      session.client.sendTyping(buffer.name, 'active');
+    }
+  }
+
+  void _onTyping(NetworkSession session, TypingEvent e) {
+    if (isBlocked(e.nick)) return;
+    final buffer = _bufferNamed(session, e.target);
+    if (buffer == null) return;
+    final key = session.client.isupport.fold(e.nick);
+    final wait = switch (e.state) {
+      'active' => const Duration(seconds: 6),
+      'paused' => const Duration(seconds: 30),
+      _ => null,
+    };
+    if (wait == null) {
+      buffer.typing.remove(key);
+    } else {
+      buffer.typing[key] = (nick: e.nick, until: clock.now().add(wait));
+    }
+    _scheduleTypingRefresh(buffer);
+    _touch();
+  }
+
+  void _scheduleTypingRefresh(ChatBuffer buffer) {
+    buffer.typingTimer?.cancel();
+    final now = clock.now();
+    buffer.typing.removeWhere((_, t) => !t.until.isAfter(now));
+    if (buffer.typing.isEmpty) return;
+    final next = buffer.typing.values
+        .map((t) => t.until)
+        .reduce((a, b) => a.isBefore(b) ? a : b);
+    _timedBuffers.add(buffer);
+    buffer.typingTimer = Timer(next.difference(now), () {
+      if (!ref.mounted) return;
+      _scheduleTypingRefresh(buffer);
+      _touch();
+    });
+  }
+
+  /// Tells the server the open conversation is read up to its newest
+  /// message, shortly after, if that's newer than what it knows.
+  void _syncRead(ChatBuffer buffer) {
+    if (buffer.isStatus || !_appVisible) return;
+    buffer.readTimer?.cancel();
+    _timedBuffers.add(buffer);
+    buffer.readTimer = Timer(const Duration(milliseconds: 800), () {
+      if (!ref.mounted) return;
+      final session = state.networks[buffer.networkId];
+      final newest = buffer.newestMessage?.time;
+      if (session == null || !session.isConnected || newest == null) return;
+      final known = buffer.readUntil;
+      if (known != null && !newest.isAfter(known)) return;
+      buffer.readUntil = newest;
+      session.client.markRead(buffer.name, newest);
+    });
+  }
+
+  /// Whether the user can see the app (not in the background).
+  static bool get _appVisible {
+    final s = WidgetsBinding.instance.lifecycleState;
+    return s == null || s == AppLifecycleState.resumed;
+  }
+
+  /// The server says [buffer] was read up to [until] (maybe on another
+  /// device): only what came after still counts as unread.
+  void _onReadMarker(ChatBuffer buffer, DateTime until) {
+    final known = buffer.readUntil;
+    if (known != null && !until.isAfter(known)) return;
+    buffer.readUntil = until;
+    if (state.activeKey == buffer.key) return;
+    final session = state.networks[buffer.networkId];
+    final unread = [
+      for (final l in buffer.lines)
+        if (l.isSaved && l.kind != ChatLineKind.own && l.time.isAfter(until)) l,
+    ];
+    buffer
+      ..unread = unread.length
+      ..firstUnread = unread.isEmpty ? null : unread.first
+      ..mentioned = unread.any(
+        (l) =>
+            l.kind == ChatLineKind.message &&
+            session != null &&
+            session.nick.isNotEmpty &&
+            mentions(l.text, session.nick),
+      );
     _touch();
   }
 
@@ -1292,7 +1442,12 @@ class ChatController extends Notifier<ChatState> {
     buffer.historyAdded++;
     if (newest == null || line.time.isAfter(newest.time)) {
       _saveLine(buffer, line);
-      _countUnread(session, buffer, line);
+      final read = buffer.readUntil;
+      // Already read on another device: not unread here either.
+      if (read == null || line.time.isAfter(read)) {
+        _countUnread(session, buffer, line);
+      }
+      if (state.activeKey == buffer.key) _syncRead(buffer);
     }
     _touch();
   }
@@ -1419,6 +1574,13 @@ class ChatController extends Notifier<ChatState> {
           b.historyWant = null;
         }
         _touch();
+      case TypingEvent():
+        _onTyping(session, e);
+      case ReadMarkerEvent(:final target, :final readUntil):
+        final buffer = _bufferNamed(session, target);
+        if (buffer != null && readUntil != null) {
+          _onReadMarker(buffer, readUntil);
+        }
       case BouncerNetworksEvent(:final networks):
         // Open every network on the bouncer that isn't open yet, each on
         // its own connection bound to it.
@@ -1447,6 +1609,12 @@ class ChatController extends Notifier<ChatState> {
         }
       case MessageEvent():
         _maybeRing(session, e);
+        final room = _bufferNamed(session, e.target);
+        if (room != null &&
+            room.typing.remove(session.client.isupport.fold(e.sender)) !=
+                null) {
+          _scheduleTypingRefresh(room);
+        }
         add(
           e.target,
           ChatLine(

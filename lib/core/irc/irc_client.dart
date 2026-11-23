@@ -206,6 +206,24 @@ class IrcClient {
   /// The bouncer's networks by id, once listed (empty otherwise).
   final Map<String, BouncerNetwork> bouncerNetworks = {};
 
+  /// Whether the server passes on typing notifications (message tags).
+  bool get supportsTyping => capabilities.contains('message-tags');
+
+  /// Whether the server keeps your read position (draft/read-marker).
+  bool get supportsReadMarkers => capabilities.contains('draft/read-marker');
+
+  /// Tells [target] you're typing: [state] is `active`, `paused` or `done`.
+  void sendTyping(String target, String state) {
+    if (!supportsTyping) return;
+    sendRaw('@+typing=$state TAGMSG $target');
+  }
+
+  /// Tells the server you've read [target] up to [time].
+  void markRead(String target, DateTime time) {
+    if (!supportsReadMarkers) return;
+    sendRaw('MARKREAD $target ${_timestamp(time)}');
+  }
+
   /// Whether the server keeps history we can ask for (CHATHISTORY).
   bool get supportsHistory =>
       capabilities.contains('draft/chathistory') ||
@@ -217,8 +235,15 @@ class IrcClient {
     return max == null || max <= 0 || max > 100 ? 100 : max;
   }
 
-  static String _timestamp(DateTime t) =>
-      'timestamp=${t.toUtc().toIso8601String()}';
+  /// `timestamp=YYYY-MM-DDThh:mm:ss.sssZ`: IRCv3 wants exactly
+  /// milliseconds, and servers (soju) refuse Dart's microseconds.
+  static String _timestamp(DateTime t) {
+    final ms = DateTime.fromMillisecondsSinceEpoch(
+      t.millisecondsSinceEpoch,
+      isUtc: true,
+    );
+    return 'timestamp=${ms.toIso8601String()}';
+  }
 
   /// Asks for the latest messages in [target]: those after [after], or the
   /// newest [limit] when [after] is null. Replies come as [MessageEvent]s
@@ -730,6 +755,30 @@ class IrcClient {
         _onMessage(m, from, time);
       case 'BATCH':
         _onBatch(m);
+      case 'TAGMSG':
+        final typing = m.tags['+typing'];
+        final target = m.param(0) ?? '';
+        if (typing != null &&
+            !isMe(from) &&
+            !_batches.containsKey(m.tags['batch'])) {
+          _emit(
+            TypingEvent(
+              target: _isupport.isChannel(target) ? target : from,
+              nick: from,
+              state: typing,
+            ),
+          );
+        }
+      case 'MARKREAD':
+        final at = m.param(1) ?? '*';
+        _emit(
+          ReadMarkerEvent(
+            target: m.param(0) ?? '',
+            readUntil: at == '*'
+                ? null
+                : DateTime.tryParse(at.replaceFirst('timestamp=', '')),
+          ),
+        );
       case 'CHATHISTORY' when m.param(0) == 'TARGETS':
         final batch = _batches[m.tags['batch']];
         final at = DateTime.tryParse(

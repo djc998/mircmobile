@@ -149,6 +149,8 @@ void main() {
       scrollable: find.byType(Scrollable).last,
     );
     expect(find.text('alice'), findsOneWidget);
+    await tester.ensureVisible(find.text('Stop ignoring'));
+    await tester.pumpAndSettle();
     await tester.tap(find.text('Stop ignoring'));
     await tester.pumpAndSettle();
     expect(find.text('Nobody'), findsOneWidget);
