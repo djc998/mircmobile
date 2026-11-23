@@ -480,6 +480,40 @@ class ChatController extends Notifier<ChatState> {
     }
   }
 
+  /// Encrypts, uploads and sends a file to the open private chat. Returns
+  /// an error to show, or null.
+  Future<String?> sendFile(
+    Uint8List bytes, {
+    required String name,
+    PictureExpiry expiry = PictureExpiry.fourHours,
+  }) async {
+    final session = state.activeNetwork;
+    final buffer = state.activeBuffer;
+    if (session == null || buffer == null || buffer.isStatus) {
+      return 'Open a conversation first.';
+    }
+    if (session.status != IrcConnectionStatus.connected) {
+      return 'Not connected to ${session.label}.';
+    }
+    final service = ref.read(pictureServiceProvider);
+    if (!service.isConfigured) return "File sharing isn't set up yet.";
+    buffer.uploading++;
+    _touch();
+    try {
+      final link = await service.uploadFile(bytes, name: name, expiry: expiry);
+      if (session.status != IrcConnectionStatus.connected) {
+        return 'Not connected to ${session.label}.';
+      }
+      runInput(session.client, link.message(session.nick), target: buffer.name);
+      return null;
+    } on PictureException catch (e) {
+      return e.message;
+    } finally {
+      buffer.uploading--;
+      _touch();
+    }
+  }
+
   /// Sends [text] to [target] on [networkId]. Returns false when that
   /// network isn't connected.
   bool sendPrivateText(String networkId, String target, String text) {

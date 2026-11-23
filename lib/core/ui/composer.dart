@@ -47,6 +47,7 @@ class Composer extends StatefulWidget {
     this.onCancelReply,
     this.onAttach,
     this.onTakePhoto,
+    this.onSendFile,
     this.onChanged,
     this.uploading = false,
     this.nicks = const [],
@@ -70,6 +71,9 @@ class Composer extends StatefulWidget {
 
   /// Takes a photo with the camera and sends it; shown in the + menu.
   final VoidCallback? onTakePhoto;
+
+  /// Picks a file and sends it; shown in the + menu.
+  final VoidCallback? onSendFile;
 
   /// The text changed (for typing notifications).
   final void Function(String text)? onChanged;
@@ -360,6 +364,13 @@ class _ComposerState extends State<Composer> {
           label: 'Take a photo',
           enabled: !widget.uploading,
           onSelected: take,
+        ),
+      if (widget.onSendFile case final file?)
+        MenuAction(
+          icon: Icons.attach_file,
+          label: 'Send a file',
+          enabled: !widget.uploading,
+          onSelected: file,
         ),
       for (final c in widget.commands)
         MenuAction(

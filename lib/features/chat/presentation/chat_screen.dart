@@ -26,8 +26,10 @@ import 'package:irc_client/features/chat/application/panel_prefs.dart';
 import 'package:irc_client/features/chat/presentation/change_nick_dialog.dart';
 import 'package:irc_client/features/chat/presentation/find_in_chat.dart';
 import 'package:irc_client/features/favorites/application/room_prefs_controller.dart';
+import 'package:irc_client/features/pictures/domain/file_link.dart';
 import 'package:irc_client/features/pictures/domain/picture_link.dart';
 import 'package:irc_client/features/pictures/presentation/camera_capture.dart';
+import 'package:irc_client/features/pictures/presentation/file_widgets.dart';
 import 'package:irc_client/features/pictures/presentation/picture_widgets.dart';
 import 'package:irc_client/features/rooms/presentation/room_info.dart';
 import 'package:irc_client/features/safety/presentation/report_dialog.dart';
@@ -329,6 +331,9 @@ class ChatScreen extends ConsumerWidget {
                     // Pictures are for private chats.
                     onAttach: buffer != null && !buffer.isStatus && !isChannel
                         ? () => unawaited(sendPicture(context, ref))
+                        : null,
+                    onSendFile: buffer != null && !buffer.isStatus && !isChannel
+                        ? () => unawaited(sendFile(context, ref))
                         : null,
                     onTakePhoto:
                         buffer != null &&
@@ -1554,9 +1559,25 @@ class _MessageListState extends State<_MessageList> {
       ? PictureLink.find(stripFormatting(line.text))
       : null;
 
+  /// A photo or file shown under its message, if the message has one.
   Widget? _picture(ChatLine line, {double indent = 48}) {
     final link = _pictureIn(line);
-    if (link == null) return null;
+    if (link == null) {
+      final file =
+          line.sender != null &&
+              (line.kind == ChatLineKind.own ||
+                  line.kind == ChatLineKind.message)
+          ? FileLink.find(stripFormatting(line.text))
+          : null;
+      if (file == null) return null;
+      return FileBubble(
+        key: ValueKey(file),
+        link: file,
+        sender: line.sender!,
+        isOwn: line.kind == ChatLineKind.own,
+        indent: indent,
+      );
+    }
     final isOwn = line.kind == ChatLineKind.own;
     return PictureBubble(
       key: ValueKey(link),
