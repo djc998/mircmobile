@@ -59,8 +59,14 @@ still work but connect directly (STUN only).
 ## Reviewing reports
 
 ```sh
-curl -H "Authorization: Bearer $ADMIN_TOKEN" https://<host>/admin/reports
+./check-reports.sh          # readable list, newest first, last 24 hours marked NEW
+./check-reports.sh --json   # the raw JSON
 ```
+
+It asks for the admin token (or uses `$ADMIN_TOKEN` if it's set) and
+checks `https://irc-pictures.irc-pictures.workers.dev`; set `PICTURE_HOST`
+for another deployment. The raw endpoint is
+`GET /admin/reports` with `Authorization: Bearer <ADMIN_TOKEN>`.
 
 Each report has the picture's address (without its key), the sender,
 network, reason and time. No copy of the picture is kept, so reports are

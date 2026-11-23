@@ -7,6 +7,9 @@ and the project uses [Semantic Versioning](https://semver.org/).
 ## [Unreleased]
 
 ### Added
+- `server/picture-host/check-reports.sh`: lists message and photo reports,
+  newest first, with the last 24 hours marked NEW (asks for the admin
+  token; `--json` for the raw list).
 - **iPhone and Mac touches.** Android is unchanged.
   - **iPhone and iPad:** menus (long-press a chat or message, the **+**
     menu, the photo chooser) are iOS action sheets with **Cancel**, and
