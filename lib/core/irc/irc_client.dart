@@ -26,6 +26,7 @@ class IrcConnectionConfig {
     this.autoJoin = const [],
     this.autoReconnect = true,
     this.trustedFingerprints = const {},
+    this.bouncerNetwork,
   });
 
   final String host;
@@ -42,12 +43,25 @@ class IrcConnectionConfig {
   /// Certificates the user chose to trust for this server (SHA-256).
   final Set<String> trustedFingerprints;
 
+  /// On a soju bouncer: the id of the network this connection is for
+  /// (sent as `BOUNCER BIND`). Null for an ordinary server, or for the
+  /// bouncer's own connection that lists its networks.
+  final String? bouncerNetwork;
+
+  /// What the app keys this network by: the host, plus `/id` for one of a
+  /// bouncer's networks.
+  String get networkKey {
+    final h = host.toLowerCase();
+    return bouncerNetwork == null ? h : '$h/$bouncerNetwork';
+  }
+
   IrcConnectionConfig copyWith({
     String? nick,
     int? port,
     bool? useTls,
     Set<String>? trustedFingerprints,
     List<String>? autoJoin,
+    String? bouncerNetwork,
   }) => IrcConnectionConfig(
     host: host,
     nick: nick ?? this.nick,
@@ -60,6 +74,7 @@ class IrcConnectionConfig {
     autoJoin: autoJoin ?? this.autoJoin,
     autoReconnect: autoReconnect,
     trustedFingerprints: trustedFingerprints ?? this.trustedFingerprints,
+    bouncerNetwork: bouncerNetwork ?? this.bouncerNetwork,
   );
 }
 
@@ -185,6 +200,12 @@ class IrcClient {
   /// Enabled IRCv3 capabilities.
   Set<String> get capabilities => _cap?.enabled ?? const {};
 
+  /// Whether this is a soju bouncer that can list and bind networks.
+  bool get isBouncer => capabilities.contains('soju.im/bouncer-networks');
+
+  /// The bouncer's networks by id, once listed (empty otherwise).
+  final Map<String, BouncerNetwork> bouncerNetworks = {};
+
   /// Whether the server keeps history we can ask for (CHATHISTORY).
   bool get supportsHistory =>
       capabilities.contains('draft/chathistory') ||
@@ -305,6 +326,20 @@ class IrcClient {
     await _events.close();
   }
 
+  /// SASL credentials: the account login, or for one of a soju bouncer's
+  /// networks the username and server password. soju only allows
+  /// `BOUNCER BIND` once logged in, and a server password (PASS) is only
+  /// checked after registration, too late; SASL comes first.
+  SaslCredentials? get _login {
+    if (config.sasl != null) return config.sasl;
+    final password = config.serverPassword ?? '';
+    final user = (config.username ?? '').trim();
+    if (config.bouncerNetwork == null || password.isEmpty || user.isEmpty) {
+      return null;
+    }
+    return SaslCredentials(account: user, password: password);
+  }
+
   void _register() {
     _setStatus(IrcConnectionStatus.registering);
     _nick = config.nick;
@@ -312,9 +347,13 @@ class IrcClient {
     _isupport = ISupport();
     _cap = CapNegotiator(
       send: _flood.sendNow,
-      sasl: config.sasl,
+      sasl: _login,
       onFinished: (outcome) {
         if (config.sasl != null) _emit(SaslEvent(outcome));
+      },
+      beforeEnd: () {
+        final net = config.bouncerNetwork;
+        if (net != null && isBouncer) _flood.sendNow('BOUNCER BIND $net');
       },
     )..start();
     if (config.serverPassword != null && config.serverPassword!.isNotEmpty) {
@@ -578,6 +617,10 @@ class IrcClient {
         _emit(RegisteredEvent(nick: _nick, network: networkName));
         _emit(ServerNoticeEvent(m, text: m.trailing ?? ''));
         _joinAfterRegistration();
+        // The bouncer's own connection: ask which networks it has.
+        if (isBouncer && config.bouncerNetwork == null) {
+          sendRaw('BOUNCER LISTNETWORKS');
+        }
       case '005':
         if (m.params.length > 2) {
           _isupport.apply(m.params.sublist(1, m.params.length - 1));
@@ -695,8 +738,22 @@ class IrcClient {
         if (batch != null && at != null) {
           batch.targets.add((m.param(1) ?? '', at));
         }
+      case 'BOUNCER' when m.param(0) == 'NETWORK':
+        _onBouncerNetwork(m.param(1) ?? '', m.param(2) ?? '*');
+        // Outside the LISTNETWORKS batch it's a change (-notify).
+        if (!_batches.containsKey(m.tags['batch'])) {
+          _emit(BouncerNetworksEvent(Map.of(bouncerNetworks)));
+        }
       case 'FAIL' when m.param(0) == 'CHATHISTORY':
         _emit(HistoryBatchEvent(target: null, count: 0, failed: true));
+      case 'FAIL':
+        // IRCv3 standard replies, e.g. soju's FAIL BOUNCER …: show them.
+        _emit(
+          ServerErrorEvent(
+            code: '${m.param(0)} ${m.param(1)}',
+            text: m.trailing ?? '',
+          ),
+        );
       case 'ERROR':
         _emit(ServerErrorEvent(code: 'ERROR', text: m.trailing ?? ''));
       default:
@@ -964,6 +1021,8 @@ class IrcClient {
       if (batch == null) return;
       if (_isHistoryBatch(batch.type)) {
         _emit(HistoryBatchEvent(target: batch.target, count: batch.count));
+      } else if (batch.type == 'soju.im/bouncer-networks') {
+        _emit(BouncerNetworksEvent(Map.of(bouncerNetworks)));
       } else if (batch.type.endsWith('chathistory-targets')) {
         _emit(
           HistoryTargetsEvent([
@@ -972,6 +1031,25 @@ class IrcClient {
         );
       }
     }
+  }
+
+  /// One `BOUNCER NETWORK <id> <attrs>`: new, changed (only the changed
+  /// attributes are sent; an empty value removes one) or `*` for deleted.
+  void _onBouncerNetwork(String id, String attrs) {
+    if (id.isEmpty) return;
+    if (attrs == '*') {
+      bouncerNetworks.remove(id);
+      return;
+    }
+    final next = {...?bouncerNetworks[id]?.attributes};
+    for (final MapEntry(:key, :value) in IrcMessage.parseTags(attrs).entries) {
+      if (value.isEmpty) {
+        next.remove(key);
+      } else {
+        next[key] = value;
+      }
+    }
+    bouncerNetworks[id] = BouncerNetwork(id: id, attributes: next);
   }
 
   static bool _isHistoryBatch(String type) =>

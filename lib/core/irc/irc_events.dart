@@ -260,3 +260,25 @@ class HistoryTargetsEvent extends IrcEvent {
 
   final List<({String name, DateTime latest})> targets;
 }
+
+/// A soju bouncer's networks, listed or changed (keyed by network id).
+class BouncerNetworksEvent extends IrcEvent {
+  BouncerNetworksEvent(this.networks);
+
+  final Map<String, BouncerNetwork> networks;
+}
+
+/// A network on a soju bouncer (`BOUNCER NETWORK` attributes).
+class BouncerNetwork {
+  const BouncerNetwork({required this.id, required this.attributes});
+
+  final String id;
+
+  /// Attributes such as `name`, `host`, `state` (connected, connecting,
+  /// disconnected) and `nickname`.
+  final Map<String, String> attributes;
+
+  String get name => attributes['name'] ?? attributes['host'] ?? id;
+  String? get host => attributes['host'];
+  String get state => attributes['state'] ?? 'disconnected';
+}

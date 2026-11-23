@@ -166,11 +166,13 @@ class _NetworkPickerScreenState extends ConsumerState<NetworkPickerScreen> {
     final account = _useAccount ? _account.text.trim() : '';
 
     // Every network open after this, so the next launch can reopen them.
-    final open = <String>[
-      for (final n in chat.networks.values) n.config.host,
+    // A bouncer's networks come back with the bouncer, so it's listed once.
+    final open = <String>{
+      for (final n in chat.networks.values)
+        if (n.config.bouncerNetwork == null) n.config.host,
       for (final n in networks)
         if (!chat.networks.containsKey(n.host.toLowerCase())) n.host,
-    ];
+    }.toList();
     unawaited(
       repo.save(
         SavedConnection(

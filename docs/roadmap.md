@@ -31,9 +31,9 @@
 - [x] App name and icon: **IRCage**, with its icon on iOS, Android (adaptive) and macOS
 
 ## v2
-- [ ] Bouncer support (soju/ZNC) and push notifications (missed messages
-      already work through chathistory; still to do: soju's network list
-      and push)
+- [~] Bouncer support: soju's networks open on their own, with missed
+      messages through chathistory; ZNC works as an ordinary server with a
+      password. Still to do: push notifications (soju.im/webpush)
 - [x] IRCv3 chathistory: missed messages on join and reconnect, missed
       private chats, older messages from the top of a chat
 - [ ] IRCv3 typing indicator and read markers ("Seen")
