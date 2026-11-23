@@ -39,6 +39,10 @@ and the project uses [Semantic Versioning](https://semver.org/).
   too. See [docs/features/pinned-panels.md](docs/features/pinned-panels.md).
 
 ### Added
+- Write formatted messages: **Format text** in the composer adds bold,
+  italic, underline, strikethrough, 16 colours or plain to the selection
+  (or what you type next), with Cmd/Ctrl+B/I/U on computers. The field
+  shows the codes as small letters and a Preview line shows the result.
 - mIRC colours and styles are shown in messages, server messages and Room
   info topics: bold, italic, underline, strikethrough, monospace, reverse,
   the 99 mIRC colours and hex colours. Colours are adjusted to stay

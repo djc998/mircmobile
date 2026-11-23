@@ -42,11 +42,28 @@ stored without codes.
 | `\x04RRGGBB` / `\x04RRGGBB,RRGGBB` | hex colour; bare `\x04` resets |
 | `\x0F` | reset everything |
 
-## Not yet
+## Writing formatted messages
 
-Writing formatted messages (a format menu or Ctrl+B/I/U in the composer).
+- **Format text** (the **A** button in the composer) opens bold, italic,
+  underline, strikethrough, 16 colours and **Plain**. With text selected,
+  it formats the selection; otherwise it formats what you type next
+  (**Plain** goes back to normal).
+- On a computer: **Cmd+B**, **Cmd+I** and **Cmd+U** on a Mac, **Ctrl** on
+  others.
+- In the field, each code shows as a small grey letter (**B**, **I**,
+  **U**, **S**, **K04** for a colour, **O** for plain), like mIRC, so you
+  can see and delete them. A **Preview** line above shows how the message
+  will look.
+- Colours are sent as two digits (`\x0304`) so a number typed right after
+  isn't read as part of the colour.
 
 ## Code
+
+- `lib/core/irc/mirc_compose.dart`: `MircStyle`, `applyStyle()`,
+  `applyColor()`, `applyReset()`, `wrapSelection()`, `colorCode()`,
+  `MircEditingController` (the markers).
+- `lib/core/ui/composer.dart`: the Format text sheet, shortcuts and
+  preview.
 
 - `lib/core/irc/mirc_format.dart`: `parseMirc()` → `MircRun`s,
   `mircBaseColors`, `mircColor()`.
@@ -62,6 +79,10 @@ Writing formatted messages (a format menu or Ctrl+B/I/U in the composer).
   `Appearance.ircColours`, `setIrcColours`.
 
 ## Tests
+
+- `test/core/irc/mirc_compose_test.dart` and
+  `test/core/ui/composer_format_test.dart`: wrapping, colours, reset,
+  shortcuts, preview, markers, 48-pt targets.
 
 - `test/core/irc/mirc_format_test.dart`: every code and edge case.
 - `test/core/ui/mirc_text_test.dart`: readable colours in both modes,

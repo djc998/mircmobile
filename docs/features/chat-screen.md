@@ -66,6 +66,8 @@ Available on iOS, Android and macOS (shared Flutter code). Phase 2 of the
     of a line (so they're notified) or `alice ` elsewhere.
   - `/to` at the start of a line → commands (`/topic`).
   - `#li` → rooms you're in on this network.
+- **Format text** (the A button) adds bold, italics, underline,
+  strikethrough and colours ([mirc-formatting.md](mirc-formatting.md)).
 - Tab still completes names on a keyboard. On a computer Enter sends and
   Shift+Enter starts a new line.
 

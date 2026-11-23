@@ -8,7 +8,10 @@ import 'dart:async';
 import 'package:flutter/services.dart';
 import 'package:irc_client/core/irc/completions.dart';
 import 'package:irc_client/core/irc/formatting.dart';
+import 'package:irc_client/core/irc/mirc_compose.dart';
+import 'package:irc_client/core/irc/mirc_format.dart';
 import 'package:irc_client/core/theme/tokens.dart';
+import 'package:irc_client/core/ui/mirc_text.dart';
 import 'package:material_ui/material_ui.dart';
 
 /// A command the + menu can start, e.g. `/me` "Describe an action".
@@ -30,6 +33,9 @@ const List<ComposerCommand> composerCommands = [
   ComposerCommand('/nick ', 'Change nickname (/nick)', Icons.edit),
   ComposerCommand('/whois ', 'Look someone up (/whois)', Icons.info_outline),
 ];
+
+/// A change to the field's text and selection.
+typedef _Edit = TextEditingValue Function(TextEditingValue value);
 
 class Composer extends StatefulWidget {
   const Composer({
@@ -76,14 +82,23 @@ class Composer extends StatefulWidget {
 }
 
 class _ComposerState extends State<Composer> {
-  final _controller = TextEditingController();
+  final _controller = MircEditingController();
   final _focus = FocusNode();
   List<Completion> _completions = const [];
+
+  /// The field has formatting codes: show the preview line.
+  bool _formatted = false;
 
   @override
   void initState() {
     super.initState();
-    _controller.addListener(_updateCompletions);
+    _controller
+      ..addListener(_updateCompletions)
+      ..addListener(() {
+        final has = hasMircCodes(_controller.text);
+        // While formatted, every edit changes the preview.
+        if (has || has != _formatted) setState(() => _formatted = has);
+      });
   }
 
   @override
@@ -165,6 +180,147 @@ class _ComposerState extends State<Composer> {
     );
   }
 
+  /// Applies a formatting change to the field and keeps typing there.
+  void _format(_Edit change) {
+    _controller.value = change(_controller.value);
+    _focus.requestFocus();
+  }
+
+  /// Bold, italic, underline, strikethrough, colours and reset, applied to
+  /// the selected text or to what's typed next.
+  Future<void> _showFormat() async {
+    final picked =
+        await showModalBottomSheet<TextEditingValue Function(TextEditingValue)>(
+          context: context,
+          showDragHandle: true,
+          builder: (sheet) {
+            final tokens = AppTokens.of(sheet);
+            Widget style(MircStyle s, TextStyle look, String letter) => Tooltip(
+              message: s.label,
+              child: Semantics(
+                button: true,
+                label: s.label,
+                excludeSemantics: true,
+                child: InkResponse(
+                  radius: 26,
+                  onTap: () =>
+                      Navigator.pop<_Edit>(sheet, (v) => applyStyle(v, s)),
+                  child: SizedBox(
+                    width: 48,
+                    height: 48,
+                    child: Center(
+                      child: Text(
+                        letter,
+                        style: look.copyWith(
+                          fontSize: 20,
+                          color: tokens.textPrimary,
+                        ),
+                      ),
+                    ),
+                  ),
+                ),
+              ),
+            );
+            return SafeArea(
+              child: SingleChildScrollView(
+                padding: const EdgeInsets.fromLTRB(20, 0, 20, 16),
+                child: Column(
+                  mainAxisSize: MainAxisSize.min,
+                  crossAxisAlignment: CrossAxisAlignment.start,
+                  children: [
+                    Text(
+                      _controller.selection.isValid &&
+                              !_controller.selection.isCollapsed
+                          ? 'Format the selected text'
+                          : 'Format what you type next',
+                      style: TypeScale.meta.copyWith(color: tokens.textMuted),
+                    ),
+                    const SizedBox(height: 8),
+                    Row(
+                      children: [
+                        style(
+                          MircStyle.bold,
+                          const TextStyle(fontWeight: FontWeight.w800),
+                          'B',
+                        ),
+                        style(
+                          MircStyle.italic,
+                          const TextStyle(fontStyle: FontStyle.italic),
+                          'I',
+                        ),
+                        style(
+                          MircStyle.underline,
+                          const TextStyle(decoration: TextDecoration.underline),
+                          'U',
+                        ),
+                        style(
+                          MircStyle.strike,
+                          const TextStyle(
+                            decoration: TextDecoration.lineThrough,
+                          ),
+                          'S',
+                        ),
+                        const Spacer(),
+                        TextButton.icon(
+                          icon: const Icon(Icons.format_clear),
+                          label: const Text('Plain'),
+                          onPressed: () => Navigator.pop(sheet, applyReset),
+                        ),
+                      ],
+                    ),
+                    const SizedBox(height: 12),
+                    Text(
+                      'Colour',
+                      style: TypeScale.meta.copyWith(
+                        color: tokens.textMuted,
+                        fontWeight: FontWeight.w600,
+                      ),
+                    ),
+                    const SizedBox(height: 4),
+                    Wrap(
+                      children: [
+                        for (var i = 0; i < mircBaseColors.length; i++)
+                          Tooltip(
+                            message: mircColorNames[i],
+                            child: Semantics(
+                              button: true,
+                              label: '${mircColorNames[i]} text',
+                              excludeSemantics: true,
+                              child: InkResponse(
+                                radius: 24,
+                                onTap: () => Navigator.pop<_Edit>(
+                                  sheet,
+                                  (v) => applyColor(v, i),
+                                ),
+                                child: SizedBox(
+                                  width: 48,
+                                  height: 48,
+                                  child: Center(
+                                    child: Container(
+                                      width: 30,
+                                      height: 30,
+                                      decoration: BoxDecoration(
+                                        color: mircBaseColors[i],
+                                        shape: BoxShape.circle,
+                                        border: Border.all(color: tokens.line),
+                                      ),
+                                    ),
+                                  ),
+                                ),
+                              ),
+                            ),
+                          ),
+                      ],
+                    ),
+                  ],
+                ),
+              ),
+            );
+          },
+        );
+    if (picked != null) _format(picked);
+  }
+
   void _send() {
     final text = _controller.text;
     if (text.trim().isEmpty) return;
@@ -206,6 +362,14 @@ class _ComposerState extends State<Composer> {
   @override
   Widget build(BuildContext context) {
     final tokens = AppTokens.of(context);
+    // Codes show as small muted letters in the field.
+    _controller.markerStyle = TextStyle(
+      fontSize: 11,
+      fontWeight: FontWeight.w700,
+      color: tokens.readable(tokens.textMuted, tokens.surfaceOverlay),
+      backgroundColor: tokens.surfaceOverlay,
+    );
+    final mac = Theme.of(context).platform == TargetPlatform.macOS;
     final desktop = switch (Theme.of(context).platform) {
       TargetPlatform.macOS ||
       TargetPlatform.windows ||
@@ -284,6 +448,36 @@ class _ComposerState extends State<Composer> {
               ),
             ),
           ),
+        // The codes are invisible in the field, so show how it will look.
+        if (_formatted)
+          Padding(
+            padding: const EdgeInsets.fromLTRB(18, 6, 18, 0),
+            child: Semantics(
+              label: 'Preview',
+              child: Text.rich(
+                TextSpan(
+                  style: TypeScale.body.copyWith(color: tokens.textPrimary),
+                  children: [
+                    TextSpan(
+                      text: 'Preview  ',
+                      style: TypeScale.meta.copyWith(
+                        color: tokens.textMuted,
+                        fontWeight: FontWeight.w600,
+                      ),
+                    ),
+                    ...mircSpans(
+                      _controller.text,
+                      tokens: tokens,
+                      background: tokens.surface,
+                      textColor: tokens.textPrimary,
+                    ),
+                  ],
+                ),
+                maxLines: 3,
+                overflow: TextOverflow.ellipsis,
+              ),
+            ),
+          ),
         if (_completions.isNotEmpty)
           SizedBox(
             height: 44,
@@ -342,6 +536,17 @@ class _ComposerState extends State<Composer> {
                         // Computers: Enter sends, Shift+Enter starts a new
                         // line. Phones use the keyboard's Send key.
                         if (desktop) ...{
+                          for (final (key, style) in [
+                            (LogicalKeyboardKey.keyB, MircStyle.bold),
+                            (LogicalKeyboardKey.keyI, MircStyle.italic),
+                            (LogicalKeyboardKey.keyU, MircStyle.underline),
+                          ])
+                            SingleActivator(
+                              key,
+                              meta: mac,
+                              control: !mac,
+                            ): () =>
+                                _format((v) => applyStyle(v, style)),
                           const SingleActivator(LogicalKeyboardKey.enter):
                               _send,
                           const SingleActivator(
@@ -380,7 +585,17 @@ class _ComposerState extends State<Composer> {
                       ),
                     ),
                   ),
-                  const SizedBox(width: 6),
+                  IconButton(
+                    tooltip: 'Format text',
+                    color: tokens.textMuted,
+                    iconSize: 20,
+                    style: IconButton.styleFrom(
+                      fixedSize: const Size(36, 36),
+                      minimumSize: const Size(36, 36),
+                    ),
+                    icon: const Icon(Icons.text_format),
+                    onPressed: () => unawaited(_showFormat()),
+                  ),
                   IconButton(
                     tooltip: 'Send',
                     style: IconButton.styleFrom(
