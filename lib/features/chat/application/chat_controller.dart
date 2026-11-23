@@ -1155,7 +1155,8 @@ class ChatController extends Notifier<ChatState> {
           e.target,
           ChatLine(
             sender: e.sender,
-            text: stripFormatting(e.text),
+            // Raw, with mIRC codes; the chat view draws them.
+            text: e.text,
             time: e.time,
             kind: e.isOwn
                 ? ChatLineKind.own
@@ -1328,7 +1329,7 @@ class ChatController extends Notifier<ChatState> {
           } else {
             add(
               whoisTarget,
-              ChatLine(text: stripFormatting(text), kind: ChatLineKind.notice),
+              ChatLine(text: text, kind: ChatLineKind.notice),
               countUnread: false,
             );
           }
@@ -1336,7 +1337,7 @@ class ChatController extends Notifier<ChatState> {
         }
         add(
           statusBuffer,
-          ChatLine(text: stripFormatting(text), kind: ChatLineKind.notice),
+          ChatLine(text: text, kind: ChatLineKind.notice),
           countUnread: false,
         );
     }

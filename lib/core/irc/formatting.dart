@@ -7,9 +7,9 @@ final RegExp _formatting = RegExp(
   '|[\x02\x0F\x11\x16\x1D\x1E\x1F]',
 );
 
-/// Removes mIRC colour and style codes, leaving plain text.
-///
-/// Used until the coloured renderer lands, and for notifications/search.
+/// Removes mIRC colour and style codes, leaving plain text: for mention
+/// checks, previews, search, copying and picture links. The chat view draws
+/// the codes (see `mirc_format.dart`).
 String stripFormatting(String text) => text.replaceAll(_formatting, '');
 
 /// Valid IRC nickname: starts with a letter or special, up to 30 chars.
@@ -27,7 +27,7 @@ bool mentions(String text, String nick) {
   return RegExp(
     '(^|[^$_nickChars])${RegExp.escape(nick)}(\$|[^$_nickChars])',
     caseSensitive: false,
-  ).hasMatch(text);
+  ).hasMatch(stripFormatting(text));
 }
 
 /// Completes the last word of [text] to a nickname from [nicks] (Tab

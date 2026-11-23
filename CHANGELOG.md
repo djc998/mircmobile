@@ -39,6 +39,12 @@ and the project uses [Semantic Versioning](https://semver.org/).
   too. See [docs/features/pinned-panels.md](docs/features/pinned-panels.md).
 
 ### Added
+- mIRC colours and styles are shown in messages, server messages and Room
+  info topics: bold, italic, underline, strikethrough, monospace, reverse,
+  the 99 mIRC colours and hex colours. Colours are adjusted to stay
+  readable on every theme; previews, search, copy and mentions use plain
+  text. Turn it off in Appearance. See
+  [docs/features/mirc-formatting.md](docs/features/mirc-formatting.md).
 - Polish, Phase 5 of the redesign (iOS, Android, macOS). **Room info**: one
   page (a side panel on wide screens) with the topic, favorite, **Mute**,
   people, every room setting, clear history and leave. **Mute** a chat from

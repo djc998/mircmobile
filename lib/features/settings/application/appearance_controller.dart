@@ -67,6 +67,7 @@ class Appearance {
     this.density = ChatDensity.comfortable,
     this.textScale = 1,
     this.font = MessageFont.system,
+    this.ircColours = true,
   });
 
   /// Reads saved settings. Settings saved before the redesign have no
@@ -89,6 +90,7 @@ class Appearance {
           ChatDensity.comfortable,
       textScale: (json['textScale'] as num?)?.toDouble() ?? 1,
       font: MessageFont.values.asNameMap()[json['font']] ?? MessageFont.system,
+      ircColours: json['ircColours'] as bool? ?? true,
     );
   }
 
@@ -106,6 +108,10 @@ class Appearance {
   /// Typeface for message text.
   final MessageFont font;
 
+  /// Show the colours, bold, italics and underline people put in messages
+  /// with mIRC codes.
+  final bool ircColours;
+
   /// Whether [accent] changes [preset]'s colours.
   bool get accentApplies => preset == ThemePreset.indigo;
 
@@ -116,6 +122,7 @@ class Appearance {
     ChatDensity? density,
     double? textScale,
     MessageFont? font,
+    bool? ircColours,
   }) => Appearance(
     mode: mode ?? this.mode,
     preset: preset ?? this.preset,
@@ -123,6 +130,7 @@ class Appearance {
     density: density ?? this.density,
     textScale: textScale ?? this.textScale,
     font: font ?? this.font,
+    ircColours: ircColours ?? this.ircColours,
   );
 
   Map<String, Object?> toJson() => {
@@ -133,6 +141,7 @@ class Appearance {
     'density': density.name,
     'textScale': textScale,
     'font': font.name,
+    'ircColours': ircColours,
   };
 }
 
@@ -181,6 +190,9 @@ class AppearanceController extends Notifier<Appearance> {
   void setTextScale(double scale) => _set(state.copyWith(textScale: scale));
 
   void setFont(MessageFont font) => _set(state.copyWith(font: font));
+
+  void setIrcColours({required bool show}) =>
+      _set(state.copyWith(ircColours: show));
 }
 
 final appearanceProvider = NotifierProvider<AppearanceController, Appearance>(
