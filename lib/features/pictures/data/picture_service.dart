@@ -80,7 +80,7 @@ class PictureService {
   }) async {
     final base = host;
     if (base == null) {
-      throw const PictureException("Picture sharing isn't set up yet.");
+      throw const PictureException("Photo sharing isn't set up yet.");
     }
     final Uint8List prepared;
     try {
@@ -103,11 +103,11 @@ class PictureService {
       );
     } on Object {
       throw const PictureException(
-        "Couldn't reach the picture server. Check your connection.",
+        "Couldn't reach the photo server. Check your connection.",
       );
     }
     if (res.statusCode != 201) {
-      throw PictureException(_errorText(res) ?? "Couldn't upload the picture.");
+      throw PictureException(_errorText(res) ?? "Couldn't upload the photo.");
     }
     final body = jsonDecode(res.body) as Map<String, Object?>;
     final link = PictureLink(
@@ -127,17 +127,17 @@ class PictureService {
     try {
       res = await _http.get(link.raw);
     } on Object {
-      throw const PictureException("Couldn't load the picture.");
+      throw const PictureException("Couldn't load the photo.");
     }
     if (res.statusCode == 404) throw const PictureGoneException();
     if (res.statusCode != 200) {
-      throw const PictureException("Couldn't load the picture.");
+      throw const PictureException("Couldn't load the photo.");
     }
     final Uint8List plain;
     try {
       plain = await openPicture(res.bodyBytes, link.key);
     } on Object {
-      throw const PictureException("This picture couldn't be unlocked.");
+      throw const PictureException("This photo couldn't be unlocked.");
     }
     _remember(link, plain);
     return plain;

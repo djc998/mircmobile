@@ -62,7 +62,7 @@ class Composer extends StatefulWidget {
   final String replyText;
   final VoidCallback? onCancelReply;
 
-  /// Adds "Send a picture" to the + menu when set.
+  /// Shows the Send a photo button (and adds it to the + menu) when set.
   final VoidCallback? onAttach;
 
   /// A picture is being uploaded.
@@ -341,7 +341,7 @@ class _ComposerState extends State<Composer> {
               if (widget.onAttach != null)
                 ListTile(
                   leading: const Icon(Icons.add_photo_alternate_outlined),
-                  title: const Text('Send a picture'),
+                  title: const Text('Send a photo'),
                   enabled: !widget.uploading,
                   onTap: () => Navigator.pop(sheet, widget.onAttach),
                 ),
@@ -398,7 +398,7 @@ class _ComposerState extends State<Composer> {
                   ),
                   const SizedBox(width: 8),
                   Text(
-                    'Encrypting and sending picture…',
+                    'Encrypting and sending photo…',
                     style: TypeScale.meta.copyWith(color: tokens.textMuted),
                   ),
                 ],
@@ -514,7 +514,7 @@ class _ComposerState extends State<Composer> {
                 children: [
                   IconButton(
                     tooltip: widget.onAttach != null
-                        ? 'Add a picture or command'
+                        ? 'Add a photo or command'
                         : 'Add a command',
                     style: IconButton.styleFrom(
                       backgroundColor: tokens.surfaceOverlay,
@@ -527,6 +527,19 @@ class _ComposerState extends State<Composer> {
                     icon: const Icon(Icons.add),
                     onPressed: () => unawaited(_showMenu()),
                   ),
+                  // Private chats: photos one tap away, as before.
+                  if (widget.onAttach != null)
+                    IconButton(
+                      tooltip: 'Send a photo',
+                      color: tokens.textMuted,
+                      iconSize: 20,
+                      style: IconButton.styleFrom(
+                        fixedSize: const Size(36, 36),
+                        minimumSize: const Size(36, 36),
+                      ),
+                      icon: const Icon(Icons.add_photo_alternate_outlined),
+                      onPressed: widget.uploading ? null : widget.onAttach,
+                    ),
                   const SizedBox(width: 6),
                   Expanded(
                     child: CallbackShortcuts(

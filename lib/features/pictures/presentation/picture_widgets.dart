@@ -16,7 +16,7 @@ Future<void> sendPicture(BuildContext context, WidgetRef ref) async {
   final messenger = ScaffoldMessenger.of(context);
   if (!ref.read(pictureServiceProvider).isConfigured) {
     messenger.showSnackBar(
-      const SnackBar(content: Text("Picture sharing isn't set up yet.")),
+      const SnackBar(content: Text("Photo sharing isn't set up yet.")),
     );
     return;
   }
@@ -112,7 +112,7 @@ class _SendPictureSheetState extends State<_SendPictureSheet> {
           mainAxisSize: MainAxisSize.min,
           crossAxisAlignment: CrossAxisAlignment.stretch,
           children: [
-            Text('Send a picture', style: theme.textTheme.titleLarge),
+            Text('Send a photo', style: theme.textTheme.titleLarge),
             const SizedBox(height: 12),
             ClipRRect(
               borderRadius: BorderRadius.circular(8),
@@ -137,7 +137,7 @@ class _SendPictureSheetState extends State<_SendPictureSheet> {
               ],
             ),
             Text(
-              'View once: the picture is deleted as soon as it has been '
+              'View once: the photo is deleted as soon as it has been '
               'opened, or when the time runs out. It is encrypted on this '
               'device and location data is removed. Only people with the '
               'link can see it.',
@@ -148,7 +148,7 @@ class _SendPictureSheetState extends State<_SendPictureSheet> {
             const SizedBox(height: 16),
             FilledButton.icon(
               icon: const Icon(Icons.send),
-              label: const Text('Send picture'),
+              label: const Text('Send photo'),
               onPressed: () =>
                   Navigator.pop(context, _SendChoice(_expiry, viewOnce: true)),
             ),
@@ -253,10 +253,10 @@ class _PictureBubbleState extends ConsumerState<PictureBubble> {
     final load = _load;
     Widget body;
     if (_reported) {
-      body = _note(context, Icons.flag_outlined, 'Picture reported');
+      body = _note(context, Icons.flag_outlined, 'Photo reported');
     } else if (load == null) {
       body = widget.isOwn && widget.link.viewOnce
-          ? _note(context, Icons.visibility_off_outlined, 'View-once picture')
+          ? _note(context, Icons.visibility_off_outlined, 'View-once photo')
           : OutlinedButton.icon(
               icon: const Icon(Icons.image_outlined),
               label: Text(
@@ -277,7 +277,7 @@ class _PictureBubbleState extends ConsumerState<PictureBubble> {
               Icons.hide_image_outlined,
               error is PictureException
                   ? error.message
-                  : "Couldn't load the picture.",
+                  : "Couldn't load the photo.",
             );
           }
           final bytes = snap.data;
@@ -297,7 +297,7 @@ class _PictureBubbleState extends ConsumerState<PictureBubble> {
               ),
             ),
             child: Semantics(
-              label: 'Picture from ${widget.sender}. Tap to view full size.',
+              label: 'Photo from ${widget.sender}. Tap to view full size.',
               child: ClipRRect(
                 borderRadius: BorderRadius.circular(8),
                 child: ConstrainedBox(
@@ -326,7 +326,7 @@ class _PictureBubbleState extends ConsumerState<PictureBubble> {
           Flexible(child: body),
           if (!widget.isOwn && !_reported)
             PopupMenuButton<String>(
-              tooltip: 'Picture options',
+              tooltip: 'Photo options',
               icon: Icon(Icons.more_vert, color: theme.hintColor, size: 20),
               onSelected: (v) {
                 if (v == 'report') unawaited(_report());
@@ -335,7 +335,7 @@ class _PictureBubbleState extends ConsumerState<PictureBubble> {
               itemBuilder: (_) => [
                 const PopupMenuItem(
                   value: 'report',
-                  child: Text('Report picture'),
+                  child: Text('Report photo'),
                 ),
                 PopupMenuItem(
                   value: 'block',
@@ -392,14 +392,14 @@ class _ReportDialogState extends State<_ReportDialog> {
   @override
   Widget build(BuildContext context) {
     return AlertDialog(
-      title: const Text('Report picture'),
+      title: const Text('Report photo'),
       content: SingleChildScrollView(
         child: Column(
           mainAxisSize: MainAxisSize.min,
           crossAxisAlignment: CrossAxisAlignment.start,
           children: [
             Text(
-              'The picture is sent for review and ${widget.sender} is '
+              'The photo is sent for review and ${widget.sender} is '
               'blocked, so you stop seeing their messages.',
             ),
             const SizedBox(height: 8),

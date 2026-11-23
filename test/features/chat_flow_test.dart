@@ -1181,9 +1181,10 @@ void main() {
       ..add(':s 001 me :Welcome')
       ..add(':me!u@h JOIN #chat');
     await tester.pumpAndSettle();
-    // No pictures in rooms: + only offers commands.
+    // No photos in rooms: + only offers commands.
     expect(find.byTooltip('Add a command'), findsOneWidget);
-    expect(find.byTooltip('Add a picture or command'), findsNothing);
+    expect(find.byTooltip('Send a photo'), findsNothing);
+    expect(find.byTooltip('Add a photo or command'), findsNothing);
 
     final container = ProviderScope.containerOf(
       tester.element(find.byType(IrcApp)),
@@ -1196,7 +1197,9 @@ void main() {
     await tester.pumpAndSettle();
 
     // From someone you haven't written to: hidden until tapped.
-    expect(find.byTooltip('Add a picture or command'), findsOneWidget);
+    expect(find.byTooltip('Add a photo or command'), findsOneWidget);
+    // Photos are one tap away in private chats, not only under +.
+    expect(find.byTooltip('Send a photo'), findsOneWidget);
     expect(find.text('Show photo from bob'), findsOneWidget);
     await tester.tap(find.text('Show photo from bob'));
     await tester.pump();
@@ -1206,7 +1209,10 @@ void main() {
     );
     await tester.pumpAndSettle();
     expect(find.text('Show photo from bob'), findsNothing);
-    expect(find.bySemanticsLabel(RegExp('Picture from bob')), findsOneWidget);
+    expect(
+      find.bySemanticsLabel(RegExp(r'Photo from bob\. Tap to view')),
+      findsOneWidget,
+    );
 
     // Tap for full size (after the image has decoded and has a size).
     await tester.runAsync(
@@ -1242,9 +1248,9 @@ void main() {
     expect(transport.written.last, endsWith('&o=1'));
 
     // Report: sent with the full link, and bob is blocked.
-    await tester.tap(find.byTooltip('Picture options').first);
+    await tester.tap(find.byTooltip('Photo options').first);
     await tester.pumpAndSettle();
-    await tester.tap(find.text('Report picture'));
+    await tester.tap(find.text('Report photo'));
     await tester.pumpAndSettle();
     await tester.tap(find.text('Spam or scam'));
     await tester.pump();
@@ -1258,7 +1264,7 @@ void main() {
     expect(reports.single['sender'], 'bob');
     expect(controller.isBlocked('BOB'), isTrue);
     expect(store.values['blockedNicks'], '["bob"]');
-    expect(find.text('Picture reported'), findsOneWidget);
+    expect(find.text('Photo reported'), findsOneWidget);
 
     // Blocked: new messages from bob don't show up.
     transport.incoming.add(':bob!b@h PRIVMSG me :are you there?');

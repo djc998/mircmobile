@@ -7,6 +7,9 @@ and the project uses [Semantic Versioning](https://semver.org/).
 ## [Unreleased]
 
 ### Changed
+- Photos are called photos everywhere in the app again ("Photo options",
+  "Report photo", "Photo reported", "View-once photo", "Send a photo"), and
+  private chats have a visible **Send a photo** button next to **+** again.
 - Tapping a room's name opens Room info instead of the Chat info sheet;
   Room settings are inside it. "Block" on a person is now **Ignore**
   (same list). The welcome's network heading wraps at large text sizes.

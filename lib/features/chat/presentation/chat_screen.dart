@@ -947,9 +947,7 @@ Future<void> showUserActions(
                 ),
                 subtitle: controller.isBlocked(nick)
                     ? null
-                    : const Text(
-                        'Hide their messages, pictures and invitations',
-                      ),
+                    : const Text('Hide their messages, photos and invitations'),
                 onTap: () {
                   Navigator.pop(sheet);
                   if (controller.isBlocked(nick)) {
