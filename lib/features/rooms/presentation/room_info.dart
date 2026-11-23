@@ -7,9 +7,11 @@ import 'dart:async';
 import 'package:flutter_riverpod/flutter_riverpod.dart';
 import 'package:irc_client/core/theme/tokens.dart';
 import 'package:irc_client/core/ui/avatars.dart';
+import 'package:irc_client/core/ui/mirc_text.dart';
 import 'package:irc_client/features/chat/application/chat_controller.dart';
 import 'package:irc_client/features/favorites/application/room_prefs_controller.dart';
 import 'package:irc_client/features/rooms/presentation/room_dialogs.dart';
+import 'package:irc_client/features/settings/application/appearance_controller.dart';
 import 'package:material_ui/material_ui.dart';
 
 /// Opens Room info for [channel]: a page on phones, a panel on the right on
@@ -136,9 +138,19 @@ class RoomInfoScreen extends ConsumerWidget {
                     ),
                   ),
                   const SizedBox(height: 4),
-                  SelectableText(
-                    topic.isEmpty ? 'No topic set.' : topic,
-                    style: TypeScale.body.copyWith(color: tokens.textPrimary),
+                  Text.rich(
+                    TextSpan(
+                      style: TypeScale.body.copyWith(color: tokens.textPrimary),
+                      children: topic.isEmpty
+                          ? const [TextSpan(text: 'No topic set.')]
+                          : mircSpans(
+                              topic,
+                              tokens: tokens,
+                              background: tokens.surfaceRaised,
+                              textColor: tokens.textPrimary,
+                              colours: ref.watch(appearanceProvider).ircColours,
+                            ),
+                    ),
                   ),
                 ],
               ),

@@ -5,6 +5,7 @@ import 'package:flutter/semantics.dart';
 import 'package:flutter/services.dart';
 import 'package:flutter_riverpod/flutter_riverpod.dart';
 import 'package:go_router/go_router.dart';
+import 'package:irc_client/core/irc/formatting.dart';
 import 'package:irc_client/core/irc/irc_client.dart';
 import 'package:irc_client/core/irc/irc_events.dart';
 import 'package:irc_client/core/theme/app_theme.dart';
@@ -13,6 +14,7 @@ import 'package:irc_client/core/ui/avatars.dart';
 import 'package:irc_client/core/ui/chat_dividers.dart';
 import 'package:irc_client/core/ui/composer.dart';
 import 'package:irc_client/core/ui/message_group.dart';
+import 'package:irc_client/core/ui/mirc_text.dart';
 import 'package:irc_client/core/ui/unread_badge.dart';
 import 'package:irc_client/features/calls/application/call_controller.dart';
 import 'package:irc_client/features/calls/presentation/call_widgets.dart';
@@ -224,55 +226,63 @@ class ChatScreen extends ConsumerWidget {
                         ],
                       ),
                   Expanded(
-                    child: _withMessageFont(
-                      context,
-                      ref.watch(appearanceProvider).font,
-                      _MessageList(
-                        // A new list per conversation: scroll and the "new"
-                        // pill start fresh.
-                        key: ValueKey(buffer?.key),
-                        lines: buffer?.lines ?? [],
-                        ownNick: net?.nick ?? '',
-                        networkId: net?.id ?? '',
-                        style: buffer == null || buffer.isStatus || !comfortable
-                            ? _ChatStyle.lines
-                            : isChannel
-                            ? _ChatStyle.groups
-                            : _ChatStyle.bubbles,
-                        unreadMarker: buffer?.unreadMarker,
-                        roleOf: channel == null
-                            ? null
-                            : (nick) {
-                                final m = channel.members[nick.toLowerCase()];
-                                return m == null
-                                    ? NickRole.member
-                                    : nickRoleOf(m);
-                              },
-                        // Pictures load on their own only in a private chat
-                        // where you've written to the other person.
-                        autoShowPictures:
-                            buffer != null &&
-                            !buffer.isStatus &&
-                            !isChannel &&
-                            buffer.lines.any((l) => l.kind == ChatLineKind.own),
-                        onReply: isChannel ? controller.startReply : null,
-                        onNickTap: (nick) => unawaited(
-                          showUserActions(
-                            context,
-                            controller,
-                            net?.nick ?? '',
-                            nick,
-                            network: net,
-                            room: channel?.name,
-                            onReply: isChannel
-                                ? () => controller.startReply(
-                                    _lastLineFrom(buffer!, nick),
-                                  )
-                                : null,
-                            onMention: isChannel
-                                ? () => controller.startReply(_mentionOf(nick))
-                                : null,
-                            onCall: () => unawaited(_call(context, ref, nick)),
+                    child: MircColours(
+                      enabled: ref.watch(appearanceProvider).ircColours,
+                      child: _withMessageFont(
+                        context,
+                        ref.watch(appearanceProvider).font,
+                        _MessageList(
+                          // A new list per conversation: scroll and the "new"
+                          // pill start fresh.
+                          key: ValueKey(buffer?.key),
+                          lines: buffer?.lines ?? [],
+                          ownNick: net?.nick ?? '',
+                          networkId: net?.id ?? '',
+                          style:
+                              buffer == null || buffer.isStatus || !comfortable
+                              ? _ChatStyle.lines
+                              : isChannel
+                              ? _ChatStyle.groups
+                              : _ChatStyle.bubbles,
+                          unreadMarker: buffer?.unreadMarker,
+                          roleOf: channel == null
+                              ? null
+                              : (nick) {
+                                  final m = channel.members[nick.toLowerCase()];
+                                  return m == null
+                                      ? NickRole.member
+                                      : nickRoleOf(m);
+                                },
+                          // Pictures load on their own only in a private chat
+                          // where you've written to the other person.
+                          autoShowPictures:
+                              buffer != null &&
+                              !buffer.isStatus &&
+                              !isChannel &&
+                              buffer.lines.any(
+                                (l) => l.kind == ChatLineKind.own,
+                              ),
+                          onReply: isChannel ? controller.startReply : null,
+                          onNickTap: (nick) => unawaited(
+                            showUserActions(
+                              context,
+                              controller,
+                              net?.nick ?? '',
+                              nick,
+                              network: net,
+                              room: channel?.name,
+                              onReply: isChannel
+                                  ? () => controller.startReply(
+                                      _lastLineFrom(buffer!, nick),
+                                    )
+                                  : null,
+                              onMention: isChannel
+                                  ? () =>
+                                        controller.startReply(_mentionOf(nick))
+                                  : null,
+                              onCall: () =>
+                                  unawaited(_call(context, ref, nick)),
+                            ),
                           ),
                         ),
                       ),
@@ -286,7 +296,7 @@ class ChatScreen extends ConsumerWidget {
                         ? 'Message or /command'
                         : 'Message ${buffer.name}',
                     replyTo: buffer?.replyTo?.sender,
-                    replyText: buffer?.replyTo?.text ?? '',
+                    replyText: stripFormatting(buffer?.replyTo?.text ?? ''),
                     onCancelReply: controller.cancelReply,
                     rooms: [
                       for (final b in state.buffers.values)
@@ -1405,7 +1415,7 @@ class _MessageListState extends State<_MessageList> {
   PictureLink? _pictureIn(ChatLine line) =>
       line.sender != null &&
           (line.kind == ChatLineKind.own || line.kind == ChatLineKind.message)
-      ? PictureLink.find(line.text)
+      ? PictureLink.find(stripFormatting(line.text))
       : null;
 
   Widget? _picture(ChatLine line, {double indent = 48}) {
@@ -1621,32 +1631,45 @@ class _LineBody extends StatelessWidget {
     final base = bubble
         ? DefaultTextStyle.of(context).style
         : TypeScale.body.copyWith(color: tokens.textPrimary);
+    // What the text sits on, so mIRC colours can be kept readable.
+    final behind = bubble
+        ? (line.kind == ChatLineKind.own
+              ? tokens.accent
+              : tokens.surfaceOverlay)
+        : mentioned
+        ? Color.alphaBlend(tokens.mentionSoft, tokens.surface)
+        : tokens.surface;
+    final colours = MircColours.of(context);
+    List<InlineSpan> body(Color textColor, {bool highlight = false}) =>
+        mircSpans(
+          line.text,
+          tokens: tokens,
+          background: behind,
+          textColor: textColor,
+          colours: colours,
+          highlight: highlight ? ownNick : null,
+          highlightStyle: TextStyle(
+            fontWeight: FontWeight.w600,
+            color: bubble ? null : tokens.readable(tokens.mention, behind),
+          ),
+        );
+    final baseColor = base.color ?? tokens.textPrimary;
     final span = switch (line.kind) {
       ChatLineKind.action => TextSpan(
-        text: '${line.sender} ${line.text}',
         style: TextStyle(
           fontStyle: FontStyle.italic,
           color: bubble ? null : chat.action,
         ),
+        children: [
+          TextSpan(text: '${line.sender} '),
+          ...body(bubble ? baseColor : chat.action),
+        ],
       ),
       ChatLineKind.notice => TextSpan(
-        text: line.text,
         style: TextStyle(color: bubble ? null : chat.notice),
+        children: body(bubble ? baseColor : chat.notice),
       ),
-      _ => TextSpan(
-        children: mentioned
-            ? _highlight(
-                line.text,
-                ownNick,
-                TextStyle(
-                  fontWeight: FontWeight.w600,
-                  color: bubble
-                      ? null
-                      : tokens.readable(tokens.mention, tokens.mentionSoft),
-                ),
-              )
-            : [TextSpan(text: line.text)],
-      ),
+      _ => TextSpan(children: body(baseColor, highlight: mentioned)),
     };
     final full = TextSpan(style: base, children: [span]);
     final time = _time(context, line.time);
@@ -1662,27 +1685,6 @@ class _LineBody extends StatelessWidget {
         child: _isTouch(context) ? Text.rich(full) : SelectableText.rich(full),
       ),
     );
-  }
-
-  /// [text] split so each whole-word [nick] gets [style].
-  static List<InlineSpan> _highlight(
-    String text,
-    String nick,
-    TextStyle style,
-  ) {
-    final pattern = RegExp(
-      '(?<![\\w\\[\\]\\\\`^{}|-])${RegExp.escape(nick)}(?![\\w\\[\\]\\\\`^{}|-])',
-      caseSensitive: false,
-    );
-    final spans = <InlineSpan>[];
-    var at = 0;
-    for (final m in pattern.allMatches(text)) {
-      if (m.start > at) spans.add(TextSpan(text: text.substring(at, m.start)));
-      spans.add(TextSpan(text: m[0], style: style));
-      at = m.end;
-    }
-    if (at < text.length) spans.add(TextSpan(text: text.substring(at)));
-    return spans;
   }
 }
 
@@ -1815,7 +1817,7 @@ Future<void> _showLineActions(
           title: const Text('Copy message'),
           onTap: () {
             Navigator.pop(sheet);
-            _copyNick(line.text);
+            _copyNick(stripFormatting(line.text));
           },
         ),
       ],
@@ -1869,11 +1871,23 @@ class _MessageTileState extends State<_MessageTile> {
       fontWeight: FontWeight.bold,
       color: sender == null ? null : chatColors.nickColor(sender),
     );
+    final mentioned = lineMentions(line, widget.ownNick);
+    final behind = mentioned
+        ? Color.alphaBlend(tokens.mentionSoft, tokens.surface)
+        : tokens.surface;
+    final colours = MircColours.of(context);
+    List<InlineSpan> text(Color textColor) => mircSpans(
+      line.text,
+      tokens: tokens,
+      background: behind,
+      textColor: textColor,
+      colours: colours,
+    );
     final InlineSpan body = switch (line.kind) {
       ChatLineKind.message || ChatLineKind.own => TextSpan(
         children: [
           TextSpan(text: '<$sender> ', style: nickStyle, recognizer: _nickTap),
-          TextSpan(text: line.text),
+          ...text(theme.colorScheme.onSurface),
         ],
       ),
       ChatLineKind.action => TextSpan(
@@ -1881,7 +1895,8 @@ class _MessageTileState extends State<_MessageTile> {
         children: [
           const TextSpan(text: '* '),
           TextSpan(text: sender, recognizer: _nickTap),
-          TextSpan(text: ' ${line.text}'),
+          const TextSpan(text: ' '),
+          ...text(chatColors.action),
         ],
       ),
       ChatLineKind.notice => TextSpan(
@@ -1889,7 +1904,7 @@ class _MessageTileState extends State<_MessageTile> {
         children: [
           if (sender != null)
             TextSpan(text: '-$sender- ', recognizer: _nickTap),
-          TextSpan(text: line.text),
+          ...text(chatColors.notice),
         ],
       ),
       ChatLineKind.event => TextSpan(
@@ -1901,7 +1916,6 @@ class _MessageTileState extends State<_MessageTile> {
         style: TextStyle(color: theme.colorScheme.error),
       ),
     };
-    final mentioned = lineMentions(line, widget.ownNick);
     // The message font from Appearance arrives as the default text style.
     final inherited = DefaultTextStyle.of(context).style;
     final span = TextSpan(

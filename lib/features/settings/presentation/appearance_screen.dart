@@ -115,6 +115,18 @@ class AppearanceScreen extends ConsumerWidget {
             ),
             const SizedBox(height: 4),
             Text(appearance.font.description, style: theme.textTheme.bodySmall),
+            const SizedBox(height: 8),
+            SwitchListTile.adaptive(
+              contentPadding: EdgeInsets.zero,
+              title: const Text('Show mIRC colours and styles'),
+              subtitle: const Text(
+                'Colours, bold, italics and underline that people add to '
+                'their messages. Colours are adjusted to stay readable on '
+                'your theme.',
+              ),
+              value: appearance.ircColours,
+              onChanged: (v) => controller.setIrcColours(show: v),
+            ),
             const SizedBox(height: 24),
             Text('Text size', style: theme.textTheme.titleMedium),
             const SizedBox(height: 8),

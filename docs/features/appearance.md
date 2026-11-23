@@ -27,6 +27,9 @@ Open **Appearance** from the palette button on the start screen, from
   classic `HH:MM <nick>` lines). See [chat-screen.md](chat-screen.md).
 - **Message font:** System or **Monospace** (even-width letters, for code
   and ASCII art; Menlo on Apple devices, the system monospace elsewhere).
+- **Show mIRC colours and styles** (on by default): colours, bold,
+  italics and underline people add to messages, kept readable on your
+  theme ([mirc-formatting.md](mirc-formatting.md)).
 - **Text size:** Small, Normal, Large or Larger. It applies to the whole
   app, on top of the device's own text size setting.
 
