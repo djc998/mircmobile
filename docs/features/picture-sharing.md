@@ -1,4 +1,4 @@
-# Sharing temporary pictures
+# Sharing temporary photos
 
 Available on iOS, Android and macOS (shared Flutter code).
 
@@ -8,11 +8,11 @@ and delete themselves after a set time.
 
 ## Using it
 
-- **Send:** in a private chat, tap the picture button left of the message
+- **Send:** in a private chat, tap the photo button (next to **+**, also in the + menu) left of the message
   box. On phones choose **Choose a photo** or **Take a photo**; on the Mac a
   file picker opens. Then pick how long it lasts (**1 hour** or **4 hours**,
-  the default) and tap **Send picture**. Every picture is view-once: the
-  server deletes it the first time it is downloaded. The message box shows "Encrypting and sending picture…" while
+  the default) and tap **Send photo**. Every picture is view-once: the
+  server deletes it the first time it is downloaded. The message box shows "Encrypting and sending photo…" while
   it uploads.
 - The message sent looks like
   `📷 Photo from dennis: https://<host>/p/<id>#k=<key>&o=1`. How long it

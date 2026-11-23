@@ -148,7 +148,7 @@ class _SettingsScreenState extends ConsumerState<SettingsScreen> {
                         title: Text('Nobody'),
                         subtitle: Text(
                           'Ignore someone from their profile card (tap their '
-                          'name) to hide their messages, pictures and '
+                          'name) to hide their messages, photos and '
                           'invitations.',
                         ),
                       ),

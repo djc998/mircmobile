@@ -351,7 +351,7 @@ class ChatController extends Notifier<ChatState> {
       return 'Not connected to ${session.label}.';
     }
     final service = ref.read(pictureServiceProvider);
-    if (!service.isConfigured) return "Picture sharing isn't set up yet.";
+    if (!service.isConfigured) return "Photo sharing isn't set up yet.";
     buffer.uploading++;
     _touch();
     try {

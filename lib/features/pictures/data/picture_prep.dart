@@ -20,7 +20,7 @@ Future<Uint8List> preparePicture(Uint8List bytes) =>
 Uint8List preparePictureSync(Uint8List bytes) {
   final decoded = img.decodeImage(bytes);
   if (decoded == null) {
-    throw const FormatException("That file isn't a picture the app can read.");
+    throw const FormatException("That file isn't a photo the app can read.");
   }
   var picture = img.bakeOrientation(decoded);
   final longest = math.max(picture.width, picture.height);

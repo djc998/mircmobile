@@ -328,16 +328,16 @@ void main() {
       await tester.pumpWidget(
         host(Composer(onSubmit: (_) {}, onAttach: () => attached++)),
       );
-      await tester.tap(find.byTooltip('Add a picture or command'));
+      await tester.tap(find.byTooltip('Add a photo or command'));
       await tester.pumpAndSettle();
-      await tester.tap(find.text('Send a picture'));
+      await tester.tap(find.text('Send a photo'));
       await tester.pumpAndSettle();
       expect(attached, 1);
 
       await tester.pumpWidget(host(Composer(onSubmit: (_) {})));
       await tester.tap(find.byTooltip('Add a command'));
       await tester.pumpAndSettle();
-      expect(find.text('Send a picture'), findsNothing);
+      expect(find.text('Send a photo'), findsNothing);
       await tester.tap(find.text('Change nickname (/nick)'));
       await tester.pumpAndSettle();
       expect(
