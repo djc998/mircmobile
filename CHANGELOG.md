@@ -17,6 +17,8 @@ and the project uses [Semantic Versioning](https://semver.org/).
   - Confirmations (Delete saved history) are system alerts on iOS and Mac.
     Spinners are the native ones. Swiping to reply gives a haptic tick.
   See [docs/features/platform-feel.md](docs/features/platform-feel.md).
+- The terms and Settings → About show **support@ircage.com** as the contact
+  address.
 - **App Store safety** (iOS, Android, macOS), for Apple's rules on apps
   with user-generated content:
   - **Terms of use** to agree to on first launch (and again when they

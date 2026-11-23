@@ -8,7 +8,6 @@ const int termsVersion = 1;
 /// Where people can reach the app's makers about abuse and anything else.
 /// Apple requires published contact information for apps with
 /// user-generated content (App Review Guideline 1.2).
-// TODO(djc998): put a real address here before submitting to the App Store.
 const String supportContact = 'support@ircage.com';
 
 /// The terms, as titled sections.
