@@ -9,6 +9,7 @@ import 'package:flutter_riverpod/flutter_riverpod.dart';
 import 'package:http/http.dart' as http;
 import 'package:irc_client/features/pictures/data/picture_crypto.dart';
 import 'package:irc_client/features/pictures/data/picture_prep.dart';
+import 'package:irc_client/features/pictures/domain/file_link.dart';
 import 'package:irc_client/features/pictures/domain/picture_link.dart';
 
 /// The picture host's address, e.g. `https://irc-pictures.example.workers.dev`.
@@ -117,6 +118,72 @@ class PictureService {
     );
     _remember(link, prepared);
     return link;
+  }
+
+  /// Encrypts and uploads a file (not changed in any way). Returns the
+  /// link to send.
+  Future<FileLink> uploadFile(
+    Uint8List bytes, {
+    required String name,
+    required PictureExpiry expiry,
+  }) async {
+    final base = host;
+    if (base == null) {
+      throw const PictureException("File sharing isn't set up yet.");
+    }
+    if (bytes.isEmpty) throw const PictureException('That file is empty.');
+    if (bytes.length > maxFileBytes) {
+      throw const PictureException('Files can be 25 MB at most.');
+    }
+    final (:sealed, :key) = await sealPicture(bytes);
+    final http.Response res;
+    try {
+      res = await _http.post(
+        base.resolve('/upload'),
+        headers: {
+          'content-type': 'application/octet-stream',
+          'x-kind': 'file',
+          'x-expires-in': '${expiry.duration.inSeconds}',
+          if (appToken.isNotEmpty) 'x-app-token': appToken,
+        },
+        body: sealed,
+      );
+    } on Object {
+      throw const PictureException(
+        "Couldn't reach the file server. Check your connection.",
+      );
+    }
+    if (res.statusCode != 201) {
+      throw PictureException(_errorText(res) ?? "Couldn't upload the file.");
+    }
+    final body = jsonDecode(res.body) as Map<String, Object?>;
+    return FileLink(
+      page: Uri.parse(body['url']! as String),
+      key: key,
+      name: safeFileName(name),
+      size: bytes.length,
+    );
+  }
+
+  /// Downloads and decrypts the file behind [link].
+  Future<Uint8List> downloadFile(FileLink link) async {
+    final http.Response res;
+    try {
+      res = await _http.get(link.raw);
+    } on Object {
+      throw const PictureException("Couldn't download the file.");
+    }
+    if (res.statusCode == 404) {
+      throw const PictureException('This file has expired.');
+    }
+    if (res.statusCode != 200) {
+      throw const PictureException("Couldn't download the file.");
+    }
+    try {
+      return await openPicture(res.bodyBytes, link.key);
+    } on Object {
+      throw const PictureException("This file couldn't be unlocked.");
+    }
   }
 
   /// Downloads and decrypts the picture behind [link].

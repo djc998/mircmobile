@@ -14,6 +14,12 @@
 //   GET  /p/<id>/raw        encrypted bytes (404 when expired or viewed)
 //   GET  /p/<id>            viewer page: decrypts in the browser, for people
 //                           on other IRC apps who just click the link
+//   POST /upload with X-Kind: file
+//                           any file (25 MB at most), kept until it expires
+//                           (not view-once) -> 201 {"id","url":".../f/<id>"}
+//   GET  /f/<id>/raw        a file's encrypted bytes (404 when expired)
+//   GET  /f/<id>            download page: decrypts in the browser and saves
+//                           it under the name in the link's #n=
 //   POST /report            {"link","sender","network","reason"} -> 201;
 //                           or {"kind":"message","text","sender","network",
 //                           "room","reason"} for a chat message.
@@ -26,13 +32,11 @@
 // runs every 15 minutes. An R2 lifecycle rule (see README) is the backstop.
 
 import { callRoute } from './calls.js';
+import { DEFAULT_EXPIRY, EXPIRY_CHOICES, MAX_BYTES, MAX_FILE_BYTES } from './limits.js';
 
 // The Durable Object class must be exported from the Worker's entry module.
 export { CallRoom } from './calls.js';
 
-export const MAX_BYTES = 10 * 1024 * 1024;
-export const EXPIRY_CHOICES = [3600, 14400];
-export const DEFAULT_EXPIRY = 14400;
 const ID_PATTERN = /^[A-Za-z0-9_-]{22}$/;
 
 export default {
@@ -64,11 +68,11 @@ export async function route(request, env, now = Date.now()) {
   // Voice and video calls (see calls.js).
   const call = await callRoute(request, env, url, now);
   if (call) return call.status === 101 ? call : cors(call);
-  let m = path.match(/^\/p\/([^/]+)\/raw$/);
-  if (request.method === 'GET' && m) return cors(await raw(env, m[1], now));
-  m = path.match(/^\/p\/([^/]+)$/);
-  if (request.method === 'GET' && m && ID_PATTERN.test(m[1])) {
-    return viewerPage();
+  let m = path.match(/^\/([pf])\/([^/]+)\/raw$/);
+  if (request.method === 'GET' && m) return cors(await raw(env, m[1], m[2], now));
+  m = path.match(/^\/([pf])\/([^/]+)$/);
+  if (request.method === 'GET' && m && ID_PATTERN.test(m[2])) {
+    return m[1] === 'f' ? filePage() : viewerPage();
   }
   if (path.startsWith('/admin/')) return admin(request, env, path);
   if (request.method === 'GET' && path === '/') {
@@ -92,41 +96,50 @@ async function upload(request, env, url, now) {
   if (!EXPIRY_CHOICES.includes(expiresIn)) {
     return json({ error: 'Unsupported expiry' }, 400);
   }
+  // Photos (p/) are view-once; files (f/) last until they expire.
+  const kind = request.headers.get('x-kind') === 'file' ? 'f' : 'p';
+  const max = kind === 'f' ? MAX_FILE_BYTES : MAX_BYTES;
+  const tooLarge = kind === 'f' ? 'File is too large (25 MB at most)' : 'Picture is too large';
   const declared = Number(request.headers.get('content-length') ?? 0);
-  if (declared > MAX_BYTES) return json({ error: 'Picture is too large' }, 413);
+  if (declared > max) return json({ error: tooLarge }, 413);
   const body = await request.arrayBuffer();
   // 12-byte nonce + 16-byte tag at least.
   if (body.byteLength < 29) return json({ error: 'Empty upload' }, 400);
-  if (body.byteLength > MAX_BYTES) return json({ error: 'Picture is too large' }, 413);
+  if (body.byteLength > max) return json({ error: tooLarge }, 413);
 
   const id = randomId();
   const expiresAt = now + expiresIn * 1000;
-  await env.PICTURES.put(`p/${id}`, body, {
+  await env.PICTURES.put(`${kind}/${id}`, body, {
     httpMetadata: { contentType: 'application/octet-stream' },
-    customMetadata: { expiresAt: String(expiresAt), viewOnce: '1' },
+    customMetadata: {
+      expiresAt: String(expiresAt),
+      ...(kind === 'p' ? { viewOnce: '1' } : {}),
+    },
   });
-  return json({ id, url: `${url.origin}/p/${id}`, expiresAt }, 201);
+  return json({ id, url: `${url.origin}/${kind}/${id}`, expiresAt }, 201);
 }
 
-async function raw(env, id, now) {
+async function raw(env, kind, id, now) {
   if (!ID_PATTERN.test(id)) return json({ error: 'Not found' }, 404);
-  const key = `p/${id}`;
+  const key = `${kind}/${id}`;
+  const gone = kind === 'f' ? 'This file has expired' : 'This photo has expired';
   const object = await env.PICTURES.get(key);
-  if (!object) return json({ error: 'This photo has expired' }, 404);
+  if (!object) return json({ error: gone }, 404);
   const meta = object.customMetadata ?? {};
   if (Number(meta.expiresAt ?? 0) <= now) {
     await env.PICTURES.delete(key);
-    return json({ error: 'This photo has expired' }, 404);
+    return json({ error: gone }, 404);
   }
   const bytes = await object.arrayBuffer();
-  // Every picture is view-once: gone after the first download.
-  await env.PICTURES.delete(key);
+  // Every picture is view-once: gone after the first download. Files stay
+  // until they expire, so a failed save can be tried again.
+  if (meta.viewOnce === '1') await env.PICTURES.delete(key);
   return new Response(bytes, {
     headers: {
       'content-type': 'application/octet-stream',
       'cache-control': 'no-store',
       'x-expires-at': String(meta.expiresAt),
-      'x-view-once': '1',
+      ...(meta.viewOnce === '1' ? { 'x-view-once': '1' } : {}),
     },
   });
 }
@@ -157,7 +170,7 @@ async function report(request, env, now) {
     return json({ ok: true }, 201);
   }
   const link = String(body.link ?? '').slice(0, 500);
-  const id = link.match(/\/p\/([A-Za-z0-9_-]{22})/)?.[1];
+  const id = link.match(/\/[pf]\/([A-Za-z0-9_-]{22})/)?.[1];
   if (!id) return json({ error: 'Bad report' }, 400);
   // Text only: the key (after `#`) is dropped and no copy of the picture is
   // kept, so nothing viewable is stored past the picture's own expiry.
@@ -195,24 +208,26 @@ async function admin(request, env, path) {
 
 /** Deletes expired pictures. Returns how many were removed. */
 export async function sweepExpired(env, now) {
-  let cursor;
   let removed = 0;
-  do {
-    const page = await env.PICTURES.list({
-      prefix: 'p/',
-      cursor,
-      limit: 1000,
-      include: ['customMetadata'],
-    });
-    const expired = page.objects
-      .filter((o) => Number(o.customMetadata?.expiresAt ?? 0) <= now)
-      .map((o) => o.key);
-    if (expired.length) {
-      await env.PICTURES.delete(expired);
-      removed += expired.length;
-    }
-    cursor = page.truncated ? page.cursor : undefined;
-  } while (cursor);
+  for (const prefix of ['p/', 'f/']) {
+    let cursor;
+    do {
+      const page = await env.PICTURES.list({
+        prefix,
+        cursor,
+        limit: 1000,
+        include: ['customMetadata'],
+      });
+      const expired = page.objects
+        .filter((o) => Number(o.customMetadata?.expiresAt ?? 0) <= now)
+        .map((o) => o.key);
+      if (expired.length) {
+        await env.PICTURES.delete(expired);
+        removed += expired.length;
+      }
+      cursor = page.truncated ? page.cursor : undefined;
+    } while (cursor);
+  }
   return removed;
 }
 
@@ -240,7 +255,7 @@ function cors(response) {
   r.headers.set('access-control-allow-methods', 'GET, POST, OPTIONS');
   r.headers.set(
     'access-control-allow-headers',
-    'content-type, x-expires-in, x-view-once, x-app-token',
+    'content-type, x-expires-in, x-view-once, x-app-token, x-kind',
   );
   r.headers.set('access-control-expose-headers', 'x-expires-at, x-view-once');
   return r;
@@ -299,4 +314,66 @@ const VIEWER_HTML = `<!doctype html>
     msg.textContent = e.message || 'Could not open this photo.';
   }
 })();
+</script></body></html>`;
+
+function filePage() {
+  return new Response(FILE_HTML, {
+    headers: {
+      'content-type': 'text/html; charset=utf-8',
+      'cache-control': 'no-store',
+      'referrer-policy': 'no-referrer',
+      'content-security-policy':
+        "default-src 'none'; style-src 'unsafe-inline'; script-src 'unsafe-inline'; connect-src 'self'",
+    },
+  });
+}
+
+// Download page for people on other IRC apps: decrypts in the browser and
+// saves under the name from the link's #n= (never sent to the server).
+const FILE_HTML = `<!doctype html>
+<html lang="en"><head><meta charset="utf-8">
+<meta name="viewport" content="width=device-width, initial-scale=1">
+<meta name="robots" content="noindex">
+<title>Shared file</title>
+<style>
+  :root { color-scheme: light dark; }
+  body { margin: 0; min-height: 100vh; display: grid; place-items: center;
+         font: 16px system-ui, sans-serif; background: #111; color: #eee; }
+  main { padding: 24px; text-align: center; max-width: 32rem; }
+  button { font: inherit; padding: 10px 20px; border-radius: 999px; border: 0;
+           background: #5b5bf0; color: #fff; cursor: pointer; }
+  small { display: block; margin-top: 16px; color: #aaa; }
+</style></head>
+<body><main>
+<h1 id="name">Shared file</h1>
+<p id="msg">Encrypted end to end. Only people with this link can open it.</p>
+<button id="get">Download</button>
+<small>Only open files from people you trust.</small>
+</main>
+<script>
+const params = new URLSearchParams(location.hash.slice(1));
+const name = (params.get('n') || 'file').replace(/[\\\\/:*?"<>|]/g, '_');
+document.getElementById('name').textContent = name;
+document.getElementById('get').onclick = async () => {
+  const msg = document.getElementById('msg');
+  try {
+    const key = params.get('k');
+    if (!key) throw new Error('This link is missing its key.');
+    msg.textContent = 'Downloading…';
+    const res = await fetch(location.pathname + '/raw', { cache: 'no-store' });
+    if (!res.ok) throw new Error('This file has expired.');
+    const data = new Uint8Array(await res.arrayBuffer());
+    const b64 = key.replace(/-/g, '+').replace(/_/g, '/');
+    const raw = Uint8Array.from(atob(b64 + '='.repeat((4 - b64.length % 4) % 4)), c => c.charCodeAt(0));
+    const k = await crypto.subtle.importKey('raw', raw, 'AES-GCM', false, ['decrypt']);
+    const plain = await crypto.subtle.decrypt({ name: 'AES-GCM', iv: data.slice(0, 12) }, k, data.slice(12));
+    const a = document.createElement('a');
+    a.href = URL.createObjectURL(new Blob([plain], { type: 'application/octet-stream' }));
+    a.download = name;
+    a.click();
+    msg.textContent = 'Saved as ' + name + '.';
+  } catch (e) {
+    msg.textContent = e.message || 'Could not open this file.';
+  }
+};
 </script></body></html>`;

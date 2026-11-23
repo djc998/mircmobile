@@ -7,6 +7,13 @@ and the project uses [Semantic Versioning](https://semver.org/).
 ## [Unreleased]
 
 ### Added
+- **Send a file** in private chats (iOS, Android, macOS), from the **+**
+  menu: any file up to 25 MB, encrypted on your device and sent as a link
+  that stops working after 1 or 4 hours. The other person gets a card with
+  the name, size and **Save** (the share sheet on iPhone and Android, a save
+  dialog on the Mac); people on other IRC apps get a download page. Needs
+  the picture host redeployed. See
+  [docs/features/file-sharing.md](docs/features/file-sharing.md).
 - **Typing indicators** (iOS, Android, macOS): "bob is typing…" above the
   message box, and others see when you type, on servers with IRCv3 message
   tags (Ergo, soju and more). Turn yours off in Settings → Safety → **Show
