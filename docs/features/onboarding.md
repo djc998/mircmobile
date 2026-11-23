@@ -13,7 +13,9 @@ The first screen welcomes you and walks through three numbered steps:
   (letters, numbers and `_-[]{}|^`, starting with a letter).
 - **2 Choose a network.** A card per network with its description; tap one
   to connect, or **Connect to all**. Networks that are already open show
-  **Connected** or **Disconnected**.
+  **Connected** or **Disconnected**. **Add your own network** under the
+  list adds any other server or bouncer
+  ([custom-networks.md](custom-networks.md)).
 - **3 Find your first room.** Explains Discover. After connecting with no
   rooms to join, Rooms home says **Find your first room** with a
   **Discover rooms** button.

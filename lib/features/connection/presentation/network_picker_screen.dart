@@ -11,7 +11,9 @@ import 'package:irc_client/core/theme/tokens.dart';
 import 'package:irc_client/features/calls/application/call_controller.dart';
 import 'package:irc_client/features/calls/presentation/call_widgets.dart';
 import 'package:irc_client/features/chat/application/chat_controller.dart';
+import 'package:irc_client/features/connection/data/custom_networks.dart';
 import 'package:irc_client/features/connection/data/saved_connection.dart';
+import 'package:irc_client/features/connection/presentation/custom_network_sheet.dart';
 import 'package:irc_client/features/favorites/application/room_prefs_controller.dart';
 import 'package:material_ui/material_ui.dart';
 
@@ -82,11 +84,25 @@ class _NetworkPickerScreenState extends ConsumerState<NetworkPickerScreen> {
     super.dispose();
   }
 
-  static IrcNetwork? _networkFor(String host) {
-    for (final n in builtInNetworks) {
+  /// Every network in the list: the built-in ones, then the user's own.
+  List<IrcNetwork> get _allNetworks => [
+    ...builtInNetworks,
+    for (final n in ref.read(customNetworksProvider)) n.network,
+  ];
+
+  IrcNetwork? _networkFor(String host) {
+    for (final n in _allNetworks) {
       if (n.host.toLowerCase() == host.toLowerCase()) return n;
     }
     return null;
+  }
+
+  Future<void> _addOrEdit([CustomNetwork? editing]) async {
+    final result = await showCustomNetworkSheet(context, editing: editing);
+    if (!mounted || result == null) return;
+    if (result.action == CustomNetworkAction.connect) {
+      await _connect([result.network.network]);
+    }
   }
 
   /// Networks that were open last time and aren't open now.
@@ -207,6 +223,9 @@ class _NetworkPickerScreenState extends ConsumerState<NetworkPickerScreen> {
             : await repo.loadPassword(network.host, account) ?? '';
       }
       final useSasl = account.isNotEmpty && (single || password.isNotEmpty);
+      final serverPassword = await ref
+          .read(customNetworksProvider.notifier)
+          .password(network.host);
       final config = IrcConnectionConfig(
         host: network.host,
         port: network.port,
@@ -215,6 +234,7 @@ class _NetworkPickerScreenState extends ConsumerState<NetworkPickerScreen> {
         autoJoin: autoJoin,
         username: _username.text,
         realname: _realname.text,
+        serverPassword: serverPassword,
         sasl: useSasl
             ? SaslCredentials(account: account, password: password)
             : null,
@@ -232,8 +252,9 @@ class _NetworkPickerScreenState extends ConsumerState<NetworkPickerScreen> {
     final adding = chat.networks.isNotEmpty;
     final last = _lastNetworks(chat);
     final lastFavorites = [for (final n in last) ...prefs.favoritesFor(n.host)];
+    final custom = ref.watch(customNetworksProvider);
     final notOpen = [
-      for (final n in builtInNetworks)
+      for (final n in [...builtInNetworks, for (final c in custom) c.network])
         if (!chat.networks.containsKey(n.host.toLowerCase())) n,
     ];
     final muted = TypeScale.body.copyWith(color: tokens.textMuted);
@@ -334,6 +355,25 @@ class _NetworkPickerScreenState extends ConsumerState<NetworkPickerScreen> {
                               onTap: () => _connect([network]),
                             ),
                           ),
+                        for (final c in custom)
+                          Padding(
+                            padding: const EdgeInsets.only(bottom: 8),
+                            child: _NetworkCard(
+                              network: c.network,
+                              custom: true,
+                              session: chat.networks[c.host.toLowerCase()],
+                              onTap: () => _connect([c.network]),
+                              onEdit: () => _addOrEdit(c),
+                            ),
+                          ),
+                        Align(
+                          alignment: Alignment.centerLeft,
+                          child: TextButton.icon(
+                            icon: const Icon(Icons.add),
+                            label: const Text('Add your own network'),
+                            onPressed: _addOrEdit,
+                          ),
+                        ),
                       ],
                     ),
                   ),
@@ -635,11 +675,22 @@ class _NetworkCard extends StatelessWidget {
     required this.network,
     required this.session,
     required this.onTap,
+    this.onEdit,
+    this.custom = false,
   });
 
   final IrcNetwork network;
   final NetworkSession? session;
   final VoidCallback onTap;
+
+  /// Shows an Edit button (networks the user added).
+  final VoidCallback? onEdit;
+  final bool custom;
+
+  static String _status(NetworkSession n) =>
+      n.status == IrcConnectionStatus.disconnected
+      ? 'Disconnected'
+      : 'Connected';
 
   @override
   Widget build(BuildContext context) {
@@ -662,23 +713,38 @@ class _NetworkCard extends StatelessWidget {
             color: Color.alphaBlend(tokens.accentSoft, tokens.surfaceRaised),
             borderRadius: BorderRadius.circular(tokens.radius(10)),
           ),
-          child: Icon(Icons.public, color: tokens.onAccentSoft),
+          child: Icon(
+            custom ? Icons.dns_outlined : Icons.public,
+            color: tokens.onAccentSoft,
+          ),
         ),
         title: Text(
           network.name,
           style: const TextStyle(fontWeight: FontWeight.w600),
         ),
-        subtitle: Text(network.description),
-        trailing: switch (open) {
-          null => const Icon(Icons.chevron_right),
-          final n => Chip(
-            label: Text(
-              n.status == IrcConnectionStatus.disconnected
-                  ? 'Disconnected'
-                  : 'Connected',
-            ),
-          ),
-        },
+        // With an Edit button, the status goes in the subtitle so the name
+        // keeps its room.
+        subtitle: Text(
+          onEdit != null && open != null
+              ? '${_status(open)} · ${network.description}'
+              : network.description,
+        ),
+        trailing: Row(
+          mainAxisSize: MainAxisSize.min,
+          children: [
+            if (onEdit != null)
+              IconButton(
+                tooltip: 'Edit ${network.name}',
+                icon: const Icon(Icons.edit_outlined),
+                onPressed: onEdit,
+              ),
+            switch (open) {
+              null => const Icon(Icons.chevron_right),
+              _ when onEdit != null => const SizedBox.shrink(),
+              final n => Chip(label: Text(_status(n))),
+            },
+          ],
+        ),
         onTap: onTap,
       ),
     );
