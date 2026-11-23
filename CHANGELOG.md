@@ -7,6 +7,10 @@ and the project uses [Semantic Versioning](https://semver.org/).
 ## [Unreleased]
 
 ### Added
+- **Take a photo** with the camera when sending a photo, on iOS, Android
+  and now the Mac too: the photo button asks **Choose a photo** or **Take a
+  photo**, and **Take a photo** is also in the + menu. The Mac gets its own
+  camera screen with **Retake** and **Use photo**.
 - **Add your own network** under the network list (iOS, Android, macOS):
   any IRC server or bouncer by address and port, with TLS on or off, an
   optional name and an optional server password (kept in the keychain).

@@ -9,8 +9,12 @@ and delete themselves after a set time.
 ## Using it
 
 - **Send:** in a private chat, tap the photo button (next to **+**, also in the + menu) left of the message
-  box. On phones choose **Choose a photo** or **Take a photo**; on the Mac a
-  file picker opens. Then pick how long it lasts (**1 hour** or **4 hours**,
+  box. Choose **Choose a photo** or **Take a photo** (iOS, Android and the
+  Mac). **Take a photo** is also in the + menu, one tap to the camera.
+  Phones open the system camera. The Mac opens **Take a photo**, a camera
+  preview with a shutter button, then **Retake** or **Use photo**; if
+  camera access is off it says where to allow it. Taken photos are
+  stripped of metadata like any other. Then pick how long it lasts (**1 hour** or **4 hours**,
   the default) and tap **Send photo**. Every picture is view-once: the
   server deletes it the first time it is downloaded. The message box shows "Encrypting and sending photo…" while
   it uploads.
@@ -70,12 +74,21 @@ button says "Picture sharing isn't set up yet."
 - `lib/features/pictures/data/picture_service.dart`: `PictureService`
   (`upload`, `download` with a small memory cache, `report`),
   `pictureServiceProvider`.
-- `lib/features/pictures/presentation/picture_widgets.dart`: `sendPicture`,
+- `lib/features/pictures/presentation/camera_capture.dart`: `PhotoSource`,
+  `photoPickerProvider` (`pickPhoto`: `image_picker`, or on the Mac
+  `CameraCaptureScreen`, which grabs a frame from the camera through
+  `flutter_webrtc`, the same camera the calls use), `canTakePhotos`.
+- `lib/features/pictures/presentation/picture_widgets.dart`: `sendPicture`
+  (optional `source`),
   `PictureBubble`, report dialog, `PictureViewer`.
 - `ChatController`: `sendPicture`, `reportPicture`, `blockUser`,
   `unblockUser`, `isBlocked` (saved under `blockedNicks`).
 - Platform setup: iOS `NSPhotoLibraryUsageDescription` and
   `NSCameraUsageDescription`; macOS
-  `com.apple.security.files.user-selected.read-only`. Android needs none.
+  `com.apple.security.files.user-selected.read-only`, plus the camera
+  entitlement and `NSCameraUsageDescription` already there for calls.
+  Android uses the `CAMERA` permission already there for calls.
 - Tests: `test/features/pictures/pictures_test.dart`, the "pictures in a
-  private chat" widget test, and `server/picture-host/test`.
+  private chat" widget test, `test/features/pictures/take_photo_test.dart`
+  (the + menu, the choose-or-take sheet, the Mac, no camera) and
+  `server/picture-host/test`.
