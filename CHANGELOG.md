@@ -6,6 +6,15 @@ and the project uses [Semantic Versioning](https://semver.org/).
 
 ## [Unreleased]
 
+### Added
+- **Add your own network** under the network list (iOS, Android, macOS):
+  any IRC server or bouncer by address and port, with TLS on or off, an
+  optional name and an optional server password (kept in the keychain).
+  `host:port` and `ircs://` links fill in the port. Added networks show
+  in the list with an Edit button (change or remove), and **Continue**
+  reconnects them next launch. See
+  [docs/features/custom-networks.md](docs/features/custom-networks.md).
+
 ### Changed
 - Photos are called photos everywhere in the app again ("Photo options",
   "Report photo", "Photo reported", "View-once photo", "Send a photo"), and
