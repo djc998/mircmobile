@@ -14,6 +14,7 @@ import 'package:irc_client/core/irc/irc_events.dart';
 import 'package:irc_client/core/safety/content_filter.dart';
 import 'package:irc_client/core/theme/app_theme.dart';
 import 'package:irc_client/core/theme/tokens.dart';
+import 'package:irc_client/core/ui/adaptive.dart';
 import 'package:irc_client/core/ui/avatars.dart';
 import 'package:irc_client/core/ui/conversation_row.dart';
 import 'package:irc_client/core/ui/empty_state.dart';
@@ -620,53 +621,41 @@ class _RoomsHomeState extends ConsumerState<RoomsHome> {
 Future<void> showConversationMenu(
   BuildContext context,
   WidgetRef ref,
-  ConversationInfo c,
-) {
+  ConversationInfo c, {
+  Offset? position,
+}) {
   final prefs = ref.read(roomPrefsProvider);
   final notifier = ref.read(roomPrefsProvider.notifier);
   final muted = prefs.isMuted(c.network.id, c.name);
   final favorite = c.isRoom && prefs.isFavorite(c.network.id, c.name);
-  return showModalBottomSheet<void>(
-    context: context,
-    showDragHandle: true,
-    builder: (sheet) {
-      Widget item(IconData icon, String label, VoidCallback run) => ListTile(
-        leading: Icon(icon),
-        title: Text(label),
-        onTap: () {
-          Navigator.pop(sheet);
-          run();
-        },
-      );
-      return SafeArea(
-        child: Column(
-          mainAxisSize: MainAxisSize.min,
-          children: [
-            item(
-              muted
-                  ? Icons.notifications_active_outlined
-                  : Icons.notifications_off_outlined,
-              muted ? 'Unmute ${c.name}' : 'Mute ${c.name}',
-              () => notifier.toggleMute(c.network.id, c.name),
-            ),
-            if (c.isRoom)
-              item(
-                favorite ? Icons.star_border : Icons.star,
-                favorite
-                    ? 'Remove ${c.name} from favorites'
-                    : 'Add ${c.name} to favorites',
-                () => notifier.toggleFavorite(c.network.id, c.name),
-              ),
-            item(
-              Icons.logout,
-              c.isRoom ? 'Leave ${c.name}' : 'Close chat with ${c.name}',
-              () =>
-                  ref.read(chatControllerProvider.notifier).closeBuffer(c.key),
-            ),
-          ],
+  return showActionMenu(
+    context,
+    title: c.name,
+    position: position,
+    actions: [
+      MenuAction(
+        icon: muted
+            ? Icons.notifications_active_outlined
+            : Icons.notifications_off_outlined,
+        label: muted ? 'Unmute ${c.name}' : 'Mute ${c.name}',
+        onSelected: () => notifier.toggleMute(c.network.id, c.name),
+      ),
+      if (c.isRoom)
+        MenuAction(
+          icon: favorite ? Icons.star_border : Icons.star,
+          label: favorite
+              ? 'Remove ${c.name} from favorites'
+              : 'Add ${c.name} to favorites',
+          onSelected: () => notifier.toggleFavorite(c.network.id, c.name),
         ),
-      );
-    },
+      MenuAction(
+        icon: Icons.logout,
+        label: c.isRoom ? 'Leave ${c.name}' : 'Close chat with ${c.name}',
+        destructive: true,
+        onSelected: () =>
+            ref.read(chatControllerProvider.notifier).closeBuffer(c.key),
+      ),
+    ],
   );
 }
 
@@ -702,7 +691,8 @@ class _SwipeRow extends ConsumerWidget {
     void toggleMute() =>
         ref.read(roomPrefsProvider.notifier).toggleMute(c.network.id, c.name);
 
-    Future<void> menu() => showConversationMenu(context, ref, c);
+    Future<void> menu([Offset? at]) =>
+        showConversationMenu(context, ref, c, position: at);
     Widget background(
       IconData icon,
       String label,
@@ -735,7 +725,7 @@ class _SwipeRow extends ConsumerWidget {
       },
       child: GestureDetector(
         onLongPress: () => unawaited(menu()),
-        onSecondaryTap: () => unawaited(menu()),
+        onSecondaryTapUp: (d) => unawaited(menu(d.globalPosition)),
         child: Dismissible(
           key: ValueKey('swipe-${c.key}'),
           direction: c.isRoom
@@ -1074,8 +1064,14 @@ class Sidebar extends ConsumerWidget {
                       ),
                       for (final c in list)
                         GestureDetector(
-                          onSecondaryTap: () =>
-                              unawaited(showConversationMenu(context, ref, c)),
+                          onSecondaryTapUp: (d) => unawaited(
+                            showConversationMenu(
+                              context,
+                              ref,
+                              c,
+                              position: d.globalPosition,
+                            ),
+                          ),
                           onLongPress: () =>
                               unawaited(showConversationMenu(context, ref, c)),
                           child: ConversationRow(

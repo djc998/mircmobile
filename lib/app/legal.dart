@@ -9,7 +9,7 @@ const int termsVersion = 1;
 /// Apple requires published contact information for apps with
 /// user-generated content (App Review Guideline 1.2).
 // TODO(djc998): put a real address here before submitting to the App Store.
-const String supportContact = 'support@example.com';
+const String supportContact = 'support@ircage.com';
 
 /// The terms, as titled sections.
 const List<({String title, String body})> termsSections = [

@@ -166,7 +166,7 @@ class _CameraCaptureScreenState extends State<CameraCaptureScreen> {
                     : photo != null
                     ? Image.memory(photo, fit: BoxFit.contain)
                     : _stream == null
-                    ? const CircularProgressIndicator()
+                    ? const CircularProgressIndicator.adaptive()
                     : RTCVideoView(_renderer, mirror: true),
               ),
             ),

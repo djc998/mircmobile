@@ -5,6 +5,7 @@ import 'dart:async';
 import 'dart:typed_data';
 
 import 'package:flutter_riverpod/flutter_riverpod.dart';
+import 'package:irc_client/core/ui/adaptive.dart';
 import 'package:irc_client/features/chat/application/chat_controller.dart';
 import 'package:irc_client/features/pictures/data/picture_service.dart';
 import 'package:irc_client/features/pictures/domain/picture_link.dart';
@@ -31,27 +32,23 @@ Future<void> sendPicture(
     if (!canTakePhotos(Theme.of(context).platform)) {
       from = PhotoSource.library;
     } else {
-      from = await showModalBottomSheet<PhotoSource>(
-        context: context,
-        showDragHandle: true,
-        builder: (sheet) => SafeArea(
-          child: Column(
-            mainAxisSize: MainAxisSize.min,
-            children: [
-              ListTile(
-                leading: const Icon(Icons.photo_library_outlined),
-                title: const Text('Choose a photo'),
-                onTap: () => Navigator.pop(sheet, PhotoSource.library),
-              ),
-              ListTile(
-                leading: const Icon(Icons.photo_camera_outlined),
-                title: const Text('Take a photo'),
-                onTap: () => Navigator.pop(sheet, PhotoSource.camera),
-              ),
-            ],
+      PhotoSource? chosen;
+      await showActionMenu(
+        context,
+        actions: [
+          MenuAction(
+            icon: Icons.photo_library_outlined,
+            label: 'Choose a photo',
+            onSelected: () => chosen = PhotoSource.library,
           ),
-        ),
+          MenuAction(
+            icon: Icons.photo_camera_outlined,
+            label: 'Take a photo',
+            onSelected: () => chosen = PhotoSource.camera,
+          ),
+        ],
       );
+      from = chosen;
       if (from == null) return;
     }
   }
@@ -295,7 +292,7 @@ class _PictureBubbleState extends ConsumerState<PictureBubble> {
             return const SizedBox(
               width: 160,
               height: 120,
-              child: Center(child: CircularProgressIndicator()),
+              child: Center(child: CircularProgressIndicator.adaptive()),
             );
           }
           return GestureDetector(

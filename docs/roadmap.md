@@ -28,7 +28,8 @@
       adult rooms, report messages, photos and people, ignore people
       (still to do before submitting: a real contact address in
       `lib/app/legal.dart`)
-- [ ] Adaptive Cupertino touches on iOS/macOS
+- [x] Adaptive Cupertino touches on iOS/macOS: action sheets, alerts, Mac
+      right-click menus, haptics, native spinners
 - [x] App name and icon: **IRCage**, with its icon on iOS, Android (adaptive) and macOS
 
 ## v2

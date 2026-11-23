@@ -8,6 +8,7 @@ import 'package:irc_client/core/irc/irc_client.dart';
 import 'package:irc_client/core/irc/irc_events.dart';
 import 'package:irc_client/core/irc/networks.dart';
 import 'package:irc_client/core/theme/tokens.dart';
+import 'package:irc_client/core/ui/adaptive.dart';
 import 'package:irc_client/features/calls/application/call_controller.dart';
 import 'package:irc_client/features/calls/presentation/call_widgets.dart';
 import 'package:irc_client/features/chat/application/chat_controller.dart';
@@ -113,27 +114,16 @@ class _NetworkPickerScreenState extends ConsumerState<NetworkPickerScreen> {
   ];
 
   Future<void> _confirmDeleteHistory() async {
-    final ok = await showDialog<bool>(
-      context: context,
-      builder: (dialog) => AlertDialog(
-        title: const Text('Delete saved history?'),
-        content: const Text(
+    final ok = await confirmAction(
+      context,
+      title: 'Delete saved history?',
+      message:
           'This deletes the saved messages of every room and private chat '
           'on this device. It cannot be undone.',
-        ),
-        actions: [
-          TextButton(
-            onPressed: () => Navigator.pop(dialog, false),
-            child: const Text('Cancel'),
-          ),
-          FilledButton(
-            onPressed: () => Navigator.pop(dialog, true),
-            child: const Text('Delete'),
-          ),
-        ],
-      ),
+      confirmLabel: 'Delete',
+      destructive: true,
     );
-    if (ok != true) return;
+    if (!ok) return;
     await ref.read(chatControllerProvider.notifier).clearAllHistory();
     if (mounted) {
       ScaffoldMessenger.of(
