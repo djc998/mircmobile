@@ -259,7 +259,7 @@ class AppTheme {
   }
 
   /// Builds the [ThemeData]: [tokens] (derived from [scheme] if not given),
-  /// the IRCade type scale, and square corners for Classic mIRC.
+  /// the IRCage type scale, and square corners for Classic mIRC.
   static ThemeData _theme(
     ColorScheme scheme,
     ChatColors chat, {

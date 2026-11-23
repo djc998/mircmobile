@@ -1,6 +1,6 @@
 # Accessibility
 
-IRCade aims for WCAG AA on iOS, Android and macOS. Phase 5 of the
+IRCage aims for WCAG AA on iOS, Android and macOS. Phase 5 of the
 [UI redesign](design/ui-redesign.md) added an automated audit.
 
 ## What's checked automatically

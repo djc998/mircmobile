@@ -520,7 +520,7 @@ class _Hero extends StatelessWidget {
         Semantics(
           header: true,
           child: Text(
-            'Welcome to IRCade',
+            'Welcome to IRCage',
             style: const TextStyle(
               fontSize: 30,
               height: 36 / 30,

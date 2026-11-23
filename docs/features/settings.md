@@ -1,9 +1,9 @@
 # Settings
 
 Available on iOS, Android and macOS. Phase 5 of the
-[IRCade UI redesign](../design/ui-redesign.md).
+[IRCage UI redesign](../design/ui-redesign.md).
 
-Open **Settings** from **You**, or **IRCade → Settings…** (⌘,) on a Mac.
+Open **Settings** from **You**, or **IRCage → Settings…** (⌘,) on a Mac.
 Grouped lists, like the system settings:
 
 - **Look:** Appearance (theme, accent, density, message font, text size;

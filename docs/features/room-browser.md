@@ -1,7 +1,7 @@
 # Discover (room browser)
 
 Status: done (unreleased). Platforms: iOS, Android, macOS. Restyled in
-Phase 4 of the [IRCade UI redesign](../design/ui-redesign.md).
+Phase 4 of the [IRCage UI redesign](../design/ui-redesign.md).
 
 Discover is the app's main way to find somewhere to chat. It lists every
 public room on the connected networks as cards.

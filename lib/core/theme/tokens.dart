@@ -1,4 +1,4 @@
-/// IRCade design tokens: colours, spacing, radii, type and motion.
+/// IRCage design tokens: colours, spacing, radii, type and motion.
 ///
 /// Values come from `docs/design/ui-redesign.md`. Widgets read colours with
 /// `AppTokens.of(context)` and sizes from [Insets], [Radii], [TypeScale] and

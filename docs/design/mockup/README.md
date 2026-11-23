@@ -1,4 +1,4 @@
-# IRCade mockup source
+# IRCage mockup source
 
 These are the source files of the approved clickable mockup
 (https://claude.ai/artifact/SgvnSzqUnBcY89aH4mtT2m). They are written for the

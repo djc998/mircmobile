@@ -11,7 +11,7 @@ import 'package:irc_client/features/settings/presentation/settings_screen.dart';
 import 'package:material_ui/material_ui.dart';
 
 /// The app's name, shown in the task switcher and window title.
-const String appName = 'IRCade';
+const String appName = 'IRCage';
 
 final routerProvider = Provider<GoRouter>(
   (ref) => GoRouter(

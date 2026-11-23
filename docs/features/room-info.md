@@ -1,7 +1,7 @@
 # Room info, people and profile cards
 
 Available on iOS, Android and macOS (shared Flutter code). Phase 5 of the
-[IRCade UI redesign](../design/ui-redesign.md).
+[IRCage UI redesign](../design/ui-redesign.md).
 
 ## Room info
 

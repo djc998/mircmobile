@@ -1,7 +1,7 @@
 # Navigation
 
 Available on iOS, Android and macOS (shared Flutter code). Phase 3 of the
-[IRCade UI redesign](../design/ui-redesign.md); the open chat itself is in
+[IRCage UI redesign](../design/ui-redesign.md); the open chat itself is in
 [chat-screen.md](chat-screen.md).
 
 The layout follows the window's width, so a Mac window or an iPad in split
@@ -63,7 +63,7 @@ room. People slides over from the right.
 
 ## iPad and Mac (900 pt and wider)
 
-- **Sidebar** (264 pt): IRCade, a **Jump to a room or person** box (⌘K),
+- **Sidebar** (264 pt): IRCage, a **Jump to a room or person** box (⌘K),
   **Home**, **Discover rooms** and **Mentions** (with its badge), then your
   chats in **Favorites**, **Rooms** and **Private chats**, each row with
   avatar, network chip and unread badge. You're at the bottom with your
@@ -78,7 +78,7 @@ room. People slides over from the right.
 
 | Menu | Item | Shortcut |
 | --- | --- | --- |
-| IRCade | Settings… (Appearance) | ⌘, |
+| IRCage | Settings… (Appearance) | ⌘, |
 | File | New Private Message… | ⌘N |
 | File | Join a Room… | ⌘J |
 | File | Add a Network… | |

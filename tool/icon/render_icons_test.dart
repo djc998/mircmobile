@@ -1,4 +1,4 @@
-// Draws the IRCade app icon and writes 1024-px masters to build/icons.
+// Draws the IRCage app icon and writes 1024-px masters to build/icons.
 // Run through tool/make_icons.sh, which then resizes them for each
 // platform. This file is the icon's source of truth.
 import 'dart:io';

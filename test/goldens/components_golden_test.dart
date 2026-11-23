@@ -68,7 +68,7 @@ void main() {
             nick: 'alice',
             time: '10:11',
             mentioned: true,
-            children: [Text('dennis, does IRCade run on the Mac too?')],
+            children: [Text('dennis, does IRCage run on the Mac too?')],
           ),
           MessageGroup(
             nick: 'dennis',
@@ -83,7 +83,7 @@ void main() {
       width: 360,
       child: Column(
         children: [
-          MessageBubble(child: Text('Hey! Are you building IRCade?')),
+          MessageBubble(child: Text('Hey! Are you building IRCage?')),
           SizedBox(height: 2),
           MessageBubble(continued: true, child: Text('Quick call later?')),
           SizedBox(height: 6),
@@ -122,7 +122,7 @@ void main() {
             isRoom: true,
             network: 'Libera',
             time: '10:15',
-            preview: 'alice: dennis, does IRCade run on the Mac too?',
+            preview: 'alice: dennis, does IRCage run on the Mac too?',
             unread: 12,
             mention: true,
             favorite: true,
