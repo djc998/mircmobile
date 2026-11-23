@@ -1,7 +1,7 @@
 # Design system
 
 Available on iOS, Android and macOS (shared Flutter code). Phase 1 of the
-[IRCade UI redesign](../design/ui-redesign.md).
+[IRCage UI redesign](../design/ui-redesign.md).
 
 ## What the user sees
 

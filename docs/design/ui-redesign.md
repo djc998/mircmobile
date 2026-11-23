@@ -1,11 +1,11 @@
-# IRCade UI redesign
+# IRCage UI redesign
 
 Approved by Dennis on 2026-11-22. Plan doc:
 https://claude.ai/artifact/5B3RkEVtxrvEWr5XrJfPbd. Clickable mockup:
 https://claude.ai/artifact/SgvnSzqUnBcY89aH4mtT2m (source in
 [`mockup/`](mockup/)).
 
-IRCade keeps IRC's speed (fast text, nick colors, rooms found in seconds) with
+IRCage keeps IRC's speed (fast text, nick colors, rooms found in seconds) with
 the look of a modern messenger. Every phase ships on **iOS, Android and macOS
 together** and updates `docs/features/` and `CHANGELOG.md`.
 
@@ -13,7 +13,7 @@ together** and updates `docs/features/` and `CHANGELOG.md`.
 
 | Question | Decision |
 | --- | --- |
-| App name | **IRCade** (display name, welcome screen, About) |
+| App name | **IRCage** (display name, welcome screen, About). First approved as IRCade; renamed to IRCage on 2026-11-23 to match the domain. |
 | Accent | Electric Indigo `#5B5BF0` light / `#8B8BFF` dark |
 | Default message style | **Comfortable**: avatars, grouped messages |
 | Private chats | **Bubbles**: own on the right in accent, others left on `surfaceOverlay` |
@@ -174,7 +174,7 @@ font (Monospace uses the system's).
 
 1. **Foundation**: tokens, Default (Indigo) + Classic mIRC themes, accent
    picker, density setting, `NickAvatar`, `RoomAvatar`, `UnreadBadge`,
-   rename display name to IRCade. Docs: `docs/features/design-system.md`,
+   rename display name to IRCage. Docs: `docs/features/design-system.md`,
    update `appearance.md`.
 2. **Chat**: grouped messages, bubbles in private chats, collapsed events,
    dividers, pills, new composer, simpler header. Docs: `chat-screen.md`.

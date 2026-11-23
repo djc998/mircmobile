@@ -1,13 +1,13 @@
 # Welcome (onboarding)
 
 Available on iOS, Android and macOS (shared Flutter code). Phase 4 of the
-[IRCade UI redesign](../design/ui-redesign.md).
+[IRCage UI redesign](../design/ui-redesign.md).
 
 ## What the user sees
 
 The first screen welcomes you and walks through three numbered steps:
 
-- **Welcome to IRCade** with the app's mark and the line "Chat rooms, the
+- **Welcome to IRCage** with the app's mark and the line "Chat rooms, the
   way they used to be. Only better."
 - **1 Pick a nickname.** The help under the field says what's allowed
   (letters, numbers and `_-[]{}|^`, starting with a letter).

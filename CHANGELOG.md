@@ -22,10 +22,10 @@ and the project uses [Semantic Versioning](https://semver.org/).
 - Replying on a phone is now swipe or long-press only (no faint ↩ on
   every line); screen readers get a Reply action. On a Mac the ↩ appears
   on hover.
-- The app is now called **IRCade**: home screen and app switcher on iOS
-  and Android, the Mac app (`IRCade.app`, menu bar and Privacy & Security
+- The app is now called **IRCage**: home screen and app switcher on iOS
+  and Android, the Mac app (`IRCage.app`, menu bar and Privacy & Security
   lists), the window title, and the CTCP VERSION reply
-  (`IRCade (Flutter) 0.1.0`). Bundle and application IDs are unchanged, so
+  (`IRCage (Flutter) 0.1.0`). Bundle and application IDs are unchanged, so
   existing installs keep their settings and permissions.
 - Settings saved with the old default theme move to the new Default theme
   once; other choices are kept.
@@ -39,7 +39,7 @@ and the project uses [Semantic Versioning](https://semver.org/).
   too. See [docs/features/pinned-panels.md](docs/features/pinned-panels.md).
 
 ### Added
-- An IRCade app icon on iOS, Android (adaptive, with a legacy fallback)
+- An IRCage app icon on iOS, Android (adaptive, with a legacy fallback)
   and macOS: a white chat bubble with the IRC `#` on an indigo gradient.
   It's drawn in code and regenerated with `tool/make_icons.sh`. See
   [docs/features/app-icon.md](docs/features/app-icon.md).
@@ -75,7 +75,7 @@ and the project uses [Semantic Versioning](https://semver.org/).
   Music, Help, Social, guessed from each room's name and topic), "Search
   N rooms", a Filters sheet (favorites, size, sort), a preview sheet when
   you tap a card, and two columns on tablets and the Mac. The **welcome**
-  screen says "Welcome to IRCade" and walks through three steps (nickname,
+  screen says "Welcome to IRCage" and walks through three steps (nickname,
   network, first room), with the rest under **Advanced options**; Rooms
   home then offers **Find your first room**. See
   [docs/features/room-browser.md](docs/features/room-browser.md) and
@@ -106,7 +106,7 @@ and the project uses [Semantic Versioning](https://semver.org/).
   private chats, common commands) and completion chips for `@nick`,
   `/command` and `#room`. Compact keeps `HH:MM <nick>` lines. See
   [docs/features/chat-screen.md](docs/features/chat-screen.md).
-- IRCade design system, Phase 1 of the redesign (iOS, Android, macOS).
+- IRCage design system, Phase 1 of the redesign (iOS, Android, macOS).
   A new **Default** theme (white or near-black with an Electric Indigo
   accent) is now the default, with an **accent colour** picker (Indigo,
   Blue, Teal, Green, Orange, Red, Pink, Purple) in **Appearance**.
@@ -147,7 +147,7 @@ and the project uses [Semantic Versioning](https://semver.org/).
 - Photos are sent as `📷 Photo from <your nick>: <link>`. The message no
   longer says how long it lasts; opening an expired or already-viewed photo
   says **This photo has expired.**
-- IRCade UI redesign plan and approved mockup (docs only, no app changes
+- IRCage UI redesign plan and approved mockup (docs only, no app changes
   yet): design tokens, layouts for phone, iPad and Mac, screen specs and a
   five-phase rollout. See [docs/design/ui-redesign.md](docs/design/ui-redesign.md).
 - Share temporary pictures in private chats (iOS, Android, macOS). Tap the

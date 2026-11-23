@@ -1,7 +1,7 @@
 # Chat screen
 
 Available on iOS, Android and macOS (shared Flutter code). Phase 2 of the
-[IRCade UI redesign](../design/ui-redesign.md); see
+[IRCage UI redesign](../design/ui-redesign.md); see
 [design-system.md](design-system.md) for colours and components.
 
 ## What the user sees

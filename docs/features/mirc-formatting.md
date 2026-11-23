@@ -3,7 +3,7 @@
 Available on iOS, Android and macOS (shared Flutter code).
 
 People on IRC add colours and styles to messages with control codes
-(mIRC's Ctrl+K, Ctrl+B and so on). IRCade draws them.
+(mIRC's Ctrl+K, Ctrl+B and so on). IRCage draws them.
 
 ## What the user sees
 

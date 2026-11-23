@@ -71,7 +71,7 @@ void main() {
     tester,
   ) async {
     await launch(tester, const Size(390, 1400));
-    expect(find.text('Welcome to IRCade'), findsOneWidget);
+    expect(find.text('Welcome to IRCage'), findsOneWidget);
     expect(
       find.text('Chat rooms, the way they used to be. Only better.'),
       findsOneWidget,

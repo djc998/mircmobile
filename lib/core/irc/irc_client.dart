@@ -992,5 +992,5 @@ class IrcClient {
   }
 
   /// Reported in CTCP VERSION replies.
-  static String clientVersion = 'IRCade (Flutter) 0.1.0';
+  static String clientVersion = 'IRCage (Flutter) 0.1.0';
 }
