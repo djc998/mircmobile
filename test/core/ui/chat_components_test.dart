@@ -1,3 +1,4 @@
+import 'package:flutter/services.dart';
 import 'package:flutter_test/flutter_test.dart';
 import 'package:irc_client/core/theme/app_theme.dart';
 import 'package:irc_client/core/theme/tokens.dart';
@@ -297,6 +298,28 @@ void main() {
       await tester.tap(find.byTooltip('Send'));
       expect(sent, hasLength(2));
     });
+
+    testWidgets(
+      'computers: Enter sends, Shift+Enter adds a line',
+      variant: TargetPlatformVariant.only(TargetPlatform.macOS),
+      (tester) async {
+        final sent = <String>[];
+        await tester.pumpWidget(host(Composer(onSubmit: sent.add)));
+        await tester.enterText(find.byType(TextField), 'one');
+        await tester.sendKeyDownEvent(LogicalKeyboardKey.shiftLeft);
+        await tester.sendKeyEvent(LogicalKeyboardKey.enter);
+        await tester.sendKeyUpEvent(LogicalKeyboardKey.shiftLeft);
+        await tester.pump();
+        expect(sent, isEmpty);
+        expect(
+          tester.widget<TextField>(find.byType(TextField)).controller!.text,
+          'one\n',
+        );
+        await tester.sendKeyEvent(LogicalKeyboardKey.enter);
+        await tester.pump();
+        expect(sent, ['one\n']);
+      },
+    );
 
     testWidgets('the + menu offers a picture only when allowed', (
       tester,

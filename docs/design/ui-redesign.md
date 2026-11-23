@@ -149,6 +149,29 @@ phases: typing indicator and "Seen" (need IRCv3 `typing` and read markers),
 the call history card (Phase 5), an emoji button, and room search
 (Phase 3). The topic moved from the header into Chat info.
 
+Phase 3 done ([navigation.md](../features/navigation.md)). Room search
+became Find in Chat (⌘F). Left for later: Mute on the swipe actions and
+grouped People (Phase 5, with Room info and profile cards) and online dots
+(need MONITOR/WATCH).
+
+Phase 4 done ([room-browser.md](../features/room-browser.md),
+[onboarding.md](../features/onboarding.md)). The welcome's three steps are
+one page of numbered sections rather than separate screens, so returning
+users and Add a network keep a one-screen form; step 3 lands on Rooms
+home's "Find your first room". Categories are guessed from keywords and
+"Busy now" means 100+ people, since IRC reports neither. Size, sort and
+favorites moved into a Filters sheet.
+
+Phase 5 done ([room-info.md](../features/room-info.md),
+[settings.md](../features/settings.md),
+[accessibility.md](../accessibility.md), calls in
+[calls.md](../features/calls.md)). Also picked up from earlier phases: Mute
+(long-press and Room info) and grouped People with Away (from IRCv3
+away-notify). Report explains who can act, since IRC has no central report.
+Still not done: typing indicators and "Seen" (IRCv3 typing, read markers),
+online dots (MONITOR), a call history card, and JetBrains Mono as a bundled
+font (Monospace uses the system's).
+
 1. **Foundation**: tokens, Default (Indigo) + Classic mIRC themes, accent
    picker, density setting, `NickAvatar`, `RoomAvatar`, `UnreadBadge`,
    rename display name to IRCade. Docs: `docs/features/design-system.md`,

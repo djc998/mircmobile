@@ -1,4 +1,4 @@
-/// Favorite and recent rooms, remembered per network.
+/// Favorite, recent and muted rooms, remembered per network.
 library;
 
 import 'dart:async';
@@ -11,7 +11,11 @@ import 'package:irc_client/core/storage/app_storage.dart';
 const int maxRecentRooms = 10;
 
 class RoomPrefs {
-  const RoomPrefs({this.favorites = const {}, this.recents = const {}});
+  const RoomPrefs({
+    this.favorites = const {},
+    this.recents = const {},
+    this.muted = const {},
+  });
 
   factory RoomPrefs.fromJson(Map<String, Object?> json) {
     Map<String, List<String>> read(Object? v) => {
@@ -23,6 +27,7 @@ class RoomPrefs {
     return RoomPrefs(
       favorites: read(json['favorites']),
       recents: read(json['recents']),
+      muted: read(json['muted']),
     );
   }
 
@@ -31,6 +36,10 @@ class RoomPrefs {
 
   /// Recently joined rooms keyed by network host, newest first.
   final Map<String, List<String>> recents;
+
+  /// Muted rooms and private chats keyed by network host: their unread
+  /// counts are grey and don't count towards the Mentions badge.
+  final Map<String, List<String>> muted;
 
   static String networkKey(String host) => host.toLowerCase();
 
@@ -42,7 +51,26 @@ class RoomPrefs {
   bool isFavorite(String host, String room) =>
       favoritesFor(host).any((r) => r.toLowerCase() == room.toLowerCase());
 
-  Map<String, Object?> toJson() => {'favorites': favorites, 'recents': recents};
+  List<String> mutedFor(String host) => muted[networkKey(host)] ?? const [];
+
+  bool isMuted(String host, String name) =>
+      mutedFor(host).any((r) => r.toLowerCase() == name.toLowerCase());
+
+  RoomPrefs copyWith({
+    Map<String, List<String>>? favorites,
+    Map<String, List<String>>? recents,
+    Map<String, List<String>>? muted,
+  }) => RoomPrefs(
+    favorites: favorites ?? this.favorites,
+    recents: recents ?? this.recents,
+    muted: muted ?? this.muted,
+  );
+
+  Map<String, Object?> toJson() => {
+    'favorites': favorites,
+    'recents': recents,
+    'muted': muted,
+  };
 }
 
 final roomPrefsProvider = NotifierProvider<RoomPrefsController, RoomPrefs>(
@@ -74,12 +102,27 @@ class RoomPrefsController extends Notifier<RoomPrefs> {
     } else {
       list.removeAt(index);
     }
-    _set(
-      RoomPrefs(
-        favorites: {...state.favorites, key: list},
-        recents: state.recents,
-      ),
-    );
+    _set(state.copyWith(favorites: {...state.favorites, key: list}));
+  }
+
+  /// Mutes or unmutes a room or private chat.
+  void toggleMute(String host, String name) =>
+      _set(state.copyWith(muted: _toggled(state.muted, host, name)));
+
+  static Map<String, List<String>> _toggled(
+    Map<String, List<String>> map,
+    String host,
+    String name,
+  ) {
+    final key = RoomPrefs.networkKey(host);
+    final list = [...map[key] ?? const <String>[]];
+    final index = list.indexWhere((r) => r.toLowerCase() == name.toLowerCase());
+    if (index == -1) {
+      list.add(name);
+    } else {
+      list.removeAt(index);
+    }
+    return {...map, key: list};
   }
 
   /// Records that [room] was just joined.
@@ -91,18 +134,12 @@ class RoomPrefsController extends Notifier<RoomPrefs> {
           .recentsFor(host)
           .where((r) => r.toLowerCase() != room.toLowerCase()),
     ].take(maxRecentRooms).toList();
-    _set(
-      RoomPrefs(
-        favorites: state.favorites,
-        recents: {...state.recents, key: list},
-      ),
-    );
+    _set(state.copyWith(recents: {...state.recents, key: list}));
   }
 
   void clearRecents(String host) {
     _set(
-      RoomPrefs(
-        favorites: state.favorites,
+      state.copyWith(
         recents: {...state.recents}..remove(RoomPrefs.networkKey(host)),
       ),
     );

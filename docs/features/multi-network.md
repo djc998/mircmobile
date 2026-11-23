@@ -5,8 +5,8 @@ Available on iOS, Android and macOS (shared Flutter code).
 ## What the user sees
 
 - **Stay on several networks.** Connecting to another network no longer
-  closes the current one. Use **Add a network** (chat menu, or the bottom of
-  the conversation list) to open the start screen, which then reads
+  closes the current one. Use **Add a network** (in **You**) to open the
+  start screen, which then reads
   "Add a network" and has a back button to the chat. Networks that are
   already open show a **Connected** (or **Disconnected**) chip.
 - **Connect to all.** The start screen has a **Connect to all** button that
@@ -14,18 +14,19 @@ Available on iOS, Android and macOS (shared Flutter code).
 - **Continue reopens everything.** The app remembers every network that was
   open, so the next launch shows **Continue on Libera.Chat and OFTC** (for
   example) and reconnects them all with their favorite rooms.
-- **Conversation list grouped by network.** Each network has a header with
-  a status dot (green connected, orange connecting, grey disconnected), its
-  **Server messages** tab, its rooms and private chats. Favorite rooms that
-  aren't open are listed under their network with **Join**, one tap away.
+- **Every network's chats together.** Rooms home and the sidebar list the
+  chats of all networks, each with a network chip (`Libera`, `oftc`). In
+  **You**, each network has a header with a status dot (green connected,
+  orange connecting, grey disconnected), your nickname, its **Server
+  messages** tab, and its favorite rooms that aren't open with **Join**.
 - **Room browser across networks.** Opening **Browse rooms** asks every
   connected network for its room list. Each room shows which network it is
   on, and chips (**All networks**, or one network) narrow the list. Search,
   size, sort, favorites and recent rooms work across all of them. Joining
   a room joins it on its own network.
-- **Per-network menu.** The chat menu acts on the open conversation's
-  network: **Disconnect from X**, **Reconnect to X**, and **Close X**
-  (disconnects and removes its conversations).
+- **Per-network menu.** The ⋮ on each network in **You**: **Disconnect
+  from X**, **Reconnect to X**, and **Close X** (disconnects and removes its
+  conversations). A server tab's Chat info has the same.
 - **Reconnecting keeps conversations.** Disconnecting and reconnecting a
   network (or trusting its certificate, or falling back to an unencrypted
   connection) keeps its open conversations and their messages.
@@ -55,7 +56,8 @@ turning off **Remember password** does.
 - `lib/features/connection/data/saved_connection.dart`:
   `SavedConnection.networkHosts` / `openNetworks`,
   `SavedConnectionRepository.removeNetwork()`.
-- Screens: `network_picker_screen.dart`, `chat_screen.dart` (`_BufferList`),
+- Screens: `network_picker_screen.dart`, `chat_screen.dart` (`NetworksPanel`),
+  `chat_shell.dart` (Rooms home, sidebar, You),
   `room_browser_screen.dart`.
 
 ## Tests

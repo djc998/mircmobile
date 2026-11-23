@@ -66,7 +66,7 @@ void main() {
       ..add(':s 324 me #friends +nt');
     await flush();
 
-    await tester.tap(find.byType(PopupMenuButton<String>));
+    await tester.tap(find.byTooltip('Chat info'));
     await tester.pumpAndSettle();
     await tester.tap(find.text('Room settings'));
     await flush();

@@ -14,7 +14,7 @@ Status: done (v0.1, unreleased). Platforms: iOS, Android, macOS.
   certificate is accepted afterwards. If TLS can't be opened at all, the
   user can choose an unencrypted connection on port 6667.
 - Sends username `mobile` and real name `Mobile IRC user` unless the user
-  sets their own ("More options"). The nickname is never reused for these,
+  sets their own ("Advanced options"). The nickname is never reused for these,
   because DALnet bans logins where all three match as bots.
 - Negotiates IRCv3 capabilities: `server-time`, `message-tags`,
   `multi-prefix`, `away-notify`, `account-notify`, `extended-join`,

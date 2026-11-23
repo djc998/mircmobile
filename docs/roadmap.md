@@ -5,6 +5,12 @@
 - [x] Network picker and basic chat screen
 - [x] Modern chat screen: grouped messages, bubbles, dividers, composer chips
       (redesign Phase 2)
+- [x] Navigation by screen size: phone tabs, tablet rail, iPad/Mac sidebar,
+      Mac menu bar and shortcuts (redesign Phase 3)
+- [x] Discover with room cards, categories and previews; three-step welcome
+      (redesign Phase 4)
+- [x] Room info, profile cards, grouped people, call restyle, Settings,
+      motion and an accessibility audit (redesign Phase 5)
 - [x] Room browser: search and sort LIST results, one-tap join
 - [x] Several networks at once; room browser and favorites across them
 - [ ] mIRC colour and style rendering
@@ -17,8 +23,8 @@
 - [x] One-to-one voice and video calls, with a browser link for other IRC apps
 - [ ] Calls: ring when the app is closed (PushKit/CallKit), group calls, screen sharing
       (own Cloudflare Worker + R2)
-- [~] App Store safety: block and report pictures done; content filter,
-      blocked-people list and terms on first launch still to do
+- [~] App Store safety: block and report pictures, ignore and report people,
+      ignored-people list done; content filter and terms on first launch still to do
 - [ ] Adaptive Cupertino touches on iOS/macOS
 - [~] App name and icon: named **IRCade** (display name on iOS, Android and macOS); icon still to do
 

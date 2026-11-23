@@ -13,8 +13,11 @@ Available on iOS, Android and macOS (shared Flutter code). Phase 2 of the
   or the connection on the server tab ("Connected as dennis"). While a
   network is reconnecting or disconnected, the line says so.
 - Tap the name for **Chat info**, which now also holds the room's topic.
-- The buttons are unchanged: People in rooms, Voice and Video call in
-  private chats, and on wider screens Browse, Message, Join and ⋮.
+- Buttons: Voice and Video call in private chats, **Search this chat**
+  (Find in Chat), and People in rooms. Everything that isn't about this
+  chat moved to Rooms home, You and the sidebar
+  ([navigation.md](navigation.md)); there's no ⋮ menu. On phones the top
+  left is a back arrow; on wide screens it hides and shows the sidebar.
 
 ### Rooms (Comfortable)
 
@@ -63,7 +66,8 @@ Available on iOS, Android and macOS (shared Flutter code). Phase 2 of the
     of a line (so they're notified) or `alice ` elsewhere.
   - `/to` at the start of a line → commands (`/topic`).
   - `#li` → rooms you're in on this network.
-- Tab still completes names on a keyboard.
+- Tab still completes names on a keyboard. On a computer Enter sends and
+  Shift+Enter starts a new line.
 
 ### Replying
 
@@ -73,6 +77,12 @@ Available on iOS, Android and macOS (shared Flutter code). Phase 2 of the
 - Mac: a reply button appears at the end of the line on **hover** (or when
   it has keyboard focus).
 - See [replies-and-mentions.md](replies-and-mentions.md).
+
+### Motion
+
+New messages fade in and slide up 8 pt (200 ms, ease-out). Messages that
+were already there when you opened the chat don't animate, and nothing
+moves with Reduce Motion on.
 
 ### Accessibility
 
@@ -90,7 +100,6 @@ Available on iOS, Android and macOS (shared Flutter code). Phase 2 of the
 - **Call history card** in private chats: with the call restyle in Phase 5.
 - **Emoji button**: the phone keyboards and the Mac's emoji picker
   (Ctrl+Cmd+Space) cover it for now.
-- **Search in a room**: with the Mac shortcuts in Phase 3.
 
 ## Code
 

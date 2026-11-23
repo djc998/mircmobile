@@ -6,6 +6,7 @@ import 'package:irc_client/app/app.dart';
 import 'package:irc_client/core/irc/irc_transport.dart';
 import 'package:irc_client/core/storage/app_storage.dart';
 import 'package:irc_client/features/chat/application/chat_controller.dart';
+import 'package:irc_client/features/rooms/presentation/room_info.dart';
 import 'package:material_ui/material_ui.dart';
 
 class FakeTransport implements IrcTransport {
@@ -127,33 +128,46 @@ void main() {
     // So the name gets nearly the whole bar.
     expect(tester.getTopLeft(find.byTooltip('People')).dx, greaterThan(300));
 
-    // Tapping the name opens the room's info sheet.
+    // Tapping the name opens Room info, a page on phones.
     await tester.tap(find.byTooltip('Chat info'));
     await tester.pumpAndSettle();
+    expect(find.text('Room info'), findsOneWidget);
     expect(find.text('People (3)'), findsOneWidget);
-    expect(find.text('Room settings'), findsOneWidget);
-    expect(find.text('Clear history'), findsOneWidget);
-    expect(find.text('Leave room'), findsOneWidget);
     await tester.tap(find.text('Add to favorites'));
     await tester.pumpAndSettle();
-    expect(find.text('Room settings'), findsNothing); // sheet closed
-    await tester.tap(find.byTooltip('Chat info'));
-    await tester.pumpAndSettle();
     expect(find.text('Remove from favorites'), findsOneWidget);
-    // People from the sheet opens the member list.
+    final info = find
+        .descendant(
+          of: find.byType(RoomInfoScreen),
+          matching: find.byType(Scrollable),
+        )
+        .first;
+    await tester.scrollUntilVisible(
+      find.text('Leave room'),
+      300,
+      scrollable: info,
+    );
+    expect(find.text('Room settings'), findsOneWidget);
+    expect(find.text('Clear history'), findsOneWidget);
+    // People from Room info opens the member list.
+    await tester.scrollUntilVisible(
+      find.text('People (3)'),
+      -300,
+      scrollable: info,
+    );
     await tester.tap(find.text('People (3)'));
     await tester.pumpAndSettle();
     expect(find.text('3 people in #chat'), findsOneWidget);
     await tester.tapAt(const Offset(10, 400));
     await tester.pumpAndSettle();
 
-    // The drawer has Browse / Message / Join, network options, Appearance.
-    await tester.tap(find.byTooltip('Open navigation menu'));
+    // Back to Rooms home, which has Join and New private message.
+    expect(find.byTooltip('Back to rooms'), findsOneWidget);
+    await tester.tap(find.byTooltip('Back to rooms'));
     await tester.pumpAndSettle();
-    expect(find.byTooltip('Browse rooms'), findsOneWidget);
+    expect(find.text('Active now'), findsOneWidget);
+    expect(find.byType(NavigationBar), findsOneWidget);
     expect(find.byTooltip('Join a room'), findsOneWidget);
-    expect(find.text('Create a room'), findsOneWidget);
-    expect(find.text('Appearance'), findsOneWidget);
     await tester.tap(find.byTooltip('New private message'));
     await tester.pumpAndSettle();
     await tester.enterText(find.byType(TextField).last, 'bob');
@@ -173,14 +187,15 @@ void main() {
     expect(find.text('Who is this? (whois)'), findsOneWidget);
     await tester.tap(find.text('Close chat'));
     await tester.pumpAndSettle();
-    expect(
-      find.descendant(of: find.byType(AppBar), matching: find.text('bob')),
-      findsNothing,
-    );
+    // Closing it goes back to Rooms home.
+    expect(find.byType(AppBar), findsNothing);
+    expect(find.text('Active now'), findsOneWidget);
 
-    // A server's options are on its row in the drawer.
-    await tester.tap(find.byTooltip('Open navigation menu'));
+    // A server's options are on its row in You, with Appearance.
+    await tester.tap(find.text('You'));
     await tester.pumpAndSettle();
+    expect(find.text('Create a room'), findsOneWidget);
+    expect(find.text('Appearance'), findsOneWidget);
     await tester.tap(find.byType(PopupMenuButton<String>));
     await tester.pumpAndSettle();
     await tester.tap(find.textContaining('Disconnect from'));
@@ -193,11 +208,13 @@ void main() {
   ) async {
     final store = MemoryKeyValueStore();
     await pumpApp(tester, store, size: const Size(1400, 900));
-    expect(find.byTooltip('Show menu'), findsOneWidget);
+    // Everything that isn't about this chat is in the sidebar now.
+    expect(find.byTooltip('Show menu'), findsNothing);
     await tester.tap(find.byTooltip('Chat info'));
     await tester.pumpAndSettle();
     expect(find.text('Room settings'), findsOneWidget);
     // People is already a button and a pinned panel here.
     expect(find.text('People (3)'), findsNothing);
+    expect(find.text('Room info'), findsOneWidget);
   });
 }

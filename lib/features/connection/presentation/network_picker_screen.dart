@@ -7,6 +7,7 @@ import 'package:irc_client/core/irc/formatting.dart';
 import 'package:irc_client/core/irc/irc_client.dart';
 import 'package:irc_client/core/irc/irc_events.dart';
 import 'package:irc_client/core/irc/networks.dart';
+import 'package:irc_client/core/theme/tokens.dart';
 import 'package:irc_client/features/calls/application/call_controller.dart';
 import 'package:irc_client/features/calls/presentation/call_widgets.dart';
 import 'package:irc_client/features/chat/application/chat_controller.dart';
@@ -14,7 +15,8 @@ import 'package:irc_client/features/connection/data/saved_connection.dart';
 import 'package:irc_client/features/favorites/application/room_prefs_controller.dart';
 import 'package:material_ui/material_ui.dart';
 
-/// First screen: pick a nickname and one or more networks, then connect.
+/// Welcome: three steps (pick a nickname, choose a network, then find a
+/// first room in Discover), with everything else behind Advanced options.
 ///
 /// Remembers the nickname, open networks and account, and offers a one-tap
 /// "Continue" card that reconnects every network that was open. Opened
@@ -224,7 +226,7 @@ class _NetworkPickerScreenState extends ConsumerState<NetworkPickerScreen> {
 
   @override
   Widget build(BuildContext context) {
-    final theme = Theme.of(context);
+    final tokens = AppTokens.of(context);
     final prefs = ref.watch(roomPrefsProvider);
     final chat = ref.watch(chatControllerProvider);
     final adding = chat.networks.isNotEmpty;
@@ -234,6 +236,7 @@ class _NetworkPickerScreenState extends ConsumerState<NetworkPickerScreen> {
       for (final n in builtInNetworks)
         if (!chat.networks.containsKey(n.host.toLowerCase())) n,
     ];
+    final muted = TypeScale.body.copyWith(color: tokens.textMuted);
 
     return Scaffold(
       appBar: AppBar(
@@ -244,7 +247,7 @@ class _NetworkPickerScreenState extends ConsumerState<NetworkPickerScreen> {
                 onPressed: () => context.go('/chat'),
               )
             : null,
-        title: Text(adding ? 'Add a network' : 'Choose a network'),
+        title: adding ? const Text('Add a network') : null,
         actions: [
           IconButton(
             tooltip: 'Appearance',
@@ -254,199 +257,429 @@ class _NetworkPickerScreenState extends ConsumerState<NetworkPickerScreen> {
         ],
       ),
       body: SafeArea(
-        child: ListView(
-          padding: const EdgeInsets.all(16),
-          children: [
-            if (last.isNotEmpty && _saved!.nick.isNotEmpty) ...[
-              Card(
-                color: theme.colorScheme.primaryContainer,
-                child: ListTile(
-                  leading: const Icon(Icons.bolt),
-                  title: Text(
-                    'Continue on ${last.map((n) => n.name).join(' and ')}',
-                  ),
-                  subtitle: Text(
-                    lastFavorites.isEmpty || !_rejoinFavorites
-                        ? 'as ${_saved!.nick}'
-                        : 'as ${_saved!.nick} · rejoins '
-                              '${lastFavorites.take(3).join(', ')}'
-                              '${lastFavorites.length > 3 ? '…' : ''}',
-                  ),
-                  trailing: const Icon(Icons.chevron_right),
-                  onTap: () => _connect(last),
-                ),
-              ),
-              const SizedBox(height: 16),
-            ],
-            TextField(
-              controller: _nick,
-              autocorrect: false,
-              textInputAction: TextInputAction.next,
-              decoration: const InputDecoration(
-                labelText: 'Nickname',
-                prefixIcon: Icon(Icons.person),
-                border: OutlineInputBorder(),
-              ),
-            ),
-            const SizedBox(height: 12),
-            TextField(
-              controller: _channels,
-              autocorrect: false,
-              decoration: const InputDecoration(
-                labelText: 'Rooms to join (optional)',
-                hintText: '#linux, #chat',
-                prefixIcon: Icon(Icons.tag),
-                border: OutlineInputBorder(),
-              ),
-            ),
-            SwitchListTile.adaptive(
-              contentPadding: EdgeInsets.zero,
-              title: const Text('Rejoin my favorite rooms'),
-              subtitle: const Text('Star rooms in a chat or the room browser'),
-              value: _rejoinFavorites,
-              onChanged: (v) => setState(() => _rejoinFavorites = v),
-            ),
-            SwitchListTile.adaptive(
-              contentPadding: EdgeInsets.zero,
-              title: const Text('Log in with a registered account'),
-              value: _useAccount,
-              onChanged: (v) => setState(() => _useAccount = v),
-            ),
-            if (_useAccount) ...[
-              TextField(
-                controller: _account,
-                autocorrect: false,
-                decoration: const InputDecoration(
-                  labelText: 'Account name',
-                  border: OutlineInputBorder(),
-                ),
-              ),
-              const SizedBox(height: 12),
-              TextField(
-                controller: _password,
-                obscureText: true,
-                decoration: const InputDecoration(
-                  labelText: 'Password',
-                  border: OutlineInputBorder(),
-                ),
-              ),
-              SwitchListTile.adaptive(
-                contentPadding: EdgeInsets.zero,
-                title: const Text('Remember password'),
-                subtitle: const Text('Kept in the device keychain'),
-                value: _rememberPassword,
-                onChanged: (v) => setState(() => _rememberPassword = v),
-              ),
-            ],
-            ExpansionTile(
-              tilePadding: EdgeInsets.zero,
-              title: const Text('More options'),
-              subtitle: const Text('Username, real name and chat history'),
-              children: [
-                TextField(
-                  controller: _username,
-                  autocorrect: false,
-                  decoration: const InputDecoration(
-                    labelText: 'Username (optional)',
-                    hintText: IrcClient.defaultUsername,
-                    border: OutlineInputBorder(),
-                  ),
-                ),
-                const SizedBox(height: 12),
-                TextField(
-                  controller: _realname,
-                  decoration: const InputDecoration(
-                    labelText: 'Real name (optional, shown to others)',
-                    hintText: IrcClient.defaultRealname,
-                    border: OutlineInputBorder(),
-                  ),
-                ),
-                SwitchListTile.adaptive(
-                  contentPadding: EdgeInsets.zero,
-                  title: const Text('Save chat history on this device'),
-                  subtitle: const Text(
-                    'Rooms and private chats keep their messages after you '
-                    'disconnect or close the app',
-                  ),
-                  value: _saveHistory,
-                  onChanged: (v) {
-                    setState(() => _saveHistory = v);
-                    unawaited(
-                      ref
-                          .read(chatControllerProvider.notifier)
-                          .setSaveHistory(enabled: v),
-                    );
-                  },
-                ),
-                const ListTile(
-                  contentPadding: EdgeInsets.zero,
-                  title: Text('Camera and microphone'),
-                  subtitle: Text('Allow them for voice and video calls'),
-                ),
-                const DeviceAccessHelp(),
-                Consumer(
-                  builder: (context, ref, _) => SwitchListTile.adaptive(
-                    contentPadding: EdgeInsets.zero,
-                    title: const Text('Hide my IP address on calls'),
-                    subtitle: const Text(
-                      'Calls go through a relay, so the other person never '
-                      'sees your IP address',
-                    ),
-                    value: ref.watch(callControllerProvider).relayOnly,
-                    onChanged: (v) => unawaited(
-                      ref
-                          .read(callControllerProvider.notifier)
-                          .setRelayOnly(enabled: v),
-                    ),
-                  ),
-                ),
-                Align(
-                  alignment: Alignment.centerLeft,
-                  child: TextButton.icon(
-                    icon: const Icon(Icons.delete_outline),
-                    label: const Text('Delete saved history'),
-                    onPressed: _confirmDeleteHistory,
-                  ),
-                ),
-                const SizedBox(height: 12),
-              ],
-            ),
-            const SizedBox(height: 24),
-            Row(
-              children: [
-                Expanded(
-                  child: Text('Networks', style: theme.textTheme.titleMedium),
-                ),
-                if (notOpen.length > 1)
-                  TextButton.icon(
-                    icon: const Icon(Icons.hub_outlined),
-                    label: const Text('Connect to all'),
-                    onPressed: () => _connect(notOpen),
-                  ),
-              ],
-            ),
-            const SizedBox(height: 8),
-            for (final network in builtInNetworks)
-              Card(
-                child: ListTile(
-                  leading: const Icon(Icons.public),
-                  title: Text(network.name),
-                  subtitle: Text(network.description),
-                  trailing: switch (chat.networks[network.host.toLowerCase()]) {
-                    null => const Icon(Icons.chevron_right),
-                    final n => Chip(
-                      label: Text(
-                        n.status == IrcConnectionStatus.disconnected
-                            ? 'Disconnected'
-                            : 'Connected',
+        child: Center(
+          child: ConstrainedBox(
+            constraints: const BoxConstraints(maxWidth: 560),
+            // A short page: built all at once so nothing below the fold
+            // is missing for screen readers or tests.
+            child: SingleChildScrollView(
+              padding: const EdgeInsets.fromLTRB(20, 0, 20, 32),
+              child: Column(
+                crossAxisAlignment: CrossAxisAlignment.stretch,
+                children: [
+                  if (!adding) ...[const _Hero(), const SizedBox(height: 24)],
+                  if (last.isNotEmpty && _saved!.nick.isNotEmpty) ...[
+                    Card(
+                      color: Color.alphaBlend(
+                        tokens.accentSoft,
+                        tokens.surface,
+                      ),
+                      elevation: 0,
+                      child: ListTile(
+                        leading: Icon(Icons.bolt, color: tokens.onAccentSoft),
+                        title: Text(
+                          'Continue on '
+                          '${last.map((n) => n.name).join(' and ')}',
+                        ),
+                        subtitle: Text(
+                          lastFavorites.isEmpty || !_rejoinFavorites
+                              ? 'as ${_saved!.nick}'
+                              : 'as ${_saved!.nick} · rejoins '
+                                    '${lastFavorites.take(3).join(', ')}'
+                                    '${lastFavorites.length > 3 ? '…' : ''}',
+                        ),
+                        trailing: const Icon(Icons.chevron_right),
+                        onTap: () => _connect(last),
                       ),
                     ),
-                  },
-                  onTap: () => _connect([network]),
+                    const SizedBox(height: 16),
+                  ],
+                  _Step(
+                    number: 1,
+                    title: adding ? 'Your nickname' : 'Pick a nickname',
+                    child: TextField(
+                      controller: _nick,
+                      autocorrect: false,
+                      textInputAction: TextInputAction.next,
+                      decoration: const InputDecoration(
+                        labelText: 'Nickname',
+                        helperText:
+                            'Letters, numbers and _-[]{}|^, starting with a '
+                            'letter',
+                        helperMaxLines: 2,
+                        prefixIcon: Icon(Icons.person),
+                        border: OutlineInputBorder(),
+                      ),
+                    ),
+                  ),
+                  _Step(
+                    number: 2,
+                    title: 'Choose a network',
+                    trailing: notOpen.length > 1
+                        ? TextButton.icon(
+                            icon: const Icon(Icons.hub_outlined),
+                            label: const Text('Connect to all'),
+                            onPressed: () => _connect(notOpen),
+                          )
+                        : null,
+                    child: Column(
+                      children: [
+                        for (final network in builtInNetworks)
+                          Padding(
+                            padding: const EdgeInsets.only(bottom: 8),
+                            child: _NetworkCard(
+                              network: network,
+                              session:
+                                  chat.networks[network.host.toLowerCase()],
+                              onTap: () => _connect([network]),
+                            ),
+                          ),
+                      ],
+                    ),
+                  ),
+                  if (!adding)
+                    _Step(
+                      number: 3,
+                      title: 'Find your first room',
+                      last: true,
+                      child: Text(
+                        "Once you're connected, Discover lists every room "
+                        'on the network, by size and topic. Join one with a '
+                        'tap, and star it to rejoin it next time.',
+                        style: muted,
+                      ),
+                    ),
+                  const SizedBox(height: 8),
+                  ExpansionTile(
+                    tilePadding: EdgeInsets.zero,
+                    initiallyExpanded: _useAccount,
+                    title: const Text('Advanced options'),
+                    subtitle: const Text(
+                      'Rooms to join, account login, username, chat history '
+                      'and calls',
+                    ),
+                    childrenPadding: const EdgeInsets.only(bottom: 12),
+                    children: _advanced(),
+                  ),
+                ],
+              ),
+            ),
+          ),
+        ),
+      ),
+    );
+  }
+
+  /// Everything behind Advanced options.
+  List<Widget> _advanced() => [
+    const SizedBox(height: 4),
+    TextField(
+      controller: _channels,
+      autocorrect: false,
+      decoration: const InputDecoration(
+        labelText: 'Rooms to join (optional)',
+        hintText: '#linux, #chat',
+        prefixIcon: Icon(Icons.tag),
+        border: OutlineInputBorder(),
+      ),
+    ),
+    SwitchListTile.adaptive(
+      contentPadding: EdgeInsets.zero,
+      title: const Text('Rejoin my favorite rooms'),
+      subtitle: const Text('Star rooms in a chat or in Discover'),
+      value: _rejoinFavorites,
+      onChanged: (v) => setState(() => _rejoinFavorites = v),
+    ),
+    SwitchListTile.adaptive(
+      contentPadding: EdgeInsets.zero,
+      title: const Text('Log in with a registered account'),
+      value: _useAccount,
+      onChanged: (v) => setState(() => _useAccount = v),
+    ),
+    if (_useAccount) ...[
+      TextField(
+        controller: _account,
+        autocorrect: false,
+        decoration: const InputDecoration(
+          labelText: 'Account name',
+          border: OutlineInputBorder(),
+        ),
+      ),
+      const SizedBox(height: 12),
+      TextField(
+        controller: _password,
+        obscureText: true,
+        decoration: const InputDecoration(
+          labelText: 'Password',
+          border: OutlineInputBorder(),
+        ),
+      ),
+      SwitchListTile.adaptive(
+        contentPadding: EdgeInsets.zero,
+        title: const Text('Remember password'),
+        subtitle: const Text('Kept in the device keychain'),
+        value: _rememberPassword,
+        onChanged: (v) => setState(() => _rememberPassword = v),
+      ),
+    ],
+    const SizedBox(height: 8),
+    TextField(
+      controller: _username,
+      autocorrect: false,
+      decoration: const InputDecoration(
+        labelText: 'Username (optional)',
+        hintText: IrcClient.defaultUsername,
+        border: OutlineInputBorder(),
+      ),
+    ),
+    const SizedBox(height: 12),
+    TextField(
+      controller: _realname,
+      decoration: const InputDecoration(
+        labelText: 'Real name (optional, shown to others)',
+        hintText: IrcClient.defaultRealname,
+        border: OutlineInputBorder(),
+      ),
+    ),
+    SwitchListTile.adaptive(
+      contentPadding: EdgeInsets.zero,
+      title: const Text('Save chat history on this device'),
+      subtitle: const Text(
+        'Rooms and private chats keep their messages after you '
+        'disconnect or close the app',
+      ),
+      value: _saveHistory,
+      onChanged: (v) {
+        setState(() => _saveHistory = v);
+        unawaited(
+          ref.read(chatControllerProvider.notifier).setSaveHistory(enabled: v),
+        );
+      },
+    ),
+    const ListTile(
+      contentPadding: EdgeInsets.zero,
+      title: Text('Camera and microphone'),
+      subtitle: Text('Allow them for voice and video calls'),
+    ),
+    const DeviceAccessHelp(),
+    Consumer(
+      builder: (context, ref, _) => SwitchListTile.adaptive(
+        contentPadding: EdgeInsets.zero,
+        title: const Text('Hide my IP address on calls'),
+        subtitle: const Text(
+          'Calls go through a relay, so the other person never '
+          'sees your IP address',
+        ),
+        value: ref.watch(callControllerProvider).relayOnly,
+        onChanged: (v) => unawaited(
+          ref.read(callControllerProvider.notifier).setRelayOnly(enabled: v),
+        ),
+      ),
+    ),
+    Align(
+      alignment: Alignment.centerLeft,
+      child: TextButton.icon(
+        icon: const Icon(Icons.delete_outline),
+        label: const Text('Delete saved history'),
+        onPressed: _confirmDeleteHistory,
+      ),
+    ),
+  ];
+}
+
+/// The app's name, mark and line at the top of the welcome screen.
+class _Hero extends StatelessWidget {
+  const _Hero();
+
+  @override
+  Widget build(BuildContext context) {
+    final tokens = AppTokens.of(context);
+    return Column(
+      crossAxisAlignment: CrossAxisAlignment.start,
+      children: [
+        ExcludeSemantics(
+          child: Container(
+            width: 56,
+            height: 56,
+            alignment: Alignment.center,
+            decoration: BoxDecoration(
+              color: tokens.accent,
+              borderRadius: BorderRadius.circular(tokens.radius(16)),
+            ),
+            child: Text(
+              '#',
+              style: TextStyle(
+                color: tokens.onAccent,
+                fontSize: 30,
+                fontWeight: FontWeight.w700,
+              ),
+            ),
+          ),
+        ),
+        const SizedBox(height: 16),
+        Semantics(
+          header: true,
+          child: Text(
+            'Welcome to IRCade',
+            style: const TextStyle(
+              fontSize: 30,
+              height: 36 / 30,
+              fontWeight: FontWeight.w700,
+              letterSpacing: -0.5,
+            ).copyWith(color: tokens.textPrimary),
+          ),
+        ),
+        const SizedBox(height: 6),
+        Text(
+          'Chat rooms, the way they used to be. Only better.',
+          style: TypeScale.heading.copyWith(
+            color: tokens.textMuted,
+            fontWeight: FontWeight.w400,
+          ),
+        ),
+      ],
+    );
+  }
+}
+
+/// A numbered step: a circle with the number, a title, and its content,
+/// joined to the next step by a line.
+class _Step extends StatelessWidget {
+  const _Step({
+    required this.number,
+    required this.title,
+    required this.child,
+    this.trailing,
+    this.last = false,
+  });
+
+  final int number;
+  final String title;
+  final Widget child;
+  final Widget? trailing;
+  final bool last;
+
+  @override
+  Widget build(BuildContext context) {
+    final tokens = AppTokens.of(context);
+    final badge = Semantics(
+      label: 'Step $number',
+      excludeSemantics: true,
+      child: Container(
+        width: 28,
+        height: 28,
+        alignment: Alignment.center,
+        decoration: BoxDecoration(color: tokens.accent, shape: BoxShape.circle),
+        child: Text(
+          '$number',
+          textScaler: TextScaler.noScaling,
+          style: TextStyle(
+            color: tokens.onAccent,
+            fontWeight: FontWeight.w700,
+            fontSize: 14,
+          ),
+        ),
+      ),
+    );
+    return Stack(
+      children: [
+        // The line down to the next step.
+        if (!last)
+          Positioned(
+            left: 13,
+            top: 32,
+            bottom: 4,
+            child: Container(width: 2, color: tokens.line),
+          ),
+        Positioned(left: 0, top: 0, child: badge),
+        Padding(
+          padding: const EdgeInsets.only(left: 42, bottom: 20),
+          child: Column(
+            crossAxisAlignment: CrossAxisAlignment.stretch,
+            children: [
+              ConstrainedBox(
+                constraints: const BoxConstraints(minHeight: 28),
+                // The button drops under the title when both don't fit
+                // (large text).
+                child: Wrap(
+                  alignment: WrapAlignment.spaceBetween,
+                  crossAxisAlignment: WrapCrossAlignment.center,
+                  children: [
+                    Semantics(
+                      header: true,
+                      child: Text(
+                        title,
+                        style: TypeScale.heading.copyWith(
+                          color: tokens.textPrimary,
+                        ),
+                      ),
+                    ),
+                    ?trailing,
+                  ],
                 ),
               ),
-          ],
+              const SizedBox(height: 10),
+              child,
+            ],
+          ),
         ),
+      ],
+    );
+  }
+}
+
+/// A network to connect to: initial tile, name, description, and either a
+/// chevron or its status when it's already open.
+class _NetworkCard extends StatelessWidget {
+  const _NetworkCard({
+    required this.network,
+    required this.session,
+    required this.onTap,
+  });
+
+  final IrcNetwork network;
+  final NetworkSession? session;
+  final VoidCallback onTap;
+
+  @override
+  Widget build(BuildContext context) {
+    final tokens = AppTokens.of(context);
+    final open = session;
+    return Material(
+      color: tokens.surfaceRaised,
+      shape: RoundedRectangleBorder(
+        side: BorderSide(color: tokens.line),
+        borderRadius: BorderRadius.circular(tokens.radius(Radii.card)),
+      ),
+      clipBehavior: Clip.antiAlias,
+      child: ListTile(
+        contentPadding: const EdgeInsets.symmetric(horizontal: 14, vertical: 4),
+        leading: Container(
+          width: 40,
+          height: 40,
+          alignment: Alignment.center,
+          decoration: BoxDecoration(
+            color: Color.alphaBlend(tokens.accentSoft, tokens.surfaceRaised),
+            borderRadius: BorderRadius.circular(tokens.radius(10)),
+          ),
+          child: Icon(Icons.public, color: tokens.onAccentSoft),
+        ),
+        title: Text(
+          network.name,
+          style: const TextStyle(fontWeight: FontWeight.w600),
+        ),
+        subtitle: Text(network.description),
+        trailing: switch (open) {
+          null => const Icon(Icons.chevron_right),
+          final n => Chip(
+            label: Text(
+              n.status == IrcConnectionStatus.disconnected
+                  ? 'Disconnected'
+                  : 'Connected',
+            ),
+          ),
+        },
+        onTap: onTap,
       ),
     );
   }

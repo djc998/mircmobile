@@ -2,11 +2,12 @@ import 'package:flutter_riverpod/flutter_riverpod.dart';
 import 'package:go_router/go_router.dart';
 import 'package:irc_client/core/theme/app_theme.dart';
 import 'package:irc_client/features/calls/presentation/call_widgets.dart';
-import 'package:irc_client/features/chat/presentation/chat_screen.dart';
+import 'package:irc_client/features/chat/presentation/chat_shell.dart';
 import 'package:irc_client/features/connection/presentation/network_picker_screen.dart';
 import 'package:irc_client/features/discovery/presentation/room_browser_screen.dart';
 import 'package:irc_client/features/settings/application/appearance_controller.dart';
 import 'package:irc_client/features/settings/presentation/appearance_screen.dart';
+import 'package:irc_client/features/settings/presentation/settings_screen.dart';
 import 'package:material_ui/material_ui.dart';
 
 /// The app's name, shown in the task switcher and window title.
@@ -24,8 +25,12 @@ final routerProvider = Provider<GoRouter>(
         builder: (context, state) => const AppearanceScreen(),
       ),
       GoRoute(
+        path: '/settings',
+        builder: (context, state) => const SettingsScreen(),
+      ),
+      GoRoute(
         path: '/chat',
-        builder: (context, state) => const ChatScreen(),
+        builder: (context, state) => const ChatShell(),
         routes: [
           GoRoute(
             path: 'rooms',

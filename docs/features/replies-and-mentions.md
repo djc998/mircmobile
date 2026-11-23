@@ -24,7 +24,8 @@ Available on iOS, Android and macOS (shared Flutter code).
   ([chat-screen.md](chat-screen.md)).
 - **Mentions are easier to spot.** Messages that mention you have a coral
   bar and tint, with your nick highlighted. Matching is by whole word, so someone named "al"
-  is no longer alerted by "also". The conversation list still marks
+  is no longer alerted by "also". Rooms home, the sidebar and the
+  Mentions tab mark
   conversations with a mention in red.
 - Each conversation keeps its own draft and reply, so switching rooms
   doesn't carry a reply over.

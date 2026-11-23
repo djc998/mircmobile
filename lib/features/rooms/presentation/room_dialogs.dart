@@ -194,11 +194,15 @@ class RoomSettingsSheet extends ConsumerStatefulWidget {
   const RoomSettingsSheet({
     required this.networkId,
     required this.channel,
+    this.embedded = false,
     super.key,
   });
 
   final String networkId;
   final String channel;
+
+  /// Inside Room info's list: no title or scrolling of its own.
+  final bool embedded;
 
   @override
   ConsumerState<RoomSettingsSheet> createState() => _RoomSettingsSheetState();
@@ -248,261 +252,271 @@ class _RoomSettingsSheetState extends ConsumerState<RoomSettingsSheet> {
       controller.requestBans(chan.name, networkId: net.id);
     }
 
-    return ListView(
-      padding: const EdgeInsets.fromLTRB(16, 0, 16, 24),
-      children: [
-        Text('${chan.name} settings', style: theme.textTheme.titleLarge),
-        const SizedBox(height: 4),
-        Text(
-          isOp
-              ? 'You run this room on ${net.label}.'
-              : 'Only the people who run this room (operators, shown with '
-                    '@) can change its settings.',
-          style: theme.textTheme.bodyMedium,
-        ),
-        const SizedBox(height: 16),
-        Text('Description', style: theme.textTheme.titleMedium),
-        Text(
-          canDescribe
-              ? 'Shown at the top of the room and in the room list.'
-              : 'Only operators can change the description here.',
-        ),
-        TextField(
-          controller: description,
-          enabled: canDescribe,
-          minLines: 1,
-          maxLines: 3,
-          maxLength: 300,
-          decoration: const InputDecoration(
-            hintText: 'What is this room about?',
-          ),
-        ),
-        Align(
-          alignment: Alignment.centerRight,
-          child: FilledButton.tonal(
-            onPressed: canDescribe
-                ? () {
-                    controller.setRoomDescription(
-                      chan.name,
-                      description.text,
-                      networkId: net.id,
-                    );
-                    _toast('Description updated.');
-                  }
-                : null,
-            child: const Text('Save description'),
-          ),
-        ),
-        const Divider(height: 32),
-        Text('Who can join', style: theme.textTheme.titleMedium),
-        SwitchListTile.adaptive(
-          contentPadding: EdgeInsets.zero,
-          title: const Text('Private'),
-          subtitle: const Text('Only people you invite can join'),
-          value: chan.isInviteOnly,
-          onChanged: isOp ? (v) => _update(RoomSettings(inviteOnly: v)) : null,
-        ),
-        SwitchListTile.adaptive(
-          contentPadding: EdgeInsets.zero,
-          title: const Text('Hidden'),
-          subtitle: const Text("Doesn't appear in the room list"),
-          value: chan.isSecret,
-          onChanged: isOp ? (v) => _update(RoomSettings(secret: v)) : null,
-        ),
-        SwitchListTile.adaptive(
-          contentPadding: EdgeInsets.zero,
-          title: const Text('Lock the topic'),
-          subtitle: const Text('Only operators can change the topic'),
-          value: chan.isTopicLocked,
-          onChanged: isOp ? (v) => _update(RoomSettings(topicLocked: v)) : null,
-        ),
-        SwitchListTile.adaptive(
-          contentPadding: EdgeInsets.zero,
-          title: const Text('Moderated'),
-          subtitle: const Text(
-            'Only operators and people you give a voice can talk',
-          ),
-          value: chan.isModerated,
-          onChanged: isOp ? (v) => _update(RoomSettings(moderated: v)) : null,
-        ),
-        SwitchListTile.adaptive(
-          contentPadding: EdgeInsets.zero,
-          title: const Text('No messages from outside'),
-          subtitle: const Text(
-            "People who aren't in the room can't send messages to it",
-          ),
-          value: chan.modes.contains('n'),
-          onChanged: isOp
-              ? (v) => _update(RoomSettings(noOutsideMessages: v))
+    final children = <Widget>[
+      Text(
+        widget.embedded ? 'Room settings' : '${chan.name} settings',
+        style: widget.embedded
+            ? theme.textTheme.titleMedium
+            : theme.textTheme.titleLarge,
+      ),
+      const SizedBox(height: 4),
+      Text(
+        isOp
+            ? 'You run this room on ${net.label}.'
+            : 'Only the people who run this room (operators, shown with '
+                  '@) can change its settings.',
+        style: theme.textTheme.bodyMedium,
+      ),
+      const SizedBox(height: 16),
+      Text('Description', style: theme.textTheme.titleMedium),
+      Text(
+        canDescribe
+            ? 'Shown at the top of the room and in the room list.'
+            : 'Only operators can change the description here.',
+      ),
+      TextField(
+        controller: description,
+        enabled: canDescribe,
+        minLines: 1,
+        maxLines: 3,
+        maxLength: 300,
+        decoration: const InputDecoration(hintText: 'What is this room about?'),
+      ),
+      Align(
+        alignment: Alignment.centerRight,
+        child: FilledButton.tonal(
+          onPressed: canDescribe
+              ? () {
+                  controller.setRoomDescription(
+                    chan.name,
+                    description.text,
+                    networkId: net.id,
+                  );
+                  _toast('Description updated.');
+                }
               : null,
+          child: const Text('Save description'),
         ),
-        const SizedBox(height: 8),
-        Text('Room size', style: theme.textTheme.titleMedium),
-        Text(
-          chan.limit == null
-              ? 'Any number of people can be in the room.'
-              : 'At most ${chan.limit} people can be in the room.',
+      ),
+      const Divider(height: 32),
+      Text('Who can join', style: theme.textTheme.titleMedium),
+      SwitchListTile.adaptive(
+        contentPadding: EdgeInsets.zero,
+        title: const Text('Private'),
+        subtitle: const Text('Only people you invite can join'),
+        value: chan.isInviteOnly,
+        onChanged: isOp ? (v) => _update(RoomSettings(inviteOnly: v)) : null,
+      ),
+      SwitchListTile.adaptive(
+        contentPadding: EdgeInsets.zero,
+        title: const Text('Hidden'),
+        subtitle: const Text("Doesn't appear in the room list"),
+        value: chan.isSecret,
+        onChanged: isOp ? (v) => _update(RoomSettings(secret: v)) : null,
+      ),
+      SwitchListTile.adaptive(
+        contentPadding: EdgeInsets.zero,
+        title: const Text('Lock the topic'),
+        subtitle: const Text('Only operators can change the topic'),
+        value: chan.isTopicLocked,
+        onChanged: isOp ? (v) => _update(RoomSettings(topicLocked: v)) : null,
+      ),
+      SwitchListTile.adaptive(
+        contentPadding: EdgeInsets.zero,
+        title: const Text('Moderated'),
+        subtitle: const Text(
+          'Only operators and people you give a voice can talk',
         ),
-        if (isOp)
-          Row(
-            children: [
-              Expanded(
-                child: TextField(
-                  controller: _limit,
-                  keyboardType: TextInputType.number,
-                  decoration: const InputDecoration(hintText: 'Most people'),
-                ),
-              ),
-              const SizedBox(width: 8),
-              FilledButton.tonal(
-                onPressed: () {
-                  final n = int.tryParse(_limit.text.trim());
-                  if (n == null || n <= 0) return;
-                  _update(RoomSettings(limit: n));
-                  _limit.clear();
-                },
-                child: const Text('Set'),
-              ),
-              if (chan.limit != null) ...[
-                const SizedBox(width: 8),
-                TextButton(
-                  onPressed: () => _update(const RoomSettings(limit: 0)),
-                  child: const Text('No limit'),
-                ),
-              ],
-            ],
-          ),
-        const SizedBox(height: 8),
-        Text('Password', style: theme.textTheme.titleMedium),
-        Text(
-          chan.hasKey
-              ? 'People need a password to join.'
-              : 'Anyone allowed in can join without a password.',
+        value: chan.isModerated,
+        onChanged: isOp ? (v) => _update(RoomSettings(moderated: v)) : null,
+      ),
+      SwitchListTile.adaptive(
+        contentPadding: EdgeInsets.zero,
+        title: const Text('No messages from outside'),
+        subtitle: const Text(
+          "People who aren't in the room can't send messages to it",
         ),
-        if (isOp)
-          Row(
-            children: [
-              Expanded(
-                child: TextField(
-                  controller: _password,
-                  autocorrect: false,
-                  decoration: InputDecoration(
-                    hintText: chan.hasKey ? 'New password' : 'Password',
-                  ),
-                ),
-              ),
-              const SizedBox(width: 8),
-              FilledButton.tonal(
-                onPressed: () {
-                  if (_password.text.trim().isEmpty) return;
-                  _update(RoomSettings(password: _password.text));
-                  _password.clear();
-                },
-                child: const Text('Set'),
-              ),
-              if (chan.hasKey) ...[
-                const SizedBox(width: 8),
-                TextButton(
-                  onPressed: () => _update(const RoomSettings(password: '')),
-                  child: const Text('Remove'),
-                ),
-              ],
-            ],
-          ),
-        const Divider(height: 32),
-        Text('Invite someone', style: theme.textTheme.titleMedium),
+        value: chan.modes.contains('n'),
+        onChanged: isOp
+            ? (v) => _update(RoomSettings(noOutsideMessages: v))
+            : null,
+      ),
+      const SizedBox(height: 8),
+      Text('Room size', style: theme.textTheme.titleMedium),
+      Text(
+        chan.limit == null
+            ? 'Any number of people can be in the room.'
+            : 'At most ${chan.limit} people can be in the room.',
+      ),
+      if (isOp)
         Row(
           children: [
             Expanded(
               child: TextField(
-                controller: _invite,
-                autocorrect: false,
-                decoration: const InputDecoration(hintText: 'Nickname'),
+                controller: _limit,
+                keyboardType: TextInputType.number,
+                decoration: const InputDecoration(hintText: 'Most people'),
               ),
             ),
             const SizedBox(width: 8),
             FilledButton.tonal(
               onPressed: () {
-                final nick = _invite.text.trim();
-                if (nick.isEmpty) return;
-                controller.inviteUser(nick, chan.name, networkId: net.id);
-                _invite.clear();
-                ScaffoldMessenger.of(context).showSnackBar(
-                  SnackBar(content: Text('Invited $nick to ${chan.name}.')),
-                );
+                final n = int.tryParse(_limit.text.trim());
+                if (n == null || n <= 0) return;
+                _update(RoomSettings(limit: n));
+                _limit.clear();
               },
-              child: const Text('Invite'),
+              child: const Text('Set'),
             ),
+            if (chan.limit != null) ...[
+              const SizedBox(width: 8),
+              TextButton(
+                onPressed: () => _update(const RoomSettings(limit: 0)),
+                child: const Text('No limit'),
+              ),
+            ],
           ],
         ),
-        if (isOp) ...[
-          const Divider(height: 32),
-          Text('Banned', style: theme.textTheme.titleMedium),
-          const Text(
-            "People matching these can't join. Ban someone from the "
-            'people list.',
-          ),
-          if (!chan.bansLoaded)
-            const Padding(
-              padding: EdgeInsets.symmetric(vertical: 8),
-              child: Text('Loading…'),
-            )
-          else if (chan.bans.isEmpty)
-            const Padding(
-              padding: EdgeInsets.symmetric(vertical: 8),
-              child: Text('Nobody is banned.'),
-            )
-          else
-            for (final mask in chan.bans)
-              ListTile(
-                contentPadding: EdgeInsets.zero,
-                dense: true,
-                leading: const Icon(Icons.block),
-                title: Text(mask),
-                trailing: TextButton(
-                  onPressed: () {
-                    controller.unban(chan.name, mask, networkId: net.id);
-                    _toast('Unbanned $mask.');
-                  },
-                  child: const Text('Unban'),
+      const SizedBox(height: 8),
+      Text('Password', style: theme.textTheme.titleMedium),
+      Text(
+        chan.hasKey
+            ? 'People need a password to join.'
+            : 'Anyone allowed in can join without a password.',
+      ),
+      if (isOp)
+        Row(
+          children: [
+            Expanded(
+              child: TextField(
+                controller: _password,
+                autocorrect: false,
+                decoration: InputDecoration(
+                  hintText: chan.hasKey ? 'New password' : 'Password',
                 ),
               ),
-        ],
-        const Divider(height: 32),
-        Text('Keep this room', style: theme.textTheme.titleMedium),
-        const SizedBox(height: 4),
-        if (services.roomLimitation case final why?)
-          Text(why)
-        else ...[
-          const Text(
-            'An empty room disappears, and the next person to join it runs '
-            'it. Registering the room keeps it, and you always get to run '
-            'it. This takes a registered nickname on this network.',
+            ),
+            const SizedBox(width: 8),
+            FilledButton.tonal(
+              onPressed: () {
+                if (_password.text.trim().isEmpty) return;
+                _update(RoomSettings(password: _password.text));
+                _password.clear();
+              },
+              child: const Text('Set'),
+            ),
+            if (chan.hasKey) ...[
+              const SizedBox(width: 8),
+              TextButton(
+                onPressed: () => _update(const RoomSettings(password: '')),
+                child: const Text('Remove'),
+              ),
+            ],
+          ],
+        ),
+      const Divider(height: 32),
+      Text('Invite someone', style: theme.textTheme.titleMedium),
+      Row(
+        children: [
+          Expanded(
+            child: TextField(
+              controller: _invite,
+              autocorrect: false,
+              decoration: const InputDecoration(hintText: 'Nickname'),
+            ),
           ),
-          const SizedBox(height: 8),
-          if (!net.loggedIn)
-            OutlinedButton.icon(
-              icon: const Icon(Icons.badge_outlined),
-              label: Text('Register my nickname (${net.nick})'),
-              onPressed: () => unawaited(
-                showRegisterNickDialog(context, ref, networkId: net.id),
+          const SizedBox(width: 8),
+          FilledButton.tonal(
+            onPressed: () {
+              final nick = _invite.text.trim();
+              if (nick.isEmpty) return;
+              controller.inviteUser(nick, chan.name, networkId: net.id);
+              _invite.clear();
+              ScaffoldMessenger.of(context).showSnackBar(
+                SnackBar(content: Text('Invited $nick to ${chan.name}.')),
+              );
+            },
+            child: const Text('Invite'),
+          ),
+        ],
+      ),
+      if (isOp) ...[
+        const Divider(height: 32),
+        Text('Banned', style: theme.textTheme.titleMedium),
+        const Text(
+          "People matching these can't join. Ban someone from the "
+          'people list.',
+        ),
+        if (!chan.bansLoaded)
+          const Padding(
+            padding: EdgeInsets.symmetric(vertical: 8),
+            child: Text('Loading…'),
+          )
+        else if (chan.bans.isEmpty)
+          const Padding(
+            padding: EdgeInsets.symmetric(vertical: 8),
+            child: Text('Nobody is banned.'),
+          )
+        else
+          for (final mask in chan.bans)
+            ListTile(
+              contentPadding: EdgeInsets.zero,
+              dense: true,
+              leading: const Icon(Icons.block),
+              title: Text(mask),
+              trailing: TextButton(
+                onPressed: () {
+                  controller.unban(chan.name, mask, networkId: net.id);
+                  _toast('Unbanned $mask.');
+                },
+                child: const Text('Unban'),
               ),
             ),
-          const SizedBox(height: 8),
-          FilledButton.icon(
-            icon: const Icon(Icons.verified_outlined),
-            label: const Text('Keep this room'),
-            onPressed: isOp
-                ? () => unawaited(_keepRoom(context, net, chan))
-                : null,
-          ),
-          if (!isOp)
-            const Padding(
-              padding: EdgeInsets.only(top: 4),
-              child: Text('Only an operator of the room can register it.'),
-            ),
-        ],
       ],
+      const Divider(height: 32),
+      Text('Keep this room', style: theme.textTheme.titleMedium),
+      const SizedBox(height: 4),
+      if (services.roomLimitation case final why?)
+        Text(why)
+      else ...[
+        const Text(
+          'An empty room disappears, and the next person to join it runs '
+          'it. Registering the room keeps it, and you always get to run '
+          'it. This takes a registered nickname on this network.',
+        ),
+        const SizedBox(height: 8),
+        if (!net.loggedIn)
+          OutlinedButton.icon(
+            icon: const Icon(Icons.badge_outlined),
+            label: Text('Register my nickname (${net.nick})'),
+            onPressed: () => unawaited(
+              showRegisterNickDialog(context, ref, networkId: net.id),
+            ),
+          ),
+        const SizedBox(height: 8),
+        FilledButton.icon(
+          icon: const Icon(Icons.verified_outlined),
+          label: const Text('Keep this room'),
+          onPressed: isOp
+              ? () => unawaited(_keepRoom(context, net, chan))
+              : null,
+        ),
+        if (!isOp)
+          const Padding(
+            padding: EdgeInsets.only(top: 4),
+            child: Text('Only an operator of the room can register it.'),
+          ),
+      ],
+    ];
+    if (widget.embedded) {
+      return Column(
+        crossAxisAlignment: CrossAxisAlignment.stretch,
+        children: children,
+      );
+    }
+    return ListView(
+      padding: const EdgeInsets.fromLTRB(16, 0, 16, 24),
+      children: children,
     );
   }
 
@@ -528,6 +542,7 @@ class _RoomSettingsSheetState extends ConsumerState<RoomSettingsSheet> {
     ref
         .read(chatControllerProvider.notifier)
         .registerRoom(chan.name, password: password, networkId: net.id);
+    // Closes the sheet, or Room info, to show the ChanServ chat.
     if (context.mounted) Navigator.pop(context);
   }
 }
