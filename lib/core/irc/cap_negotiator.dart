@@ -35,6 +35,8 @@ const Set<String> defaultWantedCaps = {
   // soju: list the bouncer's networks and bind a connection to one.
   'soju.im/bouncer-networks',
   'soju.im/bouncer-networks-notify',
+  // Where you've read up to, shared between your own devices (soju, Ergo).
+  'draft/read-marker',
 };
 
 /// Drives the CAP/SASL exchange during registration.

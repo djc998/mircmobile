@@ -36,6 +36,7 @@
       password. Still to do: push notifications (soju.im/webpush)
 - [x] IRCv3 chathistory: missed messages on join and reconnect, missed
       private chats, older messages from the top of a chat
-- [ ] IRCv3 typing indicator and read markers ("Seen")
+- [x] IRCv3 typing indicator and read markers (read position synced across
+      your devices; IRC has no read receipts for others)
 - [ ] Android foreground service option
 - [x] Themes, including a classic mIRC skin (Classic mIRC theme + Compact density)

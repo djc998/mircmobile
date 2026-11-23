@@ -309,10 +309,12 @@ class ChatScreen extends ConsumerWidget {
                       ),
                     ),
                   ),
+                  TypingLine(nicks: buffer?.typingNicks ?? const []),
                   Composer(
                     // A new composer per conversation keeps drafts apart.
                     key: ValueKey(buffer?.key),
                     onSubmit: controller.submit,
+                    onChanged: controller.noteTyping,
                     hint: buffer == null || buffer.isStatus
                         ? 'Message or /command'
                         : 'Message ${buffer.name}',
@@ -2432,6 +2434,48 @@ class _TextPromptDialogState extends State<_TextPromptDialog> {
           child: Text(widget.action),
         ),
       ],
+    );
+  }
+}
+
+/// "bob is typing…" above the message box; nothing when nobody is.
+class TypingLine extends StatelessWidget {
+  const TypingLine({required this.nicks, super.key});
+
+  final List<String> nicks;
+
+  /// The words for [nicks]: one, two, or "Several people".
+  static String text(List<String> nicks) => switch (nicks) {
+    [] => '',
+    [final a] => '$a is typing…',
+    [final a, final b] => '$a and $b are typing…',
+    _ => 'Several people are typing…',
+  };
+
+  @override
+  Widget build(BuildContext context) {
+    final tokens = AppTokens.of(context);
+    final words = text(nicks);
+    return AnimatedSize(
+      duration: Motion.of(context, Motion.fast),
+      alignment: Alignment.bottomLeft,
+      child: words.isEmpty
+          ? const SizedBox(width: double.infinity)
+          : Semantics(
+              liveRegion: true,
+              child: Padding(
+                padding: const EdgeInsets.fromLTRB(20, 2, 20, 2),
+                child: Text(
+                  words,
+                  maxLines: 1,
+                  overflow: TextOverflow.ellipsis,
+                  style: TypeScale.meta.copyWith(
+                    color: tokens.textMuted,
+                    fontStyle: FontStyle.italic,
+                  ),
+                ),
+              ),
+            ),
     );
   }
 }

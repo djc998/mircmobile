@@ -20,12 +20,14 @@ class SafetySettings {
     this.termsAgreed = 0,
     this.filterWords = true,
     this.hideAdultRooms = true,
+    this.sendTyping = true,
   });
 
   factory SafetySettings.fromJson(Map<String, Object?> json) => SafetySettings(
     termsAgreed: json['termsAgreed'] as int? ?? 0,
     filterWords: json['filterWords'] as bool? ?? true,
     hideAdultRooms: json['hideAdultRooms'] as bool? ?? true,
+    sendTyping: json['sendTyping'] as bool? ?? true,
   );
 
   /// The [termsVersion] last agreed to; 0 for never.
@@ -37,22 +39,28 @@ class SafetySettings {
   /// Leave adult rooms out of Discover.
   final bool hideAdultRooms;
 
+  /// Let others see when you're typing (IRCv3 typing notifications).
+  final bool sendTyping;
+
   bool get agreedToTerms => termsAgreed >= termsVersion;
 
   SafetySettings copyWith({
     int? termsAgreed,
     bool? filterWords,
     bool? hideAdultRooms,
+    bool? sendTyping,
   }) => SafetySettings(
     termsAgreed: termsAgreed ?? this.termsAgreed,
     filterWords: filterWords ?? this.filterWords,
     hideAdultRooms: hideAdultRooms ?? this.hideAdultRooms,
+    sendTyping: sendTyping ?? this.sendTyping,
   );
 
   Map<String, Object?> toJson() => {
     'termsAgreed': termsAgreed,
     'filterWords': filterWords,
     'hideAdultRooms': hideAdultRooms,
+    'sendTyping': sendTyping,
   };
 }
 
@@ -84,6 +92,9 @@ class SafetyController extends Notifier<SafetySettings> {
 
   void setHideAdultRooms({required bool enabled}) =>
       _set(state.copyWith(hideAdultRooms: enabled));
+
+  void setSendTyping({required bool enabled}) =>
+      _set(state.copyWith(sendTyping: enabled));
 
   void _set(SafetySettings next) {
     state = next;

@@ -47,6 +47,7 @@ class Composer extends StatefulWidget {
     this.onCancelReply,
     this.onAttach,
     this.onTakePhoto,
+    this.onChanged,
     this.uploading = false,
     this.nicks = const [],
     this.rooms = const [],
@@ -69,6 +70,9 @@ class Composer extends StatefulWidget {
 
   /// Takes a photo with the camera and sends it; shown in the + menu.
   final VoidCallback? onTakePhoto;
+
+  /// The text changed (for typing notifications).
+  final void Function(String text)? onChanged;
 
   /// A picture is being uploaded.
   final bool uploading;
@@ -97,7 +101,13 @@ class _ComposerState extends State<Composer> {
   @override
   void initState() {
     super.initState();
+    var lastText = '';
     _controller
+      ..addListener(() {
+        if (_controller.text == lastText) return;
+        lastText = _controller.text;
+        widget.onChanged?.call(lastText);
+      })
       ..addListener(_updateCompletions)
       ..addListener(() {
         final has = hasMircCodes(_controller.text);

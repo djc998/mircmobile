@@ -108,6 +108,18 @@ class _SettingsScreenState extends ConsumerState<SettingsScreen> {
                           .read(safetyProvider.notifier)
                           .setHideAdultRooms(enabled: v),
                     ),
+                    SwitchListTile.adaptive(
+                      secondary: const Icon(Icons.keyboard_outlined),
+                      title: const Text("Show when I'm typing"),
+                      subtitle: const Text(
+                        'Others see "… is typing" while you write, on '
+                        'servers that support it',
+                      ),
+                      value: safety.sendTyping,
+                      onChanged: (v) => ref
+                          .read(safetyProvider.notifier)
+                          .setSendTyping(enabled: v),
+                    ),
                   ],
                 ),
                 _Group(
