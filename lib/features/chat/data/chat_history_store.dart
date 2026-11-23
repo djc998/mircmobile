@@ -20,6 +20,7 @@ class StoredLine {
     required this.kind,
     required this.text,
     this.sender,
+    this.msgid,
   });
 
   factory StoredLine.fromJson(Map<String, Object?> json) => StoredLine(
@@ -30,6 +31,7 @@ class StoredLine {
     kind: json['k'] as String? ?? 'message',
     text: json['x'] as String? ?? '',
     sender: json['s'] as String?,
+    msgid: json['m'] as String?,
   );
 
   final DateTime time;
@@ -39,11 +41,15 @@ class StoredLine {
   final String text;
   final String? sender;
 
+  /// The server's id for the message, when it gave one (IRCv3 `msgid`).
+  final String? msgid;
+
   Map<String, Object?> toJson() => {
     't': time.toUtc().millisecondsSinceEpoch,
     'k': kind,
     'x': text,
     if (sender != null) 's': sender,
+    if (msgid != null) 'm': msgid,
   };
 }
 
