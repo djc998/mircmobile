@@ -149,13 +149,17 @@ class FileChatHistoryStore implements ChatHistoryStore {
     }
     if (raw.length > maxLines) {
       final keep = lines.sublist(lines.length - maxLines ~/ 2);
+      // Written aside and swapped in, so the file is never half-written
+      // or empty if the app stops or another reader looks mid-trim.
       unawaited(
-        _enqueue(
-          file,
-          () => file.writeAsString(
+        _enqueue(file, () async {
+          final temp = File('${file.path}.tmp');
+          await temp.writeAsString(
             keep.map((l) => '${jsonEncode(l.toJson())}\n').join(),
-          ),
-        ),
+            flush: true,
+          );
+          await temp.rename(file.path);
+        }),
       );
     }
     return lines.sublist(lines.length > limit ? lines.length - limit : 0);
