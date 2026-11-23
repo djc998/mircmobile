@@ -173,11 +173,12 @@ class ChatBuffer {
 /// Several sessions can be open at once; each has its own [IrcClient].
 class NetworkSession {
   NetworkSession({required this.config, required this.client})
-    : id = config.host.toLowerCase(),
+    : id = config.networkKey,
       nick = config.nick;
 
-  /// Lower-cased host the user picked, e.g. `irc.libera.chat`. Favorites,
-  /// recents and saved history are keyed by it.
+  /// Lower-cased host the user picked, e.g. `irc.libera.chat`, plus
+  /// `/<id>` for one of a soju bouncer's networks. Favorites, recents and
+  /// saved history are keyed by it.
   final String id;
   IrcConnectionConfig config;
   IrcClient client;
@@ -232,8 +233,16 @@ class NetworkSession {
   /// This network's NickServ/ChanServ.
   NetworkServices get services => NetworkServices(servicesFor(id));
 
-  /// Display name: the network's own name, or its host until known.
-  String get label => name.isEmpty ? config.host : name;
+  /// Display name: the network's own name, or its host until known. A
+  /// bouncer's own connection shows the address it was added with.
+  String get label {
+    if (isBouncer) return '${config.host} (bouncer)';
+    return name.isEmpty ? config.host : name;
+  }
+
+  /// The soju bouncer's own connection, which lists its networks (each
+  /// network has its own session).
+  bool get isBouncer => client.isBouncer && config.bouncerNetwork == null;
 
   bool get isConnected => status == IrcConnectionStatus.connected;
 
@@ -596,7 +605,7 @@ class ChatController extends Notifier<ChatState> {
   /// network that is already open replaces its connection but keeps its
   /// conversations.
   Future<void> connect(IrcConnectionConfig requested) async {
-    final id = requested.host.toLowerCase();
+    final id = requested.networkKey;
     // Rooms and private chats that were open last time on this network.
     final reopen = state.networks.containsKey(id)
         ? const <String>[]
@@ -692,11 +701,15 @@ class ChatController extends Notifier<ChatState> {
     _sessions.remove(session);
     await session.subscription?.cancel();
     unawaited(session.client.dispose());
-    unawaited(
-      ref
-          .read(savedConnectionRepositoryProvider)
-          .removeNetwork(session.config.host),
-    );
+    // A bouncer's network comes back with the bouncer; only forget the
+    // bouncer (or an ordinary server) itself.
+    if (session.config.bouncerNetwork == null) {
+      unawaited(
+        ref
+            .read(savedConnectionRepositoryProvider)
+            .removeNetwork(session.config.host),
+      );
+    }
     final open = _loadOpenConversations()..remove(networkId);
     unawaited(_store.setString(_openConversationsKey, jsonEncode(open)));
     final networks = Map.of(state.networks)..remove(networkId);
@@ -1404,6 +1417,20 @@ class ChatController extends Notifier<ChatState> {
             b.historyExhausted = true;
           }
           b.historyWant = null;
+        }
+        _touch();
+      case BouncerNetworksEvent(:final networks):
+        // Open every network on the bouncer that isn't open yet, each on
+        // its own connection bound to it.
+        if (!session.isBouncer) return;
+        for (final net in networks.values) {
+          final config = session.config.copyWith(
+            bouncerNetwork: net.id,
+            autoJoin: const [],
+          );
+          if (!state.networks.containsKey(config.networkKey)) {
+            unawaited(connect(config));
+          }
         }
         _touch();
       case HistoryTargetsEvent(:final targets):

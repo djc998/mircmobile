@@ -32,6 +32,9 @@ const Set<String> defaultWantedCaps = {
   // (Ergo, soju). The draft name is what servers ship today.
   'draft/chathistory',
   'chathistory',
+  // soju: list the bouncer's networks and bind a connection to one.
+  'soju.im/bouncer-networks',
+  'soju.im/bouncer-networks-notify',
 };
 
 /// Drives the CAP/SASL exchange during registration.
@@ -44,6 +47,7 @@ class CapNegotiator {
     this.wanted = defaultWantedCaps,
     this.sasl,
     this.onFinished,
+    this.beforeEnd,
   });
 
   final void Function(String line) _send;
@@ -52,6 +56,10 @@ class CapNegotiator {
 
   /// Called once with the result when negotiation ends with CAP END.
   final void Function(SaslOutcome outcome)? onFinished;
+
+  /// Called just before CAP END, for commands that must come before
+  /// registration finishes (soju's BOUNCER BIND).
+  final void Function()? beforeEnd;
 
   /// Capabilities the server advertised, with their values.
   final Map<String, String> available = {};
@@ -239,6 +247,7 @@ class CapNegotiator {
   void _end() {
     if (_finished) return;
     _finished = true;
+    beforeEnd?.call();
     _send('CAP END');
     onFinished?.call(saslOutcome);
   }

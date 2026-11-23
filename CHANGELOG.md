@@ -7,6 +7,13 @@ and the project uses [Semantic Versioning](https://semver.org/).
 ## [Unreleased]
 
 ### Added
+- **soju bouncers** (iOS, Android, macOS): add the bouncer once (Add your own
+  network, with your soju username under Advanced options and your
+  password as the server password) and each network on it opens as its own
+  entry, logged in and bound to that network; networks added on the
+  bouncer later open too. **Continue** reconnects the bouncer, which brings
+  its networks back. soju's errors (FAIL replies) show in Server messages.
+  See [docs/features/bouncers.md](docs/features/bouncers.md).
 - **Missed and older messages** from servers and bouncers that keep them
   (IRCv3 chathistory: Ergo, soju and others), on iOS, Android and macOS.
   Joining a room or reconnecting brings back what was said while you were

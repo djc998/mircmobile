@@ -199,6 +199,10 @@ class IrcMessage {
   @override
   String toString() => toLine();
 
+  /// Parses `key=value;key2` with IRCv3 escaping (message tags, and soju's
+  /// BOUNCER NETWORK attributes).
+  static Map<String, String> parseTags(String raw) => _parseTags(raw);
+
   static Map<String, String> _parseTags(String raw) {
     final tags = <String, String>{};
     for (final part in raw.split(';')) {
