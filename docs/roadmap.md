@@ -27,7 +27,7 @@
 - [~] App Store safety: block and report pictures, ignore and report people,
       ignored-people list done; content filter and terms on first launch still to do
 - [ ] Adaptive Cupertino touches on iOS/macOS
-- [~] App name and icon: named **IRCade** (display name on iOS, Android and macOS); icon still to do
+- [x] App name and icon: **IRCade**, with its icon on iOS, Android (adaptive) and macOS
 
 ## v2
 - [ ] Bouncer support (soju/ZNC) and push notifications
