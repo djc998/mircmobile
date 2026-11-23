@@ -7,6 +7,18 @@ and the project uses [Semantic Versioning](https://semver.org/).
 ## [Unreleased]
 
 ### Added
+- **iPhone and Mac touches.** Android is unchanged.
+  - **iPhone and iPad:** menus (long-press a chat or message, the **+**
+    menu, the photo chooser) are iOS action sheets with **Cancel**, and
+    long-press gives a haptic tap. Leave, Close and Report show in red.
+  - **Mac:** right-click a chat in the sidebar, or a message, for a menu at
+    the pointer. Right-clicking a message's text adds **Reply** and
+    **Report message** to its Copy / Select All menu.
+  - Confirmations (Delete saved history) are system alerts on iOS and Mac.
+    Spinners are the native ones. Swiping to reply gives a haptic tick.
+  See [docs/features/platform-feel.md](docs/features/platform-feel.md).
+- The terms and Settings → About show **support@ircage.com** as the contact
+  address.
 - **App Store safety** (iOS, Android, macOS), for Apple's rules on apps
   with user-generated content:
   - **Terms of use** to agree to on first launch (and again when they

@@ -29,8 +29,8 @@ the makers.
 
 ## Before submitting to the App Store
 
-- Put a real address in `supportContact` in `lib/app/legal.dart` (it's
-  `support@example.com` for now).
+- Make sure `support@ircage.com` (`supportContact` in
+  `lib/app/legal.dart`) receives mail.
 - Redeploy the picture host so it accepts message reports, and review
   `/admin/reports` at least daily: the terms promise 24 hours
   ([server/picture-host/README.md](../../server/picture-host/README.md)).

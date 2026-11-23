@@ -11,6 +11,7 @@ import 'package:irc_client/core/irc/formatting.dart';
 import 'package:irc_client/core/irc/mirc_compose.dart';
 import 'package:irc_client/core/irc/mirc_format.dart';
 import 'package:irc_client/core/theme/tokens.dart';
+import 'package:irc_client/core/ui/adaptive.dart';
 import 'package:irc_client/core/ui/mirc_text.dart';
 import 'package:material_ui/material_ui.dart';
 
@@ -333,42 +334,31 @@ class _ComposerState extends State<Composer> {
     _focus.requestFocus();
   }
 
-  Future<void> _showMenu() async {
-    final picked = await showModalBottomSheet<VoidCallback>(
-      context: context,
-      showDragHandle: true,
-      builder: (sheet) => SafeArea(
-        child: SingleChildScrollView(
-          child: Column(
-            mainAxisSize: MainAxisSize.min,
-            children: [
-              if (widget.onAttach != null)
-                ListTile(
-                  leading: const Icon(Icons.add_photo_alternate_outlined),
-                  title: const Text('Send a photo'),
-                  enabled: !widget.uploading,
-                  onTap: () => Navigator.pop(sheet, widget.onAttach),
-                ),
-              if (widget.onTakePhoto != null)
-                ListTile(
-                  leading: const Icon(Icons.photo_camera_outlined),
-                  title: const Text('Take a photo'),
-                  enabled: !widget.uploading,
-                  onTap: () => Navigator.pop(sheet, widget.onTakePhoto),
-                ),
-              for (final c in widget.commands)
-                ListTile(
-                  leading: Icon(c.icon),
-                  title: Text(c.label),
-                  onTap: () => Navigator.pop(sheet, () => _insert(c.command)),
-                ),
-            ],
-          ),
+  Future<void> _showMenu() => showActionMenu(
+    context,
+    actions: [
+      if (widget.onAttach case final attach?)
+        MenuAction(
+          icon: Icons.add_photo_alternate_outlined,
+          label: 'Send a photo',
+          enabled: !widget.uploading,
+          onSelected: attach,
         ),
-      ),
-    );
-    picked?.call();
-  }
+      if (widget.onTakePhoto case final take?)
+        MenuAction(
+          icon: Icons.photo_camera_outlined,
+          label: 'Take a photo',
+          enabled: !widget.uploading,
+          onSelected: take,
+        ),
+      for (final c in widget.commands)
+        MenuAction(
+          icon: c.icon,
+          label: c.label,
+          onSelected: () => _insert(c.command),
+        ),
+    ],
+  );
 
   @override
   Widget build(BuildContext context) {

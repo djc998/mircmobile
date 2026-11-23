@@ -11,6 +11,7 @@ import 'package:irc_client/core/irc/irc_events.dart';
 import 'package:irc_client/core/safety/content_filter.dart';
 import 'package:irc_client/core/theme/app_theme.dart';
 import 'package:irc_client/core/theme/tokens.dart';
+import 'package:irc_client/core/ui/adaptive.dart';
 import 'package:irc_client/core/ui/avatars.dart';
 import 'package:irc_client/core/ui/chat_dividers.dart';
 import 'package:irc_client/core/ui/composer.dart';
@@ -1771,7 +1772,12 @@ class _LineBody extends StatelessWidget {
       child: Semantics(
         label:
             '${line.sender}, $time, $kind${mentioned ? ', mentions you' : ''}',
-        child: _isTouch(context) ? Text.rich(full) : SelectableText.rich(full),
+        child: _isTouch(context)
+            ? Text.rich(full)
+            : SelectableText.rich(
+                full,
+                contextMenuBuilder: _lineContextMenu(context),
+              ),
       ),
     );
   }
@@ -1841,16 +1847,50 @@ class _LineActionsState extends State<_LineActions> {
         ),
       );
     }
-    if (onReply == null && onReport == null) return widget.child;
-    // Computers: reply and more buttons that show on hover or keyboard
-    // focus.
+    // Computers: right-click for the menu; reply and report buttons show
+    // on hover or keyboard focus.
+    final clickable = GestureDetector(
+      onSecondaryTapUp: (d) => unawaited(
+        _showLineActions(
+          context,
+          widget.line,
+          onReply,
+          onReport,
+          position: d.globalPosition,
+        ),
+      ),
+      // Right-clicking the (selectable) text gets Reply and Report added
+      // to its Copy / Select All menu.
+      child: _LineMenuItems(
+        items: [
+          if (onReply != null)
+            ContextMenuButtonItem(
+              label: 'Reply to ${widget.line.sender}',
+              onPressed: () {
+                ContextMenuController.removeAny();
+                onReply();
+              },
+            ),
+          if (onReport != null)
+            ContextMenuButtonItem(
+              label: 'Report message',
+              onPressed: () {
+                ContextMenuController.removeAny();
+                onReport();
+              },
+            ),
+        ],
+        child: widget.child,
+      ),
+    );
+    if (onReply == null && onReport == null) return clickable;
     return MouseRegion(
       onEnter: (_) => setState(() => _hovered = true),
       onExit: (_) => setState(() => _hovered = false),
       child: Row(
         crossAxisAlignment: CrossAxisAlignment.start,
         children: [
-          Expanded(child: widget.child),
+          Expanded(child: clickable),
           Focus(
             canRequestFocus: false,
             onFocusChange: (f) => setState(() => _hovered = f),
@@ -1885,6 +1925,31 @@ class _LineActionsState extends State<_LineActions> {
   }
 }
 
+/// Extra items for a message's text menu on computers, from
+/// [_LineActions] to the selectable text inside it.
+class _LineMenuItems extends InheritedWidget {
+  const _LineMenuItems({required this.items, required super.child});
+
+  final List<ContextMenuButtonItem> items;
+
+  @override
+  bool updateShouldNotify(_LineMenuItems old) => old.items != items;
+}
+
+/// The text's own menu (Copy, Select All) plus the message's actions
+/// from the [_LineMenuItems] above [context], in the platform's style (a
+/// Mac menu on macOS). Looked up here: the menu itself is built in the
+/// overlay, outside the message.
+EditableTextContextMenuBuilder _lineContextMenu(BuildContext context) {
+  final extra =
+      context.dependOnInheritedWidgetOfExactType<_LineMenuItems>()?.items ??
+      const <ContextMenuButtonItem>[];
+  return (context, state) => AdaptiveTextSelectionToolbar.buttonItems(
+    anchors: state.contextMenuAnchors,
+    buttonItems: [...state.contextMenuButtonItems, ...extra],
+  );
+}
+
 Widget _swipeToReply(
   BuildContext context,
   ChatLine line,
@@ -1895,6 +1960,7 @@ Widget _swipeToReply(
   direction: DismissDirection.startToEnd,
   dismissThresholds: const {DismissDirection.startToEnd: 0.25},
   confirmDismiss: (_) async {
+    unawaited(HapticFeedback.selectionClick());
     onReply();
     return false;
   },
@@ -1912,43 +1978,31 @@ Future<void> _showLineActions(
   BuildContext context,
   ChatLine line,
   VoidCallback? onReply,
-  VoidCallback? onReport,
-) => showModalBottomSheet<void>(
-  context: context,
-  showDragHandle: true,
-  builder: (sheet) => SafeArea(
-    child: Column(
-      mainAxisSize: MainAxisSize.min,
-      children: [
-        if (onReply != null)
-          ListTile(
-            leading: const Icon(Icons.reply),
-            title: Text('Reply to ${line.sender}'),
-            onTap: () {
-              Navigator.pop(sheet);
-              onReply();
-            },
-          ),
-        ListTile(
-          leading: const Icon(Icons.copy),
-          title: const Text('Copy message'),
-          onTap: () {
-            Navigator.pop(sheet);
-            _copyNick(stripFormatting(line.text));
-          },
-        ),
-        if (onReport != null)
-          ListTile(
-            leading: const Icon(Icons.flag_outlined),
-            title: const Text('Report message'),
-            onTap: () {
-              Navigator.pop(sheet);
-              onReport();
-            },
-          ),
-      ],
+  VoidCallback? onReport, {
+  Offset? position,
+}) => showActionMenu(
+  context,
+  position: position,
+  actions: [
+    if (onReply != null)
+      MenuAction(
+        icon: Icons.reply,
+        label: 'Reply to ${line.sender}',
+        onSelected: onReply,
+      ),
+    MenuAction(
+      icon: Icons.copy,
+      label: 'Copy message',
+      onSelected: () => _copyNick(stripFormatting(line.text)),
     ),
-  ),
+    if (onReport != null)
+      MenuAction(
+        icon: Icons.flag_outlined,
+        label: 'Report message',
+        destructive: true,
+        onSelected: onReport,
+      ),
+  ],
 );
 
 /// One line as `HH:MM <nick> text`, for Compact and the server tab.
@@ -2074,7 +2128,12 @@ class _MessageTileState extends State<_MessageTile> {
                 ),
               )
             : null,
-        child: _isTouch(context) ? Text.rich(span) : SelectableText.rich(span),
+        child: _isTouch(context)
+            ? Text.rich(span)
+            : SelectableText.rich(
+                span,
+                contextMenuBuilder: _lineContextMenu(context),
+              ),
       ),
     );
   }
