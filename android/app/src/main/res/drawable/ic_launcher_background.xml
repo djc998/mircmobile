@@ -1,0 +1,9 @@
+<?xml version="1.0" encoding="utf-8"?>
+<!-- The icon's indigo gradient, top left to bottom right. -->
+<shape xmlns:android="http://schemas.android.com/apk/res/android">
+    <gradient
+        android:angle="315"
+        android:endColor="#4141D8"
+        android:startColor="#7474FF"
+        android:type="linear" />
+</shape>

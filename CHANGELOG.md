@@ -39,6 +39,10 @@ and the project uses [Semantic Versioning](https://semver.org/).
   too. See [docs/features/pinned-panels.md](docs/features/pinned-panels.md).
 
 ### Added
+- An IRCade app icon on iOS, Android (adaptive, with a legacy fallback)
+  and macOS: a white chat bubble with the IRC `#` on an indigo gradient.
+  It's drawn in code and regenerated with `tool/make_icons.sh`. See
+  [docs/features/app-icon.md](docs/features/app-icon.md).
 - Write formatted messages: **Format text** in the composer adds bold,
   italic, underline, strikethrough, 16 colours or plain to the selection
   (or what you type next), with Cmd/Ctrl+B/I/U on computers. The field
