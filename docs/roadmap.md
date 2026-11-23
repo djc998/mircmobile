@@ -13,8 +13,8 @@
       motion and an accessibility audit (redesign Phase 5)
 - [x] Room browser: search and sort LIST results, one-tap join
 - [x] Several networks at once; room browser and favorites across them
-- [x] mIRC colour and style rendering (readable on every theme; writing
-      formatted messages still to do)
+- [x] mIRC colours and styles: shown readable on every theme, and written
+      from the composer (format menu, Cmd/Ctrl+B/I/U)
 - [x] Favorites and recent rooms; saved networks and nick (shared_preferences)
 - [x] Passwords in flutter_secure_storage
 - [x] Saved chat history on the device
