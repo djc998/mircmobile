@@ -4,6 +4,7 @@ library;
 
 import 'package:irc_client/core/irc/formatting.dart';
 import 'package:irc_client/core/irc/irc_events.dart';
+import 'package:irc_client/core/safety/content_filter.dart';
 import 'package:irc_client/core/theme/tokens.dart';
 import 'package:irc_client/core/ui/avatars.dart';
 import 'package:irc_client/core/ui/room_card.dart';
@@ -27,7 +28,10 @@ Future<void> showRoomPreview(
   builder: (sheet) {
     final tokens = AppTokens.of(sheet);
     final category = categoryOf(room);
-    final topic = stripFormatting(room.topic).trim();
+    final topic = ContentFilter.clean(
+      sheet,
+      stripFormatting(room.topic).trim(),
+    );
     final muted = TypeScale.body.copyWith(color: tokens.textMuted);
     // The details scroll; the buttons stay at the bottom.
     return SafeArea(

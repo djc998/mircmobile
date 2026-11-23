@@ -14,7 +14,9 @@
 //   GET  /p/<id>/raw        encrypted bytes (404 when expired or viewed)
 //   GET  /p/<id>            viewer page: decrypts in the browser, for people
 //                           on other IRC apps who just click the link
-//   POST /report            {"link","sender","network","reason"} -> 201.
+//   POST /report            {"link","sender","network","reason"} -> 201;
+//                           or {"kind":"message","text","sender","network",
+//                           "room","reason"} for a chat message.
 //                           Records the report as text only (no key, no copy
 //                           of the picture is kept).
 //   GET  /admin/reports     reports list (Authorization: Bearer ADMIN_TOKEN)
@@ -135,6 +137,24 @@ async function report(request, env, now) {
     body = await request.json();
   } catch {
     return json({ error: 'Bad report' }, 400);
+  }
+  if (body.kind === 'message') {
+    // A chat message: the text as the reporter saw it, for review.
+    const text = String(body.text ?? '').slice(0, 2000);
+    if (!text) return json({ error: 'Bad report' }, 400);
+    const record = {
+      kind: 'message',
+      text,
+      sender: String(body.sender ?? '').slice(0, 64),
+      network: String(body.network ?? '').slice(0, 128),
+      room: body.room == null ? null : String(body.room).slice(0, 200),
+      reason: String(body.reason ?? '').slice(0, 1000),
+      reportedAt: new Date(now).toISOString(),
+    };
+    await env.PICTURES.put(`reports/${now}-${randomId()}.json`, JSON.stringify(record), {
+      httpMetadata: { contentType: 'application/json' },
+    });
+    return json({ ok: true }, 201);
   }
   const link = String(body.link ?? '').slice(0, 500);
   const id = link.match(/\/p\/([A-Za-z0-9_-]{22})/)?.[1];

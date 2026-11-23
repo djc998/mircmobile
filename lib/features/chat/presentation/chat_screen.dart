@@ -8,6 +8,7 @@ import 'package:go_router/go_router.dart';
 import 'package:irc_client/core/irc/formatting.dart';
 import 'package:irc_client/core/irc/irc_client.dart';
 import 'package:irc_client/core/irc/irc_events.dart';
+import 'package:irc_client/core/safety/content_filter.dart';
 import 'package:irc_client/core/theme/app_theme.dart';
 import 'package:irc_client/core/theme/tokens.dart';
 import 'package:irc_client/core/ui/avatars.dart';
@@ -28,6 +29,7 @@ import 'package:irc_client/features/pictures/domain/picture_link.dart';
 import 'package:irc_client/features/pictures/presentation/camera_capture.dart';
 import 'package:irc_client/features/pictures/presentation/picture_widgets.dart';
 import 'package:irc_client/features/rooms/presentation/room_info.dart';
+import 'package:irc_client/features/safety/presentation/report_dialog.dart';
 import 'package:irc_client/features/settings/application/appearance_controller.dart';
 import 'package:material_ui/material_ui.dart';
 
@@ -264,6 +266,17 @@ class ChatScreen extends ConsumerWidget {
                                 (l) => l.kind == ChatLineKind.own,
                               ),
                           onReply: isChannel ? controller.startReply : null,
+                          onReport: buffer == null || buffer.isStatus
+                              ? null
+                              : (line) => unawaited(
+                                  _reportMessage(
+                                    context,
+                                    controller,
+                                    line,
+                                    networkId: buffer.networkId,
+                                    room: isChannel ? buffer.name : null,
+                                  ),
+                                ),
                           onNickTap: (nick) => unawaited(
                             showUserActions(
                               context,
@@ -480,7 +493,10 @@ class ChatScreen extends ConsumerWidget {
                       if (channel != null && channel.topic.isNotEmpty) ...[
                         const SizedBox(height: 6),
                         SelectableText(
-                          channel.topic,
+                          ContentFilter.clean(
+                            context,
+                            stripFormatting(channel.topic),
+                          ),
                           style: theme.textTheme.bodyMedium,
                         ),
                       ],
@@ -1246,6 +1262,47 @@ Future<void> _showReport(
   );
 }
 
+/// Asks why, then reports [line] to the app's makers and ignores its
+/// sender.
+Future<void> _reportMessage(
+  BuildContext context,
+  ChatController controller,
+  ChatLine line, {
+  required String networkId,
+  String? room,
+}) async {
+  final sender = line.sender ?? '';
+  final messenger = ScaffoldMessenger.of(context);
+  final reason = await showDialog<String>(
+    context: context,
+    builder: (_) => ReportDialog(
+      title: 'Report message',
+      explanation:
+          'The message is sent to the IRCage team for review and $sender is '
+          'ignored, so you stop seeing their messages. Room operators and '
+          'network staff can act on them too: Report on their profile '
+          'shows who.',
+    ),
+  );
+  if (reason == null) return;
+  final error = await controller.reportMessage(
+    line,
+    networkId: networkId,
+    room: room,
+    reason: reason,
+  );
+  messenger.showSnackBar(
+    SnackBar(
+      content: Text(
+        error == null
+            ? "Thanks, it's been reported. You won't see messages from "
+                  '$sender anymore.'
+            : '$error $sender is ignored.',
+      ),
+    ),
+  );
+}
+
 void _copyNick(String text) {
   // Clipboard errors are harmless here; nothing to report.
   Clipboard.setData(ClipboardData(text: text)).ignore();
@@ -1292,6 +1349,7 @@ class _MessageList extends StatefulWidget {
     this.unreadMarker,
     this.roleOf,
     this.onReply,
+    this.onReport,
     super.key,
   });
 
@@ -1306,6 +1364,9 @@ class _MessageList extends StatefulWidget {
 
   /// Null where replies don't apply (server tab, private chats).
   final void Function(ChatLine line)? onReply;
+
+  /// Reports someone else's message; null on the server tab.
+  final void Function(ChatLine line)? onReport;
 
   @override
   State<_MessageList> createState() => _MessageListState();
@@ -1424,6 +1485,16 @@ class _MessageListState extends State<_MessageList> {
   VoidCallback? _replyTo(ChatLine line) =>
       _canReply(line) ? () => widget.onReply!(line) : null;
 
+  /// Only other people's messages can be reported.
+  VoidCallback? _reportOf(ChatLine line) {
+    final report = widget.onReport;
+    return report != null &&
+            line.sender != null &&
+            line.kind == ChatLineKind.message
+        ? () => report(line)
+        : null;
+  }
+
   PictureLink? _pictureIn(ChatLine line) =>
       line.sender != null &&
           (line.kind == ChatLineKind.own || line.kind == ChatLineKind.message)
@@ -1455,12 +1526,14 @@ class _MessageListState extends State<_MessageList> {
         return SystemEventLine(
           key: ObjectKey(lines.first),
           text: presenceSummary(lines),
-          details: [for (final l in lines) l.text],
+          details: [
+            for (final l in lines) ContentFilter.clean(context, l.text),
+          ],
         );
       case SystemItem(:final line):
         return SystemEventLine(
           key: ObjectKey(line),
-          text: line.text,
+          text: ContentFilter.clean(context, line.text),
           error: line.kind == ChatLineKind.error,
         );
       case LineItem(:final line):
@@ -1470,6 +1543,7 @@ class _MessageListState extends State<_MessageList> {
           ownNick: widget.ownNick,
           onNickTap: widget.onNickTap,
           onReply: _replyTo(line),
+          onReport: _reportOf(line),
         );
         final picture = _picture(line);
         if (picture == null) return tile;
@@ -1505,6 +1579,7 @@ class _MessageListState extends State<_MessageList> {
                 key: ObjectKey(line),
                 line: line,
                 onReply: _replyTo(line),
+                onReport: _reportOf(line),
                 child: _LineBody(line: line, ownNick: widget.ownNick),
               ),
             ),
@@ -1534,6 +1609,7 @@ class _MessageListState extends State<_MessageList> {
                 key: ObjectKey(line),
                 line: line,
                 onReply: _replyTo(line),
+                onReport: _reportOf(line),
                 child: MessageBubble(
                   own: own,
                   continued: i > 0,
@@ -1659,6 +1735,7 @@ class _LineBody extends StatelessWidget {
           background: behind,
           textColor: textColor,
           colours: colours,
+          filter: ContentFilter.of(context),
           highlight: highlight ? ownNick : null,
           highlightStyle: TextStyle(
             fontWeight: FontWeight.w600,
@@ -1714,12 +1791,14 @@ class _LineActions extends StatefulWidget {
     required this.line,
     required this.child,
     this.onReply,
+    this.onReport,
     super.key,
   });
 
   final ChatLine line;
   final Widget child;
   final VoidCallback? onReply;
+  final VoidCallback? onReport;
 
   @override
   State<_LineActions> createState() => _LineActionsState();
@@ -1731,12 +1810,22 @@ class _LineActionsState extends State<_LineActions> {
   @override
   Widget build(BuildContext context) {
     final onReply = widget.onReply;
+    final onReport = widget.onReport;
     if (_isTouch(context)) {
-      // Phones: swipe or long-press; screen readers get a Reply action.
+      // Phones: swipe or long-press; screen readers get Reply and Report.
       final pressable = GestureDetector(
-        onLongPress: () =>
-            unawaited(_showLineActions(context, widget.line, onReply)),
-        child: widget.child,
+        onLongPress: () => unawaited(
+          _showLineActions(context, widget.line, onReply, onReport),
+        ),
+        child: onReport == null
+            ? widget.child
+            : Semantics(
+                customSemanticsActions: {
+                  const CustomSemanticsAction(label: 'Report message'):
+                      onReport,
+                },
+                child: widget.child,
+              ),
       );
       if (onReply == null) return pressable;
       return _swipeToReply(
@@ -1752,8 +1841,9 @@ class _LineActionsState extends State<_LineActions> {
         ),
       );
     }
-    if (onReply == null) return widget.child;
-    // Computers: a reply button that shows on hover or keyboard focus.
+    if (onReply == null && onReport == null) return widget.child;
+    // Computers: reply and more buttons that show on hover or keyboard
+    // focus.
     return MouseRegion(
       onEnter: (_) => setState(() => _hovered = true),
       onExit: (_) => setState(() => _hovered = false),
@@ -1766,12 +1856,26 @@ class _LineActionsState extends State<_LineActions> {
             onFocusChange: (f) => setState(() => _hovered = f),
             child: Opacity(
               opacity: _hovered ? 1 : 0,
-              child: IconButton(
-                tooltip: 'Reply to ${widget.line.sender}',
-                visualDensity: VisualDensity.compact,
-                iconSize: 18,
-                icon: const Icon(Icons.reply),
-                onPressed: onReply,
+              child: Row(
+                mainAxisSize: MainAxisSize.min,
+                children: [
+                  if (onReply != null)
+                    IconButton(
+                      tooltip: 'Reply to ${widget.line.sender}',
+                      visualDensity: VisualDensity.compact,
+                      iconSize: 18,
+                      icon: const Icon(Icons.reply),
+                      onPressed: onReply,
+                    ),
+                  if (onReport != null)
+                    IconButton(
+                      tooltip: 'Report message',
+                      visualDensity: VisualDensity.compact,
+                      iconSize: 18,
+                      icon: const Icon(Icons.flag_outlined),
+                      onPressed: onReport,
+                    ),
+                ],
               ),
             ),
           ),
@@ -1808,6 +1912,7 @@ Future<void> _showLineActions(
   BuildContext context,
   ChatLine line,
   VoidCallback? onReply,
+  VoidCallback? onReport,
 ) => showModalBottomSheet<void>(
   context: context,
   showDragHandle: true,
@@ -1832,6 +1937,15 @@ Future<void> _showLineActions(
             _copyNick(stripFormatting(line.text));
           },
         ),
+        if (onReport != null)
+          ListTile(
+            leading: const Icon(Icons.flag_outlined),
+            title: const Text('Report message'),
+            onTap: () {
+              Navigator.pop(sheet);
+              onReport();
+            },
+          ),
       ],
     ),
   ),
@@ -1844,6 +1958,7 @@ class _MessageTile extends StatefulWidget {
     required this.ownNick,
     required this.onNickTap,
     this.onReply,
+    this.onReport,
     super.key,
   });
 
@@ -1851,6 +1966,7 @@ class _MessageTile extends StatefulWidget {
   final String ownNick;
   final void Function(String nick) onNickTap;
   final VoidCallback? onReply;
+  final VoidCallback? onReport;
 
   @override
   State<_MessageTile> createState() => _MessageTileState();
@@ -1894,6 +2010,7 @@ class _MessageTileState extends State<_MessageTile> {
       background: behind,
       textColor: textColor,
       colours: colours,
+      filter: ContentFilter.of(context),
     );
     final InlineSpan body = switch (line.kind) {
       ChatLineKind.message || ChatLineKind.own => TextSpan(
@@ -1946,6 +2063,7 @@ class _MessageTileState extends State<_MessageTile> {
     return _LineActions(
       line: line,
       onReply: widget.onReply,
+      onReport: widget.onReport,
       child: Container(
         padding: const EdgeInsets.symmetric(vertical: 2, horizontal: 4),
         decoration: mentioned

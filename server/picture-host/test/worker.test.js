@@ -134,6 +134,32 @@ test('a report is stored as text only and listed for the admin', async () => {
   assert.equal(reports[0].kept, undefined);
 });
 
+test('a chat message can be reported, and bad ones are refused', async () => {
+  const e = env({ ADMIN_TOKEN: 'adm' });
+  const send = (body) =>
+    route(new Request(`${base}/report`, { method: 'POST', body: JSON.stringify(body) }), e, 7000);
+  const ok = await send({
+    kind: 'message',
+    text: 'you are all idiots',
+    sender: 'troll',
+    network: 'irc.libera.chat',
+    room: '#chat',
+    reason: 'Harassment or hate',
+  });
+  assert.equal(ok.status, 201);
+  assert.equal((await send({ kind: 'message', text: '' })).status, 400);
+
+  const list = await route(
+    new Request(`${base}/admin/reports`, { headers: { authorization: 'Bearer adm' } }),
+    e,
+  );
+  const [r] = (await list.json()).reports;
+  assert.equal(r.kind, 'message');
+  assert.equal(r.text, 'you are all idiots');
+  assert.equal(r.room, '#chat');
+  assert.equal(r.sender, 'troll');
+});
+
 test('the viewer page is served without the key reaching the server', async () => {
   const e = env();
   const { body } = await upload(e);

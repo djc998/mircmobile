@@ -7,6 +7,18 @@ and the project uses [Semantic Versioning](https://semver.org/).
 ## [Unreleased]
 
 ### Added
+- **App Store safety** (iOS, Android, macOS), for Apple's rules on apps
+  with user-generated content:
+  - **Terms of use** to agree to on first launch (and again when they
+    change), readable later from Settings → About with a contact address.
+  - **Hide offensive words:** slurs and strong swearing in messages,
+    topics and previews show as `s***`. On by default.
+  - **Hide adult rooms** in Discover, also switchable in Filters. On by
+    default.
+  - **Report message** on anyone else's message (long-press, or the flag
+    on hover on a Mac): sent to the IRCage team for review and the sender
+    ignored. The picture host now accepts message reports.
+  See [docs/features/safety.md](docs/features/safety.md).
 - **Take a photo** with the camera when sending a photo, on iOS, Android
   and now the Mac too: the photo button asks **Choose a photo** or **Take a
   photo**, and **Take a photo** is also in the + menu. The Mac gets its own

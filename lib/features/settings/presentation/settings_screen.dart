@@ -6,12 +6,14 @@ import 'dart:async';
 import 'package:flutter_riverpod/flutter_riverpod.dart';
 import 'package:go_router/go_router.dart';
 import 'package:irc_client/app/app.dart';
+import 'package:irc_client/app/legal.dart';
 import 'package:irc_client/core/irc/irc_client.dart';
 import 'package:irc_client/core/theme/tokens.dart';
 import 'package:irc_client/features/calls/application/call_controller.dart';
 import 'package:irc_client/features/calls/presentation/call_widgets.dart';
 import 'package:irc_client/features/chat/application/chat_controller.dart';
 import 'package:irc_client/features/favorites/application/room_prefs_controller.dart';
+import 'package:irc_client/features/safety/application/safety_controller.dart';
 import 'package:material_ui/material_ui.dart';
 
 /// Route `/settings`.
@@ -59,6 +61,7 @@ class _SettingsScreenState extends ConsumerState<SettingsScreen> {
     final controller = ref.read(chatControllerProvider.notifier);
     final prefs = ref.watch(roomPrefsProvider);
     final call = ref.watch(callControllerProvider);
+    final safety = ref.watch(safetyProvider);
     final tokens = AppTokens.of(context);
     final ignored = controller.blockedNicks.toList()..sort();
     final muted = [
@@ -86,6 +89,34 @@ class _SettingsScreenState extends ConsumerState<SettingsScreen> {
                       ),
                       trailing: const Icon(Icons.chevron_right),
                       onTap: () => context.push('/appearance'),
+                    ),
+                  ],
+                ),
+                _Group(
+                  title: 'Safety',
+                  children: [
+                    SwitchListTile.adaptive(
+                      secondary: const Icon(Icons.filter_alt_outlined),
+                      title: const Text('Hide offensive words'),
+                      subtitle: const Text(
+                        'Slurs and strong swearing in messages, topics and '
+                        'previews show as s***',
+                      ),
+                      value: safety.filterWords,
+                      onChanged: (v) => ref
+                          .read(safetyProvider.notifier)
+                          .setFilterWords(enabled: v),
+                    ),
+                    SwitchListTile.adaptive(
+                      secondary: const Icon(Icons.shield_outlined),
+                      title: const Text('Hide adult rooms'),
+                      subtitle: const Text(
+                        'Leave rooms about sex and nudity out of Discover',
+                      ),
+                      value: safety.hideAdultRooms,
+                      onChanged: (v) => ref
+                          .read(safetyProvider.notifier)
+                          .setHideAdultRooms(enabled: v),
                     ),
                   ],
                 ),
@@ -201,6 +232,17 @@ class _SettingsScreenState extends ConsumerState<SettingsScreen> {
                       leading: const Icon(Icons.info_outline),
                       title: const Text(appName),
                       subtitle: Text(IrcClient.clientVersion),
+                    ),
+                    ListTile(
+                      leading: const Icon(Icons.gavel_outlined),
+                      title: const Text('Terms of use'),
+                      trailing: const Icon(Icons.chevron_right),
+                      onTap: () => context.push('/terms?read=1'),
+                    ),
+                    const ListTile(
+                      leading: Icon(Icons.mail_outline),
+                      title: Text('Contact'),
+                      subtitle: SelectableText(supportContact),
                     ),
                     ListTile(
                       leading: const Icon(Icons.description_outlined),

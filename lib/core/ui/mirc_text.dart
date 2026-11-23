@@ -3,6 +3,7 @@ library;
 
 import 'package:irc_client/core/irc/formatting.dart';
 import 'package:irc_client/core/irc/mirc_format.dart';
+import 'package:irc_client/core/safety/content_filter.dart';
 import 'package:irc_client/core/theme/tokens.dart';
 import 'package:material_ui/material_ui.dart';
 
@@ -23,6 +24,7 @@ const List<String> _monoFamilies = [
 ///   the run's own background colour if it has one, else [background].
 /// - [textColor] is the normal text colour (for reverse and for runs that
 ///   only set a background).
+/// - [filter] masks offensive words ([maskOffensive]).
 /// - Whole-word [highlight] (your nick) gets [highlightStyle].
 List<InlineSpan> mircSpans(
   String text, {
@@ -30,12 +32,14 @@ List<InlineSpan> mircSpans(
   required Color background,
   required Color textColor,
   bool colours = true,
+  bool filter = false,
   String? highlight,
   TextStyle? highlightStyle,
 }) {
   final runs = colours ? parseMirc(text) : [MircRun(stripFormatting(text))];
   final spans = <InlineSpan>[];
   for (final run in runs) {
+    final text = filter ? maskOffensive(run.text) : run.text;
     TextStyle? style;
     if (!run.plain) {
       // Reverse with no colours set swaps the normal colours.
@@ -65,12 +69,12 @@ List<InlineSpan> mircSpans(
       );
     }
     if (highlight == null || highlight.isEmpty) {
-      spans.add(TextSpan(text: run.text, style: style));
+      spans.add(TextSpan(text: text, style: style));
     } else {
       spans.add(
         TextSpan(
           style: style,
-          children: _highlighted(run.text, highlight, highlightStyle),
+          children: _highlighted(text, highlight, highlightStyle),
         ),
       );
     }

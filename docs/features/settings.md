@@ -8,13 +8,16 @@ Grouped lists, like the system settings:
 
 - **Look:** Appearance (theme, accent, density, message font, text size;
   see [appearance.md](appearance.md)).
+- **Safety:** hide offensive words; hide adult rooms in Discover
+  ([safety.md](safety.md)).
 - **Chat history:** save chat history on this device; delete saved
   history ([chat-history.md](chat-history.md)).
 - **Calls:** hide my IP address on calls; camera and microphone access
   ([calls.md](calls.md)).
 - **Ignored people:** everyone you've ignored, with **Stop ignoring**.
 - **Muted chats:** every muted room and private chat, with **Unmute**.
-- **About:** version and open-source licenses.
+- **About:** version, **Terms of use**, contact address and open-source
+  licenses.
 
 The same history and call switches are still under the welcome screen's
 Advanced options.

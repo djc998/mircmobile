@@ -4,6 +4,7 @@ import 'package:flutter_riverpod/flutter_riverpod.dart';
 import 'package:go_router/go_router.dart';
 import 'package:irc_client/core/irc/formatting.dart';
 import 'package:irc_client/core/irc/irc_events.dart';
+import 'package:irc_client/core/safety/content_filter.dart';
 import 'package:irc_client/core/theme/tokens.dart';
 import 'package:irc_client/core/ui/empty_state.dart';
 import 'package:irc_client/core/ui/room_card.dart';
@@ -14,6 +15,7 @@ import 'package:irc_client/features/discovery/domain/room_filter.dart';
 import 'package:irc_client/features/discovery/presentation/room_preview.dart';
 import 'package:irc_client/features/favorites/application/room_prefs_controller.dart';
 import 'package:irc_client/features/rooms/presentation/room_dialogs.dart';
+import 'package:irc_client/features/safety/application/safety_controller.dart';
 import 'package:material_ui/material_ui.dart';
 
 /// Discover: every room on every connected network as cards, with
@@ -119,6 +121,20 @@ class _RoomBrowserScreenState extends ConsumerState<RoomBrowserScreen> {
                       ),
                   ],
                 ),
+                Consumer(
+                  builder: (context, ref, _) => SwitchListTile.adaptive(
+                    contentPadding: EdgeInsets.zero,
+                    secondary: const Icon(Icons.shield_outlined),
+                    title: const Text('Hide adult rooms'),
+                    subtitle: const Text('Also in Settings → Safety'),
+                    value: ref.watch(
+                      safetyProvider.select((s) => s.hideAdultRooms),
+                    ),
+                    onChanged: (v) => ref
+                        .read(safetyProvider.notifier)
+                        .setHideAdultRooms(enabled: v),
+                  ),
+                ),
                 label('Sort'),
                 Wrap(
                   spacing: 8,
@@ -192,6 +208,7 @@ class _RoomBrowserScreenState extends ConsumerState<RoomBrowserScreen> {
     final multi = networks.length > 1;
     final filterId = state.networks.containsKey(_networkId) ? _networkId : null;
     final prefs = ref.watch(roomPrefsProvider);
+    final hideAdult = ref.watch(safetyProvider.select((s) => s.hideAdultRooms));
 
     // Rooms in scope (network filter), then category, favorites, search,
     // size and sort on top.
@@ -205,6 +222,7 @@ class _RoomBrowserScreenState extends ConsumerState<RoomBrowserScreen> {
         continue;
       }
       if (!_category.matches(r.entry)) continue;
+      if (hideAdult && isAdultRoom(r.entry)) continue;
       byEntry[r.entry] = r;
     }
     final rooms = [
@@ -500,7 +518,7 @@ class _RoomBrowserScreenState extends ConsumerState<RoomBrowserScreen> {
         key: ValueKey('${net.id}/${room.name}'),
         name: room.name,
         people: room.userCount,
-        topic: stripFormatting(room.topic).trim(),
+        topic: ContentFilter.clean(context, stripFormatting(room.topic).trim()),
         category: category == RoomCategory.other ? null : category.label,
         busy: isBusyRoom(room),
         network: multi ? shortNetworkName(net.label) : null,
