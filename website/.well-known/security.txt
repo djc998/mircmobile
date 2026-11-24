@@ -1,0 +1,6 @@
+# Found a security problem in IRCage, the app, ircage.com or
+# share.ircage.com? Please email us; we read every report.
+Contact: mailto:support@ircage.com
+Expires: 2027-11-23T00:00:00.000Z
+Preferred-Languages: en
+Canonical: https://ircage.com/.well-known/security.txt

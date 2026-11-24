@@ -19,6 +19,8 @@ and the project uses [Semantic Versioning](https://semver.org/).
   working for 1.0.0 and earlier.
 
 ### Added
+- ircage.com/.well-known/security.txt says where to report security
+  problems (support@ircage.com).
 - The Mac download is **signed with a Developer ID and notarized by Apple**
   when the repository has the signing secrets, so it opens without the
   "Apple could not verify" warning (`tool/macos_release.sh`, used by the
