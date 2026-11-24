@@ -27,7 +27,7 @@ const List<({String title, String body})> termsSections = [
         "people. Don't post or send anything illegal, hateful, harassing, "
         'sexual involving minors, threatening, or meant to deceive or '
         'spam. Accounts and rooms that do may be reported to their network, '
-        'and photos that break these rules are deleted from our photo '
+        'and photos and files that break these rules are deleted from our '
         'server.',
   ),
   (
@@ -41,18 +41,27 @@ const List<({String title, String body})> termsSections = [
   (
     title: 'Reports',
     body:
-        'Reports of messages and photos come to us. We review them within '
-        '24 hours, delete photos that break these rules, and pass abuse on '
+        'Reports of messages, photos and files come to us. We review them '
+        'within 24 hours, delete photos and files that break these rules, '
+        'and pass abuse on '
         "to the network's staff. Room operators and network staff can act "
         'on people directly; Report on a profile shows who to contact.',
   ),
   (
-    title: 'Photos and calls',
+    title: 'Photos, files and calls',
     body:
-        'Photos are encrypted on your device, stripped of location and '
-        'other details, and deleted from our server when they expire or '
-        'are first viewed. Calls are directly between devices, or through '
-        'a relay if you hide your IP address.',
+        'Photos and files are encrypted on your device and deleted from our '
+        'server when they expire; photos are also deleted when first viewed, '
+        'and are stripped of location and other details. Direct (DCC) '
+        "transfers go between the two devices and show each side the other's "
+        'IP address. Calls are directly between devices, or through a relay '
+        'if you hide your IP address.',
+  ),
+  (
+    title: 'Your privacy',
+    body:
+        'The privacy policy at ircage.com/privacy says what the app keeps on '
+        'your device and what reaches our server.',
   ),
   (title: 'Contact', body: 'Questions or abuse reports: $supportContact.'),
 ];

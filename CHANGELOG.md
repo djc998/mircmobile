@@ -7,6 +7,14 @@ and the project uses [Semantic Versioning](https://semver.org/).
 ## [Unreleased]
 
 ### Added
+- **The ircage.com website** (`website/`, for Netlify): home page, privacy
+  policy, terms of use, support and a 404 page, in the app's colours with
+  light and dark mode. The privacy policy and support page are the URLs the
+  App Store and Google Play ask for.
+
+### Changed
+- The in-app terms now cover files and direct (DCC) transfers, and point to
+  the privacy policy at ircage.com/privacy.
 - **Direct file transfers (DCC)** with mIRC, HexChat, irssi and other apps
   (iOS, Android, macOS). Incoming offers show a card with **Accept** and
   **Decline** and a note that accepting shows the sender your IP; then
