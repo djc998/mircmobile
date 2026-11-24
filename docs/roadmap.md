@@ -30,6 +30,10 @@
 - [x] Adaptive Cupertino touches on iOS/macOS: action sheets, alerts, Mac
       right-click menus, haptics, native spinners
 - [x] App name and icon: **IRCage**, with its icon on iOS, Android (adaptive) and macOS
+- [x] Windows and Linux desktop builds (CI artifacts), with the same icon,
+      right-click menus, save dialogs, calls and camera as the Mac
+- [ ] Windows installer (MSIX) and Linux packages (Flatpak/AppImage), and
+      notifications on those desktops
 
 ## v2
 - [~] Bouncer support: soju's networks open on their own, with missed

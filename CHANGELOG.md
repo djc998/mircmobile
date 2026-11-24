@@ -7,6 +7,13 @@ and the project uses [Semantic Versioning](https://semver.org/).
 ## [Unreleased]
 
 ### Added
+- **Windows and Linux** desktop apps, built on every pull request (CI
+  artifacts `IRCage-windows-x64` and `IRCage-linux-x64`). They work like
+  the Mac app: right-click menus at the pointer, a save dialog for received
+  files, Ctrl shortcuts, calls, and **Take a photo** through the app's own
+  camera screen. Passwords go to the Windows Credential Manager or the
+  Linux keyring (libsecret); on Linux without a keyring they're kept only
+  until the app quits. See the README for building and running them.
 - **Direct file transfers (DCC)** with mIRC, HexChat, irssi and other apps
   (iOS, Android, macOS). Incoming offers show a card with **Accept** and
   **Decline** and a note that accepting shows the sender your IP; then

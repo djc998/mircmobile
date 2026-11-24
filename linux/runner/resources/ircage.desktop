@@ -1,0 +1,9 @@
+[Desktop Entry]
+Type=Application
+Name=IRCage
+Comment=A modern mIRC-style IRC client
+Exec=ircage
+Icon=ircage
+Terminal=false
+Categories=Network;Chat;IRCClient;
+StartupWMClass=com.djc998.irc_client
