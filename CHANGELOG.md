@@ -12,6 +12,12 @@ and the project uses [Semantic Versioning](https://semver.org/).
   working for 1.0.0 and earlier.
 
 ### Added
+- **The ircage.com website** (`website/`, for Netlify): home page, privacy
+  policy, terms of use, support and a 404 page, in the app's colours with
+  light and dark mode. The privacy policy and support page are the URLs the
+  App Store and Google Play ask for.
+  A **Download** section links to the Mac, Windows and Linux apps on GitHub
+  releases (always the latest), with how to open them the first time.
 - **Downloads for Mac, Windows and Linux** from GitHub releases: pushing a
   version tag builds all three and publishes them (`release.yml`).
 - **Update checks** in those downloads: on launch and daily, a banner says
@@ -106,6 +112,8 @@ and the project uses [Semantic Versioning](https://semver.org/).
   [docs/features/custom-networks.md](docs/features/custom-networks.md).
 
 ### Changed
+- The in-app terms now cover files and direct (DCC) transfers, and point to
+  the privacy policy at ircage.com/privacy.
 - Photos are called photos everywhere in the app again ("Photo options",
   "Report photo", "Photo reported", "View-once photo", "Send a photo"), and
   private chats have a visible **Send a photo** button next to **+** again.
