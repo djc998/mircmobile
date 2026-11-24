@@ -6,6 +6,10 @@ and the project uses [Semantic Versioning](https://semver.org/).
 
 ## [Unreleased]
 
+### Added
+- ircage.com/.well-known/security.txt says where to report security
+  problems (support@ircage.com).
+
 ### Changed
 - ircage.com no longer tells Mac users to click **Open Anyway**: the Mac
   download is signed and notarized by Apple since 1.0.1.

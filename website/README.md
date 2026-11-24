@@ -8,6 +8,9 @@ The IRCage website: a static site with no build step, hosted on Netlify.
   dark.
 - `assets/`: icons made from the app icon.
 - `netlify.toml`: security headers, caching, `www` → `ircage.com`.
+- `.well-known/security.txt`: where to report security problems
+  ([RFC 9116](https://www.rfc-editor.org/rfc/rfc9116)). Its `Expires` date
+  must stay under a year away: move it forward a year each November.
 
 The terms here match the ones in the app (`lib/app/legal.dart`); change both
 together. The privacy policy describes what the app and
