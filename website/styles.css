@@ -160,7 +160,7 @@ footer.site a { color: var(--muted); }
 }
 
 /* Feature grid */
-section { padding: 48px 0; }
+section { padding: 48px 0; scroll-margin-top: 64px; }
 h2 {
   font-size: clamp(28px, 4vw, 38px); letter-spacing: -0.02em;
   line-height: 1.15; margin: 0 0 12px;
@@ -221,4 +221,27 @@ h2 {
 @media (prefers-reduced-motion: no-preference) {
   .phone { transition: transform 0.4s ease; }
   .phone:hover { transform: translateY(-4px) rotate(-0.5deg); }
+}
+
+/* Download buttons and cards */
+.button {
+  display: inline-flex; align-items: center; justify-content: center;
+  padding: 11px 20px; border-radius: 999px;
+  background: var(--accent); color: var(--on-accent);
+  font-weight: 600; font-size: 15px; text-decoration: none;
+}
+.button:hover { filter: brightness(1.08); }
+a.card.download { text-decoration: none; color: inherit; display: flex; flex-direction: column; gap: 6px; }
+a.card.download h3 { margin: 0; color: var(--text); }
+a.card.download .button { margin-top: 12px; align-self: flex-start; }
+a.card.download:hover { border-color: var(--accent); }
+details.howto {
+  margin-top: 20px; background: var(--raised); border: 1px solid var(--line);
+  border-radius: var(--radius); padding: 14px 20px;
+}
+details.howto summary { cursor: pointer; font-weight: 600; }
+details.howto li + li { margin-top: 8px; }
+code {
+  font: 0.9em ui-monospace, SFMono-Regular, Menlo, Consolas, monospace;
+  background: var(--overlay); padding: 1px 6px; border-radius: 6px;
 }

@@ -4,7 +4,7 @@
 <meta charset="utf-8">
 <meta name="viewport" content="width=device-width, initial-scale=1">
 <title>IRCage · Chat rooms, the way they used to be</title>
-<meta name="description" content="IRCage is a modern IRC app for iPhone, Android and Mac: real chat rooms on Libera.Chat, OFTC and more, with private photos, files and calls. No account, no ads, no tracking.">
+<meta name="description" content="IRCage is a modern IRC app for Mac, Windows, Linux, iPhone and Android: real chat rooms on Libera.Chat, OFTC and more, with private photos, files and calls. No account, no ads, no tracking.">
 <meta name="theme-color" content="#5b5bf0">
 <link rel="icon" href="/assets/favicon-32.png" sizes="32x32" type="image/png">
 <link rel="apple-touch-icon" href="/assets/apple-touch-icon.png">
@@ -23,6 +23,7 @@
     <nav class="site" aria-label="Main">
       <ul>
         <li class="optional"><a href="#features">Features</a></li>
+        <li><a href="#download">Download</a></li>
         <li><a href="/support">Support</a></li>
         <li><a href="/privacy">Privacy</a></li>
       </ul>
@@ -37,12 +38,12 @@
         <img class="app-mark" src="/assets/icon-rounded-192.png" alt="IRCage app icon" width="72" height="72">
         <h1>Chat rooms, the way they used to be. Only better.</h1>
         <p class="lead">IRCage is a modern app for IRC, the open chat network that's been running since 1988. Find a room, say hi, and talk to people about the things you love. No account, no ads, no tracking.</p>
-        <div class="badges" aria-label="Coming soon to">
+        <div class="badges">
+          <a class="button" href="#download">Download for free</a>
           <span class="badge">iPhone &amp; iPad <small>soon</small></span>
           <span class="badge">Android <small>soon</small></span>
-          <span class="badge">Mac <small>soon</small></span>
         </div>
-        <p class="note">Linux and Windows versions are on the way too.</p>
+        <p class="note">On Mac, Windows and Linux today. iPhone, iPad and Android are coming to the App Store and Google Play.</p>
       </div>
 
       <div class="phone" role="img" aria-label="The IRCage chat screen: people talking in the #flutter room">
@@ -100,6 +101,40 @@
           <p>Works with bouncers like soju: get back what you missed, scroll into older messages, and keep your place in sync across devices.</p>
         </div>
       </div>
+    </div>
+  </section>
+
+  <section id="download">
+    <div class="wrap">
+      <h2>Download IRCage</h2>
+      <p class="section-lead">Free, for your computer. The app tells you when there's a new version.</p>
+      <div class="grid downloads">
+        <a class="card download" href="https://github.com/djc998/mircmobile/releases/latest/download/IRCage-macOS.zip">
+          <h3>Mac</h3>
+          <p>macOS, Apple silicon and Intel · .zip</p>
+          <span class="button">Download for Mac</span>
+        </a>
+        <a class="card download" href="https://github.com/djc998/mircmobile/releases/latest/download/IRCage-Windows-x64.zip">
+          <h3>Windows</h3>
+          <p>Windows 10 and 11, 64-bit · .zip</p>
+          <span class="button">Download for Windows</span>
+        </a>
+        <a class="card download" href="https://github.com/djc998/mircmobile/releases/latest/download/IRCage-Linux-x64.tar.gz">
+          <h3>Linux</h3>
+          <p>64-bit, needs GTK 3 and libsecret · .tar.gz</p>
+          <span class="button">Download for Linux</span>
+        </a>
+      </div>
+      <details class="howto">
+        <summary>Opening it the first time</summary>
+        <p>These downloads aren't signed by Apple or Microsoft yet, so your computer asks before opening them once:</p>
+        <ul>
+          <li><strong>Mac:</strong> unzip and move IRCage to Applications. Open it; when macOS says it can't check it, go to System Settings → Privacy &amp; Security and click <strong>Open Anyway</strong>.</li>
+          <li><strong>Windows:</strong> unzip, open the IRCage folder and run <strong>IRCage.exe</strong>. If "Windows protected your PC" appears, click <strong>More info</strong> → <strong>Run anyway</strong>.</li>
+          <li><strong>Linux:</strong> <code>tar -xzf IRCage-Linux-x64.tar.gz</code>, then run <code>IRCage/ircage</code>. On Debian or Ubuntu you may need <code>sudo apt install libgtk-3-0 libsecret-1-0</code>.</li>
+        </ul>
+        <p>All releases and what changed: <a href="https://github.com/djc998/mircmobile/releases">GitHub releases</a>.</p>
+      </details>
     </div>
   </section>
 

@@ -11,6 +11,8 @@ and the project uses [Semantic Versioning](https://semver.org/).
   policy, terms of use, support and a 404 page, in the app's colours with
   light and dark mode. The privacy policy and support page are the URLs the
   App Store and Google Play ask for.
+  A **Download** section links to the Mac, Windows and Linux apps on GitHub
+  releases (always the latest), with how to open them the first time.
 
 ### Changed
 - The in-app terms now cover files and direct (DCC) transfers, and point to
