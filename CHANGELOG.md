@@ -6,9 +6,10 @@ and the project uses [Semantic Versioning](https://semver.org/).
 
 ## [Unreleased]
 
-### Added
-- ircage.com/.well-known/security.txt says where to report security
-  problems (support@ircage.com).
+### Fixed
+- Undernet couldn't connect ("Connection timed out" on port 6697):
+  Undernet has no encrypted port, so it now connects on 6667 without
+  encryption, and the network list says so.
 
 ### Changed
 - ircage.com no longer tells Mac users to click **Open Anyway**: the Mac
@@ -18,6 +19,8 @@ and the project uses [Semantic Versioning](https://semver.org/).
   working for 1.0.0 and earlier.
 
 ### Added
+- ircage.com/.well-known/security.txt says where to report security
+  problems (support@ircage.com).
 - The Mac download is **signed with a Developer ID and notarized by Apple**
   when the repository has the signing secrets, so it opens without the
   "Apple could not verify" warning (`tool/macos_release.sh`, used by the
