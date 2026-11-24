@@ -1,0 +1,139 @@
+# Builds the desktop apps people download from ircage.com and attaches them
+# to a GitHub release. Run it by pushing a tag that matches pubspec.yaml's
+# version, e.g. `git tag v1.0.0 && git push origin v1.0.0`.
+#
+# The files always have the same names, so the website links to
+# https://github.com/djc998/mircmobile/releases/latest/download/<name>.
+#
+# These builds are made with DISTRIBUTION=direct and APP_VERSION=<version>,
+# which turns on the in-app update check (store builds never get it).
+name: Release
+
+on:
+  push:
+    tags: ['v*']
+
+permissions:
+  contents: write
+
+jobs:
+  version:
+    runs-on: ubuntu-latest
+    outputs:
+      version: ${{ steps.v.outputs.version }}
+    steps:
+      - uses: actions/checkout@v4
+      - id: v
+        name: Check the tag matches pubspec.yaml
+        run: |
+          tag="${GITHUB_REF_NAME#v}"
+          pub="$(sed -n 's/^version: *\([0-9.]*\).*/\1/p' pubspec.yaml)"
+          if [ "$tag" != "$pub" ]; then
+            echo "::error::Tag v$tag doesn't match pubspec.yaml version $pub"
+            exit 1
+          fi
+          echo "version=$tag" >> "$GITHUB_OUTPUT"
+
+  macos:
+    needs: version
+    runs-on: macos-latest
+    steps:
+      - uses: actions/checkout@v4
+      - uses: subosito/flutter-action@v2
+        with:
+          channel: stable
+          cache: true
+      - run: flutter pub get
+      - run: >
+          flutter build macos --release
+          --dart-define=DISTRIBUTION=direct
+          --dart-define=APP_VERSION=${{ needs.version.outputs.version }}
+      - name: Zip the app
+        run: |
+          ditto -c -k --keepParent build/macos/Build/Products/Release/IRCage.app IRCage-macOS.zip
+      - uses: actions/upload-artifact@v4
+        with:
+          name: macos
+          path: IRCage-macOS.zip
+          if-no-files-found: error
+
+  linux:
+    needs: version
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v4
+      - uses: subosito/flutter-action@v2
+        with:
+          channel: stable
+          cache: true
+      - name: Install Linux build dependencies
+        run: |
+          sudo apt-get update
+          sudo apt-get install -y clang cmake ninja-build pkg-config \
+            libgtk-3-dev liblzma-dev libstdc++-12-dev libsecret-1-dev \
+            libpulse-dev libjsoncpp-dev unzip
+      - run: flutter pub get
+      - run: >
+          flutter build linux --release
+          --dart-define=DISTRIBUTION=direct
+          --dart-define=APP_VERSION=${{ needs.version.outputs.version }}
+      - name: Pack the app
+        run: |
+          mv build/linux/x64/release/bundle IRCage
+          tar -czf IRCage-Linux-x64.tar.gz IRCage
+      - uses: actions/upload-artifact@v4
+        with:
+          name: linux
+          path: IRCage-Linux-x64.tar.gz
+          if-no-files-found: error
+
+  windows:
+    needs: version
+    runs-on: windows-latest
+    steps:
+      - uses: actions/checkout@v4
+      - uses: subosito/flutter-action@v2
+        with:
+          channel: stable
+          cache: true
+      - run: flutter pub get
+      - run: >
+          flutter build windows --release
+          --dart-define=DISTRIBUTION=direct
+          --dart-define=APP_VERSION=${{ needs.version.outputs.version }}
+      - name: Zip the app
+        shell: pwsh
+        run: |
+          Rename-Item build/windows/x64/runner/Release IRCage
+          Compress-Archive -Path build/windows/x64/runner/IRCage -DestinationPath IRCage-Windows-x64.zip
+      - uses: actions/upload-artifact@v4
+        with:
+          name: windows
+          path: IRCage-Windows-x64.zip
+          if-no-files-found: error
+
+  release:
+    needs: [version, macos, linux, windows]
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/download-artifact@v4
+        with:
+          merge-multiple: true
+      - name: Publish the release
+        env:
+          GH_TOKEN: ${{ github.token }}
+          VERSION: ${{ needs.version.outputs.version }}
+        run: |
+          cat > notes.md <<EOF
+          IRCage $VERSION for Mac, Windows and Linux. Download it from https://ircage.com.
+
+          These builds aren't signed yet, so your computer asks before opening them the first time:
+          - **Mac:** open the app, then System Settings → Privacy & Security → **Open Anyway**.
+          - **Windows:** "Windows protected your PC" → **More info** → **Run anyway**.
+          - **Linux:** unpack and run \`IRCage/ircage\`. Needs GTK 3 and libsecret.
+          EOF
+          gh release create "$GITHUB_REF_NAME" \
+            --repo "$GITHUB_REPOSITORY" \
+            --title "IRCage $VERSION" \
+            --notes-file notes.md \
+            IRCage-macOS.zip IRCage-Linux-x64.tar.gz IRCage-Windows-x64.zip

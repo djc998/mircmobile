@@ -11,6 +11,7 @@ import 'package:irc_client/features/safety/presentation/terms_screen.dart';
 import 'package:irc_client/features/settings/application/appearance_controller.dart';
 import 'package:irc_client/features/settings/presentation/appearance_screen.dart';
 import 'package:irc_client/features/settings/presentation/settings_screen.dart';
+import 'package:irc_client/features/updates/update_banner.dart';
 import 'package:material_ui/material_ui.dart';
 
 /// The app's name, shown in the task switcher and window title.
@@ -88,7 +89,7 @@ class IrcApp extends ConsumerWidget {
         ),
         child: ContentFilter(
           enabled: ref.watch(safetyProvider.select((s) => s.filterWords)),
-          child: CallOverlay(child: child!),
+          child: UpdateBannerHost(child: CallOverlay(child: child!)),
         ),
       ),
     );
