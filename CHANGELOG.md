@@ -6,6 +6,11 @@ and the project uses [Semantic Versioning](https://semver.org/).
 
 ## [Unreleased]
 
+### Changed
+- Photos, files and calls now go through **share.ircage.com** (the same
+  server, on IRCage's own domain). The old workers.dev address keeps
+  working for 1.0.0 and earlier.
+
 ### Added
 - **Downloads for Mac, Windows and Linux** from GitHub releases: pushing a
   version tag builds all three and publishes them (`release.yml`).

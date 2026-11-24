@@ -12,7 +12,7 @@ set -euo pipefail
 cd "$(dirname "$0")"
 export PATH=/opt/homebrew/bin:$PATH
 
-HOST="${PICTURE_HOST:-https://irc-pictures.irc-pictures.workers.dev}"
+HOST="${PICTURE_HOST:-https://share.ircage.com}"
 TOKEN="${ADMIN_TOKEN:-}"
 if [ -z "$TOKEN" ]; then
   read -r -s -p "Admin token (from your password manager), then Return: " TOKEN

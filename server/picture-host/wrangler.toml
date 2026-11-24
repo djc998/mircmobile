@@ -4,6 +4,12 @@ name = "irc-pictures"
 main = "src/index.js"
 compatibility_date = "2026-11-01"
 
+# Served at share.ircage.com (Cloudflare creates its DNS record and
+# certificate; ircage.com's DNS is on Cloudflare). The workers.dev address
+# stays on too, for apps built before the move (1.0.0 and earlier).
+workers_dev = true
+routes = [{ pattern = "share.ircage.com", custom_domain = true }]
+
 [[r2_buckets]]
 binding = "PICTURES"
 bucket_name = "irc-pictures"
