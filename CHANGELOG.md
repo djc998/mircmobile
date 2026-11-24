@@ -26,6 +26,8 @@ and the project uses [Semantic Versioning](https://semver.org/).
   Appearance → **Show images from links automatically** turns that off for
   images. Videos play in the app on iPhone, iPad, Android and Mac, and
   open in the browser on Windows and Linux.
+- ircage.com/.well-known/security.txt says where to report security
+  problems (support@ircage.com).
 - The Mac download is **signed with a Developer ID and notarized by Apple**
   when the repository has the signing secrets, so it opens without the
   "Apple could not verify" warning (`tool/macos_release.sh`, used by the
