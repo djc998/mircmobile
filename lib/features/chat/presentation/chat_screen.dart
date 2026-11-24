@@ -8,6 +8,8 @@ import 'package:go_router/go_router.dart';
 import 'package:irc_client/core/irc/formatting.dart';
 import 'package:irc_client/core/irc/irc_client.dart';
 import 'package:irc_client/core/irc/irc_events.dart';
+import 'package:irc_client/core/links/chat_link.dart';
+import 'package:irc_client/core/links/open_link.dart';
 import 'package:irc_client/core/safety/content_filter.dart';
 import 'package:irc_client/core/theme/app_theme.dart';
 import 'package:irc_client/core/theme/tokens.dart';
@@ -26,6 +28,7 @@ import 'package:irc_client/features/chat/application/panel_prefs.dart';
 import 'package:irc_client/features/chat/presentation/change_nick_dialog.dart';
 import 'package:irc_client/features/chat/presentation/find_in_chat.dart';
 import 'package:irc_client/features/favorites/application/room_prefs_controller.dart';
+import 'package:irc_client/features/links/presentation/link_preview.dart';
 import 'package:irc_client/features/pictures/domain/file_link.dart';
 import 'package:irc_client/features/pictures/domain/picture_link.dart';
 import 'package:irc_client/features/pictures/presentation/camera_capture.dart';
@@ -268,6 +271,9 @@ class ChatScreen extends ConsumerWidget {
                               buffer.lines.any(
                                 (l) => l.kind == ChatLineKind.own,
                               ),
+                          autoShowLinkImages: ref
+                              .watch(appearanceProvider)
+                              .autoLinkImages,
                           onReply: isChannel ? controller.startReply : null,
                           onLoadOlder:
                               buffer != null && controller.canLoadOlder(buffer)
@@ -1360,6 +1366,7 @@ class _MessageList extends StatefulWidget {
     this.style = _ChatStyle.lines,
     this.networkId = '',
     this.autoShowPictures = false,
+    this.autoShowLinkImages = false,
     this.unreadMarker,
     this.roleOf,
     this.onReply,
@@ -1373,6 +1380,9 @@ class _MessageList extends StatefulWidget {
   final String ownNick;
   final String networkId;
   final bool autoShowPictures;
+
+  /// Load images people link to without a tap (Appearance setting).
+  final bool autoShowLinkImages;
   final _ChatStyle style;
   final ChatLine? unreadMarker;
   final NickRole Function(String nick)? roleOf;
@@ -1573,7 +1583,7 @@ class _MessageListState extends State<_MessageList> {
                   line.kind == ChatLineKind.message)
           ? FileLink.find(stripFormatting(line.text))
           : null;
-      if (file == null) return null;
+      if (file == null) return _linkPreview(line, indent: indent);
       return FileBubble(
         key: ValueKey(file),
         link: file,
@@ -1590,6 +1600,27 @@ class _MessageListState extends State<_MessageList> {
       networkId: widget.networkId,
       isOwn: isOwn,
       autoShow: isOwn || widget.autoShowPictures,
+      indent: indent,
+    );
+  }
+
+  /// The first image or video someone linked to in [line], if any.
+  Widget? _linkPreview(ChatLine line, {required double indent}) {
+    final sender = line.sender;
+    if (sender == null ||
+        (line.kind != ChatLineKind.own &&
+            line.kind != ChatLineKind.message &&
+            line.kind != ChatLineKind.action)) {
+      return null;
+    }
+    final found = firstMediaLink(stripFormatting(line.text));
+    if (found == null) return null;
+    return LinkPreview(
+      key: ValueKey(found.uri),
+      uri: found.uri,
+      media: found.media,
+      sender: sender,
+      autoShow: line.kind == ChatLineKind.own || widget.autoShowLinkImages,
       indent: indent,
     );
   }
@@ -1776,7 +1807,21 @@ String _time(BuildContext context, DateTime t) =>
 
 /// One message's text inside a group or bubble: no time or nick, since the
 /// group shows them. Your nick is highlighted where it mentions you.
-class _LineBody extends StatelessWidget {
+/// Opens a link from a message, or says it couldn't.
+void _openChatLink(BuildContext context, Uri uri) {
+  final messenger = ScaffoldMessenger.maybeOf(context);
+  unawaited(
+    openLink(uri).then((ok) {
+      if (!ok) {
+        messenger?.showSnackBar(
+          const SnackBar(content: Text("Couldn't open the link.")),
+        );
+      }
+    }),
+  );
+}
+
+class _LineBody extends StatefulWidget {
   const _LineBody({
     required this.line,
     required this.ownNick,
@@ -1790,7 +1835,23 @@ class _LineBody extends StatelessWidget {
   final bool bubble;
 
   @override
+  State<_LineBody> createState() => _LineBodyState();
+}
+
+class _LineBodyState extends State<_LineBody> {
+  late final _links = LinkTaps((uri) => _openChatLink(context, uri));
+
+  @override
+  void dispose() {
+    _links.dispose();
+    super.dispose();
+  }
+
+  @override
   Widget build(BuildContext context) {
+    final line = widget.line;
+    final ownNick = widget.ownNick;
+    final bubble = widget.bubble;
     final tokens = AppTokens.of(context);
     final chat = ChatColors.of(context);
     final mentioned = lineMentions(line, ownNick);
@@ -1818,6 +1879,11 @@ class _LineBody extends StatelessWidget {
           highlightStyle: TextStyle(
             fontWeight: FontWeight.w600,
             color: bubble ? null : tokens.readable(tokens.mention, behind),
+          ),
+          links: _links,
+          linkStyle: TextStyle(
+            decoration: TextDecoration.underline,
+            color: bubble ? null : tokens.readable(tokens.accent, behind),
           ),
         );
     final baseColor = base.color ?? tokens.textPrimary;
@@ -2110,10 +2176,12 @@ class _MessageTileState extends State<_MessageTile> {
       final sender = widget.line.sender;
       if (sender != null) widget.onNickTap(sender);
     };
+  late final _links = LinkTaps((uri) => _openChatLink(context, uri));
 
   @override
   void dispose() {
     _nickTap.dispose();
+    _links.dispose();
     super.dispose();
   }
 
@@ -2142,6 +2210,11 @@ class _MessageTileState extends State<_MessageTile> {
       textColor: textColor,
       colours: colours,
       filter: ContentFilter.of(context),
+      links: _links,
+      linkStyle: TextStyle(
+        decoration: TextDecoration.underline,
+        color: tokens.readable(tokens.accent, behind),
+      ),
     );
     final InlineSpan body = switch (line.kind) {
       ChatLineKind.message || ChatLineKind.own => TextSpan(

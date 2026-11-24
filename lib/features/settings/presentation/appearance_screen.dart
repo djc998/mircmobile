@@ -127,6 +127,17 @@ class AppearanceScreen extends ConsumerWidget {
               value: appearance.ircColours,
               onChanged: (v) => controller.setIrcColours(show: v),
             ),
+            SwitchListTile.adaptive(
+              contentPadding: EdgeInsets.zero,
+              title: const Text('Show images from links automatically'),
+              subtitle: const Text(
+                'When off, tap a link preview to load it. Loading an image '
+                'lets the website it comes from see your IP address. '
+                'Videos always wait for a tap.',
+              ),
+              value: appearance.autoLinkImages,
+              onChanged: (v) => controller.setAutoLinkImages(show: v),
+            ),
             const SizedBox(height: 24),
             Text('Text size', style: theme.textTheme.titleMedium),
             const SizedBox(height: 8),

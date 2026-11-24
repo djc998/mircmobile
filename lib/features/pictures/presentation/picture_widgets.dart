@@ -372,10 +372,18 @@ class _PictureBubbleState extends ConsumerState<PictureBubble> {
 
 /// Full-screen picture with pinch to zoom.
 class PictureViewer extends StatelessWidget {
-  const PictureViewer({required this.picture, required this.sender, super.key});
+  const PictureViewer({
+    required this.picture,
+    required this.sender,
+    this.source,
+    super.key,
+  });
 
   final Uint8List picture;
   final String sender;
+
+  /// The website an image from a link came from.
+  final String? source;
 
   @override
   Widget build(BuildContext context) {
@@ -384,11 +392,12 @@ class PictureViewer extends StatelessWidget {
       appBar: AppBar(
         backgroundColor: Colors.black,
         foregroundColor: Colors.white,
-        title: Text('From $sender'),
+        title: Text(source == null ? 'From $sender' : '$source · from $sender'),
       ),
       body: InteractiveViewer(
         maxScale: 6,
-        child: Center(child: Image.memory(picture)),
+        // Very large images are decoded at most 4096 pixels wide.
+        child: Center(child: Image.memory(picture, cacheWidth: 4096)),
       ),
     );
   }

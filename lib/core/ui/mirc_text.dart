@@ -1,8 +1,10 @@
 /// Draws mIRC-formatted text as styled spans that stay readable.
 library;
 
+import 'package:flutter/gestures.dart';
 import 'package:irc_client/core/irc/formatting.dart';
 import 'package:irc_client/core/irc/mirc_format.dart';
+import 'package:irc_client/core/links/chat_link.dart';
 import 'package:irc_client/core/safety/content_filter.dart';
 import 'package:irc_client/core/theme/tokens.dart';
 import 'package:material_ui/material_ui.dart';
@@ -26,6 +28,8 @@ const List<String> _monoFamilies = [
 ///   only set a background).
 /// - [filter] masks offensive words ([maskOffensive]).
 /// - Whole-word [highlight] (your nick) gets [highlightStyle].
+/// - With [links], web links are tappable and drawn with [linkStyle]
+///   (underlined by default). IRCage's own photo and file links aren't.
 List<InlineSpan> mircSpans(
   String text, {
   required AppTokens tokens,
@@ -35,11 +39,20 @@ List<InlineSpan> mircSpans(
   bool filter = false,
   String? highlight,
   TextStyle? highlightStyle,
+  LinkTaps? links,
+  TextStyle? linkStyle,
 }) {
   final runs = colours ? parseMirc(text) : [MircRun(stripFormatting(text))];
   final spans = <InlineSpan>[];
   for (final run in runs) {
-    final text = filter ? maskOffensive(run.text) : run.text;
+    final found = links == null
+        ? const <ChatLink>[]
+        : [
+            for (final l in findLinks(run.text))
+              if (!isShareLink(l.uri)) l,
+          ];
+    String shown(String raw) => filter ? maskOffensive(raw) : raw;
+    final text = shown(run.text);
     TextStyle? style;
     if (!run.plain) {
       // Reverse with no colours set swaps the normal colours.
@@ -68,18 +81,72 @@ List<InlineSpan> mircSpans(
         fontFamily: run.mono ? _monoFamilies.last : null,
       );
     }
-    if (highlight == null || highlight.isEmpty) {
-      spans.add(TextSpan(text: text, style: style));
-    } else {
-      spans.add(
+    List<InlineSpan> plain(String raw) {
+      final text = shown(raw);
+      return highlight == null || highlight.isEmpty
+          ? [TextSpan(text: text)]
+          : _highlighted(text, highlight, highlightStyle);
+    }
+
+    if (found.isEmpty) {
+      if (highlight == null || highlight.isEmpty) {
+        spans.add(TextSpan(text: text, style: style));
+      } else {
+        spans.add(
+          TextSpan(
+            style: style,
+            children: _highlighted(text, highlight, highlightStyle),
+          ),
+        );
+      }
+      continue;
+    }
+    final children = <InlineSpan>[];
+    var at = 0;
+    for (final link in found) {
+      if (link.start > at) {
+        children.addAll(plain(run.text.substring(at, link.start)));
+      }
+      children.add(
         TextSpan(
-          style: style,
-          children: _highlighted(text, highlight, highlightStyle),
+          text: shown(run.text.substring(link.start, link.end)),
+          style:
+              linkStyle ??
+              const TextStyle(decoration: TextDecoration.underline),
+          recognizer: links!.recognizer(link.uri),
+          mouseCursor: SystemMouseCursors.click,
+          semanticsLabel: 'Link: ${link.uri.host}',
         ),
       );
+      at = link.end;
     }
+    if (at < run.text.length) children.addAll(plain(run.text.substring(at)));
+    spans.add(TextSpan(style: style, children: children));
   }
   return spans;
+}
+
+/// Tap handlers for the links in a message, one per link, kept so they
+/// can be disposed with the widget that draws the message.
+class LinkTaps {
+  LinkTaps(this.onOpen);
+
+  /// Called with the link that was tapped.
+  final void Function(Uri uri) onOpen;
+
+  final _taps = <Uri, TapGestureRecognizer>{};
+
+  TapGestureRecognizer recognizer(Uri uri) => _taps.putIfAbsent(
+    uri,
+    () => TapGestureRecognizer()..onTap = () => onOpen(uri),
+  );
+
+  void dispose() {
+    for (final tap in _taps.values) {
+      tap.dispose();
+    }
+    _taps.clear();
+  }
 }
 
 /// [text] split so each whole-word [nick] gets [style].

@@ -6,6 +6,15 @@ and the project uses [Semantic Versioning](https://semver.org/).
 
 ## [Unreleased]
 
+### Added
+- Links in messages are tappable and open in your browser.
+- A link to an image or video gets a preview under the message: tap to
+  show the image (full screen with zoom) or play the video. Nothing loads
+  until you tap, since loading lets the website see your IP address;
+  Appearance → **Show images from links automatically** turns that off for
+  images. Videos play in the app on iPhone, iPad, Android and Mac, and
+  open in the browser on Windows and Linux.
+
 ### Changed
 - ircage.com no longer tells Mac users to click **Open Anyway**: the Mac
   download is signed and notarized by Apple since 1.0.1.
