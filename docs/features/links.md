@@ -25,15 +25,16 @@ When a message links straight to an image (`.png`, `.jpg`, `.jpeg`,
 `.gif`, `.webp`, `.bmp`) or a video (`.mp4`, `.m4v`, `.mov`, `.webm`),
 a card appears under it. Only the first such link in a message gets one.
 
-- **Nothing loads until you tap it:** "Show image from i.imgur.com",
-  "Play video from example.com". Loading it lets that website see your IP
-  address, so the card names the website first.
+- **Nothing loads until you tap it:** "Show image" or "Play video", with
+  "from i.imgur.com" on its own line so a long website name isn't cut off.
+  Loading it lets that website see your IP address, so the card names the
+  website first.
 - **Show images from links automatically** (Appearance, off by default)
   loads images without the tap. Videos always wait for a tap. Your own
   links always load.
 - Images show up to 320×240 and open full screen with pinch to zoom, the
-  same viewer as photos. Videos play inline: tap to pause or play, drag
-  the bar to seek.
+  same viewer as photos. Videos play inline: tap to pause or play (a video that ended starts
+  over), drag the bar to seek.
 - The ⋮ menu has **Open in browser** and **Copy link**.
 - Only `https` links get a preview, so nothing is loaded unencrypted.
 - Limits: the server must say it's an image (`Content-Type: image/…`),

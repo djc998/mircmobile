@@ -137,13 +137,40 @@ class _LinkPreviewState extends ConsumerState<LinkPreview> {
               ? Icons.play_circle_outline
               : Icons.open_in_new,
         ),
-        label: Text(
-          isImage
-              ? 'Show image from $_host'
-              : inlineVideoSupported
-              ? 'Play video from $_host'
-              : 'Open video from $_host',
-          overflow: TextOverflow.ellipsis,
+        // The website gets its own line so a long name isn't cut off: it's
+        // who sees your IP address when you tap.
+        label: Semantics(
+          label:
+              '${isImage
+                  ? 'Show image'
+                  : inlineVideoSupported
+                  ? 'Play video'
+                  : 'Open video'} from $_host',
+          excludeSemantics: true,
+          child: Padding(
+            padding: const EdgeInsets.symmetric(vertical: 6),
+            child: Column(
+              mainAxisSize: MainAxisSize.min,
+              crossAxisAlignment: CrossAxisAlignment.start,
+              children: [
+                Text(
+                  isImage
+                      ? 'Show image'
+                      : inlineVideoSupported
+                      ? 'Play video'
+                      : 'Open video',
+                ),
+                Text(
+                  'from $_host',
+                  maxLines: 2,
+                  overflow: TextOverflow.ellipsis,
+                  style: theme.textTheme.bodySmall?.copyWith(
+                    color: theme.colorScheme.onSurfaceVariant,
+                  ),
+                ),
+              ],
+            ),
+          ),
         ),
         onPressed: _show,
       );
@@ -288,6 +315,15 @@ class _PlayPause extends StatelessWidget {
 
   final VideoPlayerController video;
 
+  /// Pauses, or plays; a video that ended starts again from the start.
+  Future<void> _toggle(VideoPlayerValue value) async {
+    if (value.isPlaying) return await video.pause();
+    if (value.duration > Duration.zero && value.position >= value.duration) {
+      await video.seekTo(Duration.zero);
+    }
+    await video.play();
+  }
+
   @override
   Widget build(BuildContext context) => ValueListenableBuilder(
     valueListenable: video,
@@ -296,7 +332,7 @@ class _PlayPause extends StatelessWidget {
       label: value.isPlaying ? 'Pause video' : 'Play video',
       child: GestureDetector(
         behavior: HitTestBehavior.opaque,
-        onTap: () => unawaited(value.isPlaying ? video.pause() : video.play()),
+        onTap: () => unawaited(_toggle(value)),
         child: Center(
           child: AnimatedOpacity(
             opacity: value.isPlaying ? 0 : 1,

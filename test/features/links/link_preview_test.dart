@@ -159,14 +159,17 @@ void main() {
       tester,
     ) async {
       await openChat(tester);
-      expect(find.text('Show image from pics.test'), findsOneWidget);
+      expect(
+        find.bySemanticsLabel('Show image from pics.test'),
+        findsOneWidget,
+      );
       expect(asked, isEmpty);
 
-      await tester.tap(find.text('Show image from pics.test'));
+      await tester.tap(find.bySemanticsLabel('Show image from pics.test'));
       await tester.pump();
       await settleDownload(tester);
       expect(asked, [Uri.parse('https://pics.test/a.png')]);
-      expect(find.text('Show image from pics.test'), findsNothing);
+      expect(find.bySemanticsLabel('Show image from pics.test'), findsNothing);
       expect(
         find.bySemanticsLabel(RegExp('Image from pics.test, linked by bob')),
         findsOneWidget,
@@ -182,7 +185,7 @@ void main() {
       );
       await settleDownload(tester);
       expect(asked, [Uri.parse('https://pics.test/a.png')]);
-      expect(find.text('Show image from pics.test'), findsNothing);
+      expect(find.bySemanticsLabel('Show image from pics.test'), findsNothing);
     });
 
     testWidgets('Open in browser from the preview menu', (tester) async {
