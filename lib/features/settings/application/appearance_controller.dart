@@ -68,6 +68,7 @@ class Appearance {
     this.textScale = 1,
     this.font = MessageFont.system,
     this.ircColours = true,
+    this.autoLinkImages = false,
   });
 
   /// Reads saved settings. Settings saved before the redesign have no
@@ -91,6 +92,7 @@ class Appearance {
       textScale: (json['textScale'] as num?)?.toDouble() ?? 1,
       font: MessageFont.values.asNameMap()[json['font']] ?? MessageFont.system,
       ircColours: json['ircColours'] as bool? ?? true,
+      autoLinkImages: json['autoLinkImages'] as bool? ?? false,
     );
   }
 
@@ -112,6 +114,10 @@ class Appearance {
   /// with mIRC codes.
   final bool ircColours;
 
+  /// Load images from links in messages without a tap. Off by default:
+  /// loading one lets the website it's on see your IP address.
+  final bool autoLinkImages;
+
   /// Whether [accent] changes [preset]'s colours.
   bool get accentApplies => preset == ThemePreset.indigo;
 
@@ -123,6 +129,7 @@ class Appearance {
     double? textScale,
     MessageFont? font,
     bool? ircColours,
+    bool? autoLinkImages,
   }) => Appearance(
     mode: mode ?? this.mode,
     preset: preset ?? this.preset,
@@ -131,6 +138,7 @@ class Appearance {
     textScale: textScale ?? this.textScale,
     font: font ?? this.font,
     ircColours: ircColours ?? this.ircColours,
+    autoLinkImages: autoLinkImages ?? this.autoLinkImages,
   );
 
   Map<String, Object?> toJson() => {
@@ -142,6 +150,7 @@ class Appearance {
     'textScale': textScale,
     'font': font.name,
     'ircColours': ircColours,
+    'autoLinkImages': autoLinkImages,
   };
 }
 
@@ -193,6 +202,9 @@ class AppearanceController extends Notifier<Appearance> {
 
   void setIrcColours({required bool show}) =>
       _set(state.copyWith(ircColours: show));
+
+  void setAutoLinkImages({required bool show}) =>
+      _set(state.copyWith(autoLinkImages: show));
 }
 
 final appearanceProvider = NotifierProvider<AppearanceController, Appearance>(
