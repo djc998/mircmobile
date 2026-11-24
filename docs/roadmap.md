@@ -21,7 +21,7 @@
 - [x] Private rooms without commands: create, settings, invite/kick/ban,
       keep permanently (ChanServ)
 - [x] Share temporary, end-to-end encrypted pictures in private chats
-- [x] Send files (up to 25 MB) the same way; DCC next
+- [x] Send files (up to 25 MB) the same way, or directly with DCC
 - [x] One-to-one voice and video calls, with a browser link for other IRC apps
 - [ ] Calls: ring when the app is closed (PushKit/CallKit), group calls, screen sharing
       (own Cloudflare Worker + R2)

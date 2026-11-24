@@ -212,6 +212,10 @@ class IrcClient {
   /// Whether the server keeps your read position (draft/read-marker).
   bool get supportsReadMarkers => capabilities.contains('draft/read-marker');
 
+  /// Sends a CTCP request, e.g. `DCC SEND …`.
+  void sendCtcp(String target, String body) =>
+      sendRaw('PRIVMSG $target :\x01$body\x01');
+
   /// Tells [target] you're typing: [state] is `active`, `paused` or `done`.
   void sendTyping(String target, String state) {
     if (!supportsTyping) return;
@@ -1144,6 +1148,9 @@ class IrcClient {
       if (ctcp == 'ACTION') {
         isAction = true;
         text = arg;
+      } else if (ctcp == 'DCC' && !isNotice && !isOwn && !history) {
+        _emit(DccOfferEvent(from: from, args: arg));
+        return;
       } else {
         // Never answer a CTCP request again from history.
         if (!isNotice && !isOwn && !history) _replyCtcp(from, ctcp, arg);

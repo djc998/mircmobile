@@ -1561,6 +1561,10 @@ class _MessageListState extends State<_MessageList> {
 
   /// A photo or file shown under its message, if the message has one.
   Widget? _picture(ChatLine line, {double indent = 48}) {
+    final dcc = line.dccId;
+    if (dcc != null) {
+      return DccCard(key: ValueKey(dcc), id: dcc, indent: indent);
+    }
     final link = _pictureIn(line);
     if (link == null) {
       final file =

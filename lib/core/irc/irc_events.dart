@@ -303,3 +303,12 @@ class ReadMarkerEvent extends IrcEvent {
   final String target;
   final DateTime? readUntil;
 }
+
+/// Someone sent a DCC request (`DCC SEND …` for a file). [args] is the part
+/// after `DCC `; parse it with `DccOffer.parse`.
+class DccOfferEvent extends IrcEvent {
+  DccOfferEvent({required this.from, required this.args});
+
+  final String from;
+  final String args;
+}

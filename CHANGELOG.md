@@ -7,6 +7,13 @@ and the project uses [Semantic Versioning](https://semver.org/).
 ## [Unreleased]
 
 ### Added
+- **Direct file transfers (DCC)** with mIRC, HexChat, irssi and other apps
+  (iOS, Android, macOS). Incoming offers show a card with **Accept** and
+  **Decline** and a note that accepting shows the sender your IP; then
+  progress and **Save**. **Send a file** now asks how: **Through the
+  server** (encrypted, any network) or **Directly (DCC)**, which has no size
+  limit but usually only works on the same Wi-Fi. Offers from ignored
+  people are dropped. See [docs/features/dcc.md](docs/features/dcc.md).
 - **Send a file** in private chats (iOS, Android, macOS), from the **+**
   menu: any file up to 25 MB, encrypted on your device and sent as a link
   that stops working after 1 or 4 hours. The other person gets a card with

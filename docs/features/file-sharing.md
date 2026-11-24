@@ -7,7 +7,8 @@ chats, like photos. Uses the same picture host
 ## What the user sees
 
 - **Send:** **+** → **Send a file** in a private chat, pick any file (25 MB
-  at most), choose how long the link works (**1 hour** or **4 hours**) and
+  at most), choose **Through the server** (or **Directly (DCC)**, see
+  [dcc.md](dcc.md)), how long the link works (**1 hour** or **4 hours**) and
   tap **Send file**. The message box shows the upload, and the other person
   gets `📎 File from you: notes.pdf (1.2 MB) <link>`.
 - **Receive:** a card under the message with the file's name, size and who
