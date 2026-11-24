@@ -6,6 +6,11 @@ and the project uses [Semantic Versioning](https://semver.org/).
 
 ## [Unreleased]
 
+### Fixed
+- Undernet couldn't connect ("Connection timed out" on port 6697):
+  Undernet has no encrypted port, so it now connects on 6667 without
+  encryption, and the network list says so.
+
 ### Changed
 - ircage.com no longer tells Mac users to click **Open Anyway**: the Mac
   download is signed and notarized by Apple since 1.0.1.
