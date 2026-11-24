@@ -6,6 +6,8 @@
 	<string>Choose a photo to share in a private chat.</string>
 	<key>NSCameraUsageDescription</key>
 	<string>Take a photo to share, and use your camera in video calls.</string>
+	<key>NSLocalNetworkUsageDescription</key>
+	<string>Send and receive files directly with people on the same network (DCC).</string>
 	<key>NSMicrophoneUsageDescription</key>
 	<string>Talk to people in voice and video calls.</string>
 	<key>CADisableMinimumFrameDurationOnPhone</key>

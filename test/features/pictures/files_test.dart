@@ -160,8 +160,8 @@ void main() {
             () async =>
                 (name: 'report.pdf', bytes: Uint8List.fromList([1, 2, 3])),
           ),
-          fileSaverProvider.overrideWithValue((context, name, bytes) async {
-            saved[name] = bytes;
+          fileSaverProvider.overrideWithValue((context, name, file) async {
+            saved[name] = file.readAsBytesSync();
             return name;
           }),
           transportFactoryProvider.overrideWithValue(
@@ -218,10 +218,13 @@ void main() {
     await tester.pumpAndSettle();
     expect(find.text('3 bytes · from bob'), findsOneWidget);
     await tester.tap(find.bySemanticsLabel('Save reply.pdf'));
-    await tester.pump();
-    await tester.runAsync(
-      () => Future<void>.delayed(const Duration(milliseconds: 300)),
-    );
+    // Download, decrypt and write a temporary file: real I/O.
+    for (var i = 0; i < 10 && saved.isEmpty; i++) {
+      await tester.runAsync(
+        () => Future<void>.delayed(const Duration(milliseconds: 100)),
+      );
+      await tester.pump();
+    }
     await tester.pumpAndSettle();
     expect(saved['reply.pdf'], [1, 2, 3]);
     expect(find.text('Saved reply.pdf.'), findsOneWidget);

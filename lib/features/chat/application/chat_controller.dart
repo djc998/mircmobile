@@ -3,12 +3,14 @@ library;
 
 import 'dart:async';
 import 'dart:convert';
+import 'dart:io';
 import 'dart:typed_data';
 
 import 'package:clock/clock.dart';
 import 'package:flutter/widgets.dart' show AppLifecycleState, WidgetsBinding;
 import 'package:flutter_riverpod/flutter_riverpod.dart';
 import 'package:irc_client/core/irc/cap_negotiator.dart';
+import 'package:irc_client/core/irc/dcc.dart';
 import 'package:irc_client/core/irc/formatting.dart';
 import 'package:irc_client/core/irc/input_commands.dart';
 import 'package:irc_client/core/irc/irc_client.dart';
@@ -17,6 +19,7 @@ import 'package:irc_client/core/irc/irc_transport.dart';
 import 'package:irc_client/core/irc/networks.dart';
 import 'package:irc_client/core/irc/services.dart';
 import 'package:irc_client/core/storage/app_storage.dart';
+import 'package:irc_client/core/storage/temp_files.dart';
 import 'package:irc_client/features/calls/application/call_controller.dart';
 import 'package:irc_client/features/calls/domain/call_link.dart';
 import 'package:irc_client/features/chat/data/chat_history_store.dart';
@@ -24,6 +27,8 @@ import 'package:irc_client/features/connection/data/certificate_trust.dart';
 import 'package:irc_client/features/connection/data/saved_connection.dart';
 import 'package:irc_client/features/favorites/application/room_prefs_controller.dart';
 import 'package:irc_client/features/pictures/data/picture_service.dart';
+import 'package:irc_client/features/pictures/domain/dcc_transfer.dart';
+import 'package:irc_client/features/pictures/domain/file_link.dart';
 import 'package:irc_client/features/pictures/domain/picture_link.dart';
 import 'package:irc_client/features/rooms/domain/room_modes.dart';
 import 'package:irc_client/features/safety/application/safety_controller.dart';
@@ -49,6 +54,7 @@ class ChatLine {
     this.presence,
     this.subject,
     this.msgid,
+    this.dccId,
   }) : time = time ?? DateTime.now();
 
   factory ChatLine.fromStored(StoredLine line) => ChatLine(
@@ -73,6 +79,11 @@ class ChatLine {
   /// The server's id for the message (IRCv3 `msgid`), when it gave one;
   /// used to skip messages that come again from history.
   final String? msgid;
+
+  /// A direct (DCC) file transfer this line is about; see
+  /// [ChatController.transfer]. Not saved: after a restart the line is
+  /// plain text.
+  final String? dccId;
 
   /// Whether this kind of line is kept in saved history.
   bool get isSaved => switch (kind) {
@@ -478,6 +489,198 @@ class ChatController extends Notifier<ChatState> {
       buffer.uploading--;
       _touch();
     }
+  }
+
+  // ---------------------------------------------------------------------
+  // Direct file transfers (DCC SEND)
+  // ---------------------------------------------------------------------
+
+  final Map<String, DccTransfer> _transfers = {};
+  var _transferCount = 0;
+
+  /// The direct transfer with [id], if it's still known.
+  DccTransfer? transfer(String id) => _transfers[id];
+
+  DccTransfer _newTransfer({
+    required NetworkSession session,
+    required String nick,
+    required String name,
+    required int size,
+    required DccDirection direction,
+    required DccState state,
+    DccOffer? offer,
+  }) {
+    final t = DccTransfer(
+      id: 'dcc-${++_transferCount}',
+      networkId: session.id,
+      nick: nick,
+      name: safeFileName(name),
+      size: size,
+      direction: direction,
+      state: state,
+      offer: offer,
+    );
+    _transfers[t.id] = t;
+    return t;
+  }
+
+  void _onDccOffer(NetworkSession session, DccOfferEvent e) {
+    if (isBlocked(e.from)) return;
+    final offer = DccOffer.parse(e.args);
+    if (offer == null) return;
+    final t = _newTransfer(
+      session: session,
+      nick: e.from,
+      name: offer.name,
+      size: offer.size,
+      direction: DccDirection.incoming,
+      state: DccState.offered,
+      offer: offer,
+    );
+    _addLine(
+      session,
+      e.from,
+      ChatLine(
+        sender: e.from,
+        text:
+            '📁 Direct file: ${t.name}'
+            '${t.size > 0 ? ' (${formatFileSize(t.size)})' : ''}',
+        kind: ChatLineKind.message,
+        time: e.time,
+        dccId: t.id,
+      ),
+    );
+  }
+
+  /// Accepts an incoming direct transfer: connects (or, for a passive
+  /// offer, listens) and receives the file into temporary storage.
+  Future<void> acceptDcc(String id) async {
+    final t = _transfers[id];
+    final offer = t?.offer;
+    final session = t == null ? null : state.networks[t.networkId];
+    if (t == null || offer == null || t.state != DccState.offered) return;
+    t.state = DccState.transferring;
+    _touch();
+    var lastDraw = DateTime.now();
+    void progress(int n) {
+      t.done = n;
+      final now = DateTime.now();
+      if (now.difference(lastDraw) > const Duration(milliseconds: 200)) {
+        lastDraw = now;
+        _touch();
+      }
+    }
+
+    try {
+      final dir = await tempFolder('dcc');
+      final into = File('${dir.path}/${t.id}-${t.name}');
+      if (offer.passive) {
+        await receivePassiveDcc(
+          offer,
+          into,
+          reply: (args) => session?.client.sendCtcp(t.nick, 'DCC $args'),
+          onProgress: progress,
+        );
+      } else {
+        await receiveDcc(offer, into, onProgress: progress);
+      }
+      t
+        ..file = into
+        ..done = t.size > 0 ? t.size : await into.length()
+        ..state = DccState.done;
+    } on DccException catch (e) {
+      t
+        ..state = DccState.failed
+        ..error = e.message;
+    } on Object {
+      t
+        ..state = DccState.failed
+        ..error = "Couldn't receive the file.";
+    }
+    if (ref.mounted) _touch();
+  }
+
+  /// Declines an incoming direct transfer (nothing is sent: DCC has no
+  /// standard "no").
+  void declineDcc(String id) {
+    final t = _transfers[id];
+    if (t == null || t.state != DccState.offered) return;
+    t.state = DccState.declined;
+    _touch();
+  }
+
+  /// Offers [file] directly to the open private chat and sends it when they
+  /// connect (within 2 minutes). Returns an error to show, or null.
+  Future<String?> sendDccFile(File file, {required String name}) async {
+    final session = state.activeNetwork;
+    final buffer = state.activeBuffer;
+    if (session == null || buffer == null || buffer.isStatus) {
+      return 'Open a conversation first.';
+    }
+    if (!session.isConnected) return 'Not connected to ${session.label}.';
+    final DccListener listener;
+    try {
+      listener = await DccListener.open();
+    } on DccException catch (e) {
+      return e.message;
+    } on Object {
+      return "Couldn't start a direct transfer here.";
+    }
+    final size = await file.length();
+    final t = _newTransfer(
+      session: session,
+      nick: buffer.name,
+      name: name,
+      size: size,
+      direction: DccDirection.outgoing,
+      state: DccState.waiting,
+    );
+    session.client.sendCtcp(
+      buffer.name,
+      'DCC ${dccSendArgs(t.name, listener.address, listener.port, size)}',
+    );
+    _addLine(
+      session,
+      buffer.name,
+      ChatLine(
+        sender: session.nick,
+        text: '📁 Direct file: ${t.name} (${formatFileSize(size)})',
+        kind: ChatLineKind.own,
+        dccId: t.id,
+      ),
+    );
+    unawaited(_runSend(t, listener, file));
+    return null;
+  }
+
+  Future<void> _runSend(DccTransfer t, DccListener listener, File file) async {
+    var lastDraw = DateTime.now();
+    try {
+      await sendDcc(
+        listener,
+        file,
+        onProgress: (n) {
+          t
+            ..state = DccState.transferring
+            ..done = n;
+          final now = DateTime.now();
+          if (now.difference(lastDraw) > const Duration(milliseconds: 200)) {
+            lastDraw = now;
+            if (ref.mounted) _touch();
+          }
+        },
+      );
+      t.state = DccState.done;
+    } on DccException catch (e) {
+      t
+        ..state = DccState.failed
+        ..error = e.message;
+    } on Object {
+      t
+        ..state = DccState.failed
+        ..error = "Couldn't send the file.";
+    }
+    if (ref.mounted) _touch();
   }
 
   /// Encrypts, uploads and sends a file to the open private chat. Returns
@@ -1610,6 +1813,8 @@ class ChatController extends Notifier<ChatState> {
         _touch();
       case TypingEvent():
         _onTyping(session, e);
+      case DccOfferEvent():
+        _onDccOffer(session, e);
       case ReadMarkerEvent(:final target, :final readUntil):
         final buffer = _bufferNamed(session, target);
         if (buffer != null && readUntil != null) {
