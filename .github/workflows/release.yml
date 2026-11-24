@@ -7,11 +7,21 @@
 #
 # These builds are made with DISTRIBUTION=direct and APP_VERSION=<version>,
 # which turns on the in-app update check (store builds never get it).
+#
+# The Mac app is signed with a Developer ID and notarized by Apple when these
+# repository secrets are set (see docs/features/releases-and-updates.md):
+#   MACOS_CERT_P12_BASE64, MACOS_CERT_PASSWORD   the Developer ID certificate
+#   ASC_KEY_P8_BASE64, ASC_KEY_ID, ASC_ISSUER_ID App Store Connect API key
+# Without them it's built unsigned, as before.
+#
+# "Run workflow" on the Actions tab builds and signs everything without
+# publishing a release: a test run. Its files are on the run's page.
 name: Release
 
 on:
   push:
     tags: ['v*']
+  workflow_dispatch:
 
 permissions:
   contents: write
@@ -26,8 +36,13 @@ jobs:
       - id: v
         name: Check the tag matches pubspec.yaml
         run: |
-          tag="${GITHUB_REF_NAME#v}"
           pub="$(sed -n 's/^version: *\([0-9.]*\).*/\1/p' pubspec.yaml)"
+          # A test run (no tag) just uses pubspec.yaml's version.
+          if [ "$GITHUB_EVENT_NAME" = "workflow_dispatch" ]; then
+            echo "version=$pub" >> "$GITHUB_OUTPUT"
+            exit 0
+          fi
+          tag="${GITHUB_REF_NAME#v}"
           if [ "$tag" != "$pub" ]; then
             echo "::error::Tag v$tag doesn't match pubspec.yaml version $pub"
             exit 1
@@ -37,6 +52,8 @@ jobs:
   macos:
     needs: version
     runs-on: macos-latest
+    env:
+      SIGNING: ${{ secrets.MACOS_CERT_P12_BASE64 != '' && secrets.ASC_KEY_P8_BASE64 != '' }}
     steps:
       - uses: actions/checkout@v4
       - uses: subosito/flutter-action@v2
@@ -48,9 +65,52 @@ jobs:
           flutter build macos --release
           --dart-define=DISTRIBUTION=direct
           --dart-define=APP_VERSION=${{ needs.version.outputs.version }}
-      - name: Zip the app
+      - name: Import the Developer ID certificate
+        if: env.SIGNING == 'true'
+        env:
+          CERT: ${{ secrets.MACOS_CERT_P12_BASE64 }}
+          CERT_PASSWORD: ${{ secrets.MACOS_CERT_PASSWORD }}
         run: |
+          KEYCHAIN="$RUNNER_TEMP/signing.keychain-db"
+          KC_PASS="$(uuidgen)"
+          echo "$CERT" | base64 --decode > "$RUNNER_TEMP/cert.p12"
+          security create-keychain -p "$KC_PASS" "$KEYCHAIN"
+          security set-keychain-settings -lut 21600 "$KEYCHAIN"
+          security unlock-keychain -p "$KC_PASS" "$KEYCHAIN"
+          security import "$RUNNER_TEMP/cert.p12" -P "$CERT_PASSWORD" \
+            -A -t cert -f pkcs12 -k "$KEYCHAIN"
+          security set-key-partition-list -S apple-tool:,apple: -s \
+            -k "$KC_PASS" "$KEYCHAIN" >/dev/null
+          security list-keychains -d user -s "$KEYCHAIN" \
+            $(security list-keychains -d user | tr -d '"')
+          rm "$RUNNER_TEMP/cert.p12"
+          IDENTITY="$(security find-identity -v -p codesigning "$KEYCHAIN" \
+            | grep 'Developer ID Application' | head -1 | sed 's/.*"\(.*\)".*/\1/')"
+          if [ -z "$IDENTITY" ]; then
+            echo "::error::No Developer ID Application identity in the certificate"
+            exit 1
+          fi
+          echo "KEYCHAIN=$KEYCHAIN" >> "$GITHUB_ENV"
+          echo "SIGN_IDENTITY=$IDENTITY" >> "$GITHUB_ENV"
+      - name: Sign, notarize and zip
+        if: env.SIGNING == 'true'
+        env:
+          ASC_KEY: ${{ secrets.ASC_KEY_P8_BASE64 }}
+          ASC_KEY_ID: ${{ secrets.ASC_KEY_ID }}
+          ASC_ISSUER_ID: ${{ secrets.ASC_ISSUER_ID }}
+        run: |
+          export ASC_KEY_PATH="$RUNNER_TEMP/AuthKey.p8"
+          echo "$ASC_KEY" | base64 --decode > "$ASC_KEY_PATH"
+          tool/macos_release.sh build/macos/Build/Products/Release/IRCage.app
+          rm -f "$ASC_KEY_PATH"
+      - name: Zip the app (unsigned)
+        if: env.SIGNING != 'true'
+        run: |
+          echo "::warning::Mac signing secrets aren't set: this Mac app is unsigned"
           ditto -c -k --keepParent build/macos/Build/Products/Release/IRCage.app IRCage-macOS.zip
+      - name: Remove the signing keychain
+        if: always() && env.KEYCHAIN != ''
+        run: security delete-keychain "$KEYCHAIN" || true
       - uses: actions/upload-artifact@v4
         with:
           name: macos
@@ -114,6 +174,8 @@ jobs:
 
   release:
     needs: [version, macos, linux, windows]
+    # A test run (Run workflow) stops before publishing.
+    if: github.event_name == 'push'
     runs-on: ubuntu-latest
     steps:
       - uses: actions/download-artifact@v4
@@ -123,13 +185,18 @@ jobs:
         env:
           GH_TOKEN: ${{ github.token }}
           VERSION: ${{ needs.version.outputs.version }}
+          MAC_SIGNED: ${{ secrets.MACOS_CERT_P12_BASE64 != '' && secrets.ASC_KEY_P8_BASE64 != '' }}
         run: |
+          if [ "$MAC_SIGNED" = "true" ]; then
+            MAC="- **Mac:** signed and notarized by Apple: unzip, move IRCage to Applications and open it."
+          else
+            MAC="- **Mac:** open the app, then System Settings → Privacy & Security → **Open Anyway**."
+          fi
           cat > notes.md <<EOF
           IRCage $VERSION for Mac, Windows and Linux. Download it from https://ircage.com.
 
-          These builds aren't signed yet, so your computer asks before opening them the first time:
-          - **Mac:** open the app, then System Settings → Privacy & Security → **Open Anyway**.
-          - **Windows:** "Windows protected your PC" → **More info** → **Run anyway**.
+          $MAC
+          - **Windows:** not signed yet: "Windows protected your PC" → **More info** → **Run anyway**.
           - **Linux:** unpack and run \`IRCage/ircage\`. Needs GTK 3 and libsecret.
           EOF
           gh release create "$GITHUB_REF_NAME" \

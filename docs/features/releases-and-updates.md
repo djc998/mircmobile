@@ -25,13 +25,39 @@ The names never change, so the website links to
 `https://github.com/djc998/mircmobile/releases/latest/download/<name>`
 and always gets the newest one.
 
-### Not signed yet
+### Signing the Mac app
 
-Without an Apple Developer ID and a Windows code-signing certificate, the
-first launch shows a warning; the release notes and the website say how to
-open the app anyway (Mac: System Settings → Privacy & Security → **Open
-Anyway**; Windows: **More info** → **Run anyway**). Signing (and Apple
-notarization) can be added to the workflow once the certificates exist.
+When the repository has these secrets, the release signs `IRCage.app` with a
+Developer ID, has Apple notarize it and staples the result
+(`tool/macos_release.sh`), so it opens without a warning. Without them the
+Mac app is built unsigned, with a warning in the run.
+
+| Secret | What it is |
+|---|---|
+| `MACOS_CERT_P12_BASE64` | the Developer ID Application certificate and its private key, exported as .p12, base64 |
+| `MACOS_CERT_PASSWORD` | the password chosen when exporting it |
+| `ASC_KEY_P8_BASE64` | an App Store Connect API key (.p8), base64 |
+| `ASC_KEY_ID` | that key's Key ID |
+| `ASC_ISSUER_ID` | the Issuer ID shown above the keys |
+
+**Run workflow** on the Release workflow's page (Actions tab) builds and
+signs everything without publishing: a test run, with the files on the
+run's page.
+
+To sign on a Mac instead (with the certificate in the login keychain):
+
+```sh
+flutter build macos --release --dart-define=DISTRIBUTION=direct --dart-define=APP_VERSION=1.0.1
+SIGN_IDENTITY="Developer ID Application: … (W4QQ2637KN)" \
+ASC_KEY_PATH=~/keys/AuthKey_XXXX.p8 ASC_KEY_ID=XXXX ASC_ISSUER_ID=… \
+  tool/macos_release.sh build/macos/Build/Products/Release/IRCage.app
+```
+
+`NOTARIZE=0` only signs, for a quick check.
+
+Windows downloads aren't signed yet: "Windows protected your PC" →
+**More info** → **Run anyway**. A Windows code-signing certificate would
+remove that.
 
 ## Update checks
 

@@ -12,6 +12,11 @@ and the project uses [Semantic Versioning](https://semver.org/).
   working for 1.0.0 and earlier.
 
 ### Added
+- The Mac download is **signed with a Developer ID and notarized by Apple**
+  when the repository has the signing secrets, so it opens without the
+  "Apple could not verify" warning (`tool/macos_release.sh`, used by the
+  release workflow). The release workflow can also be run by hand as a test
+  that doesn't publish. Version 1.0.1.
 - **The ircage.com website** (`website/`, for Netlify): home page, privacy
   policy, terms of use, support and a 404 page, in the app's colours with
   light and dark mode. The privacy policy and support page are the URLs the
