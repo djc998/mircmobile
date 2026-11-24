@@ -66,7 +66,13 @@ const List<IrcNetwork> builtInNetworks = [
   IrcNetwork(
     name: 'Undernet',
     host: 'irc.undernet.org',
-    description: 'Classic general chat network with many social rooms.',
+    // Undernet has no TLS port on any of its servers (checked November
+    // 2026): 6697 is closed or refuses, and 6667/7000 are plain text.
+    port: 6667,
+    useTls: false,
+    description:
+        'Classic general chat network with many social rooms. '
+        "Not encrypted: Undernet doesn't offer it.",
     services: ServicesKind.undernet,
   ),
   IrcNetwork(
