@@ -12,14 +12,16 @@ import 'package:irc_client/features/pictures/data/picture_prep.dart';
 import 'package:irc_client/features/pictures/domain/file_link.dart';
 import 'package:irc_client/features/pictures/domain/picture_link.dart';
 
-/// The picture host's address, e.g. `https://irc-pictures.example.workers.dev`.
+/// The picture host's address, e.g. `https://share.ircage.com`.
 /// Set at build time with `--dart-define=PICTURE_HOST=...`, otherwise
 /// [defaultPictureHost] is used.
 const pictureHostSetting = String.fromEnvironment('PICTURE_HOST');
 
 /// Filled in once the Worker is deployed. Empty means picture sharing is
 /// switched off and the app says so.
-const defaultPictureHost = 'https://irc-pictures.irc-pictures.workers.dev';
+/// (The Worker also still answers at irc-pictures.irc-pictures.workers.dev,
+/// for builds made before it moved.)
+const defaultPictureHost = 'https://share.ircage.com';
 
 /// Optional shared token the Worker can require (`APP_TOKEN` secret).
 const pictureAppToken = String.fromEnvironment('PICTURE_APP_TOKEN');

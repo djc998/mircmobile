@@ -18,17 +18,18 @@ npx wrangler r2 bucket create irc-pictures
 # Backstop: R2's shortest lifecycle rule is 1 day, so anything the cron
 # somehow misses is still deleted within a day.
 npx wrangler r2 bucket lifecycle add irc-pictures expire-pictures p/ --expire-days 1
+npx wrangler r2 bucket lifecycle add irc-pictures expire-files f/ --expire-days 1
 npx wrangler secret put ADMIN_TOKEN     # long random string, for reviewing reports
 npx wrangler deploy
 ```
 
-`wrangler deploy` prints the address, for example
-`https://irc-pictures.<you>.workers.dev`. Put it in `defaultPictureHost` in
+`wrangler deploy` prints the addresses. IRCage's Worker answers at
+`https://share.ircage.com` (a custom domain in `wrangler.toml`; ircage.com's
+DNS is on Cloudflare, which creates the record and certificate) and still at
+`https://irc-pictures.irc-pictures.workers.dev` for builds from before the
+move. The app's address is `defaultPictureHost` in
 `lib/features/pictures/data/picture_service.dart` (or build with
 `--dart-define=PICTURE_HOST=...`).
-
-To use your own domain, add a route or custom domain to the Worker in the
-Cloudflare dashboard and use that address instead.
 
 Optional: `npx wrangler secret put APP_TOKEN` makes uploads require an
 `x-app-token` header; build the app with `--dart-define=PICTURE_APP_TOKEN=...`.
@@ -64,7 +65,7 @@ still work but connect directly (STUN only).
 ```
 
 It asks for the admin token (or uses `$ADMIN_TOKEN` if it's set) and
-checks `https://irc-pictures.irc-pictures.workers.dev`; set `PICTURE_HOST`
+checks `https://share.ircage.com`; set `PICTURE_HOST`
 for another deployment. The raw endpoint is
 `GET /admin/reports` with `Authorization: Bearer <ADMIN_TOKEN>`.
 
