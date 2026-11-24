@@ -6,17 +6,12 @@ and the project uses [Semantic Versioning](https://semver.org/).
 
 ## [Unreleased]
 
+## [1.0.2] - 2026-11-24
+
 ### Fixed
 - Undernet couldn't connect ("Connection timed out" on port 6697):
   Undernet has no encrypted port, so it now connects on 6667 without
   encryption, and the network list says so.
-
-### Changed
-- ircage.com no longer tells Mac users to click **Open Anyway**: the Mac
-  download is signed and notarized by Apple since 1.0.1.
-- Photos, files and calls now go through **share.ircage.com** (the same
-  server, on IRCage's own domain). The old workers.dev address keeps
-  working for 1.0.0 and earlier.
 
 ### Added
 - Links in messages are tappable and open in your browser.
@@ -28,17 +23,34 @@ and the project uses [Semantic Versioning](https://semver.org/).
   open in the browser on Windows and Linux.
 - ircage.com/.well-known/security.txt says where to report security
   problems (support@ircage.com).
+
+### Changed
+- ircage.com no longer tells Mac users to click **Open Anyway**: the Mac
+  download is signed and notarized by Apple since 1.0.1.
+
+## [1.0.1] - 2026-11-24
+
+### Added
 - The Mac download is **signed with a Developer ID and notarized by Apple**
   when the repository has the signing secrets, so it opens without the
   "Apple could not verify" warning (`tool/macos_release.sh`, used by the
   release workflow). The release workflow can also be run by hand as a test
-  that doesn't publish. Version 1.0.1.
+  that doesn't publish.
 - **The ircage.com website** (`website/`, for Netlify): home page, privacy
   policy, terms of use, support and a 404 page, in the app's colours with
   light and dark mode. The privacy policy and support page are the URLs the
   App Store and Google Play ask for.
   A **Download** section links to the Mac, Windows and Linux apps on GitHub
   releases (always the latest), with how to open them the first time.
+
+### Changed
+- Photos, files and calls now go through **share.ircage.com** (the same
+  server, on IRCage's own domain). The old workers.dev address keeps
+  working for 1.0.0 and earlier.
+
+## [1.0.0] - 2026-11-24
+
+### Added
 - **Downloads for Mac, Windows and Linux** from GitHub releases: pushing a
   version tag builds all three and publishes them (`release.yml`).
 - **Update checks** in those downloads: on launch and daily, a banner says
