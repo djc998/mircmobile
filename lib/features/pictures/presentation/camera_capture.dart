@@ -1,6 +1,7 @@
 /// Getting a photo to send: from the photo library, or by taking one with
-/// the camera. Phones use the system camera; the Mac, which the system
-/// picker can't open the camera on, gets [CameraCaptureScreen].
+/// the camera. Phones use the system camera; desktops (Mac, Windows,
+/// Linux), where the system picker can't open the camera, get
+/// [CameraCaptureScreen].
 library;
 
 import 'dart:async';
@@ -26,14 +27,27 @@ final photoPickerProvider = Provider<PhotoPicker>((ref) => pickPhoto);
 
 /// Whether this device can take a photo in the app.
 bool canTakePhotos(TargetPlatform platform) => switch (platform) {
-  TargetPlatform.iOS || TargetPlatform.android || TargetPlatform.macOS => true,
+  TargetPlatform.iOS ||
+  TargetPlatform.android ||
+  TargetPlatform.macOS ||
+  TargetPlatform.windows ||
+  TargetPlatform.linux => true,
+  _ => false,
+};
+
+/// Whether the camera is the app's own [CameraCaptureScreen] rather than
+/// the system picker.
+bool _ownCameraScreen(TargetPlatform platform) => switch (platform) {
+  TargetPlatform.macOS ||
+  TargetPlatform.windows ||
+  TargetPlatform.linux => true,
   _ => false,
 };
 
 /// The real [PhotoPicker].
 Future<Uint8List?> pickPhoto(BuildContext context, PhotoSource source) async {
   if (source == PhotoSource.camera &&
-      Theme.of(context).platform == TargetPlatform.macOS) {
+      _ownCameraScreen(Theme.of(context).platform)) {
     return await Navigator.of(context).push<Uint8List>(
       MaterialPageRoute(
         fullscreenDialog: true,

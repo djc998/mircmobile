@@ -132,7 +132,7 @@ void main() {
   testWidgets('without a camera, the photo button goes straight to files', (
     tester,
   ) async {
-    debugDefaultTargetPlatformOverride = TargetPlatform.linux;
+    debugDefaultTargetPlatformOverride = TargetPlatform.fuchsia;
     try {
       final asked = await _openPrivateChat(tester);
       await tester.tap(find.byTooltip('Add a photo or command'));
@@ -153,6 +153,8 @@ void main() {
     expect(canTakePhotos(TargetPlatform.iOS), isTrue);
     expect(canTakePhotos(TargetPlatform.android), isTrue);
     expect(canTakePhotos(TargetPlatform.macOS), isTrue);
-    expect(canTakePhotos(TargetPlatform.windows), isFalse);
+    expect(canTakePhotos(TargetPlatform.windows), isTrue);
+    expect(canTakePhotos(TargetPlatform.linux), isTrue);
+    expect(canTakePhotos(TargetPlatform.fuchsia), isFalse);
   });
 }

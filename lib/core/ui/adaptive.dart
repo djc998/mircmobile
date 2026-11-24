@@ -3,6 +3,8 @@
 /// - iPhone and iPad: an iOS action sheet and iOS alerts.
 /// - Mac: a context menu at the pointer for right-clicks, and Mac-style
 ///   alerts.
+/// - Windows and Linux: a Material context menu at the pointer for
+///   right-clicks, and Material dialogs.
 /// - Android (and everywhere else): Material bottom sheets and dialogs.
 library;
 
@@ -20,6 +22,15 @@ import 'package:material_ui/material_ui.dart';
 /// Whether this is an Apple platform (iOS or macOS).
 bool isApple(BuildContext context) => switch (Theme.of(context).platform) {
   TargetPlatform.iOS || TargetPlatform.macOS => true,
+  _ => false,
+};
+
+/// Whether this is a desktop platform (Mac, Windows or Linux), where a
+/// right-click opens a menu at the pointer.
+bool isDesktopPlatform(TargetPlatform platform) => switch (platform) {
+  TargetPlatform.macOS ||
+  TargetPlatform.windows ||
+  TargetPlatform.linux => true,
   _ => false,
 };
 
@@ -47,8 +58,8 @@ class MenuAction {
 }
 
 /// Shows [actions] the platform's way, then runs the one picked (after the
-/// menu has closed). [position] is the pointer for a right-click: on a Mac
-/// that opens a context menu there.
+/// menu has closed). [position] is the pointer for a right-click: on a Mac,
+/// Windows or Linux that opens a context menu there.
 Future<void> showActionMenu(
   BuildContext context, {
   required List<MenuAction> actions,
@@ -57,7 +68,7 @@ Future<void> showActionMenu(
 }) async {
   final platform = Theme.of(context).platform;
   MenuAction? picked;
-  if (platform == TargetPlatform.macOS && position != null) {
+  if (isDesktopPlatform(platform) && position != null) {
     final overlay =
         Overlay.of(context).context.findRenderObject()! as RenderBox;
     picked = await showMenu<MenuAction>(

@@ -41,10 +41,10 @@ Future<PickedFile?> _pickFile() async {
   return (name: file.name, bytes: await file.readAsBytes());
 }
 
-/// Mac: a save dialog. iPhone and Android: the share sheet, which has
-/// "Save to Files" (or Drive, Downloads…) and other apps.
+/// Mac, Windows and Linux: a save dialog. iPhone and Android: the share
+/// sheet, which has "Save to Files" (or Drive, Downloads…) and other apps.
 Future<String?> _saveFile(BuildContext context, String name, File file) async {
-  if (Platform.isMacOS) {
+  if (Platform.isMacOS || Platform.isWindows || Platform.isLinux) {
     final where = await getSaveLocation(suggestedName: name);
     if (where == null) return null;
     await file.copy(where.path);

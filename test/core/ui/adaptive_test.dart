@@ -89,6 +89,35 @@ void main() {
     expect(picked, ['reply']);
   });
 
+  for (final platform in [TargetPlatform.windows, TargetPlatform.linux]) {
+    testWidgets('${platform.name}: right-click opens a menu at the pointer', (
+      tester,
+    ) async {
+      await tester.pumpWidget(
+        _host(
+          platform,
+          (context, at) =>
+              showActionMenu(context, actions: actions(), position: at),
+        ),
+      );
+      await tester.tap(find.text('open'), buttons: kSecondaryButton);
+      await tester.pumpAndSettle();
+      expect(find.byType(PopupMenuItem<MenuAction>), findsNWidgets(2));
+      expect(find.byType(BottomSheet), findsNothing);
+      await tester.tap(find.text('Leave'));
+      await tester.pumpAndSettle();
+      expect(picked, ['leave']);
+    });
+  }
+
+  test('desktop platforms', () {
+    expect(isDesktopPlatform(TargetPlatform.macOS), isTrue);
+    expect(isDesktopPlatform(TargetPlatform.windows), isTrue);
+    expect(isDesktopPlatform(TargetPlatform.linux), isTrue);
+    expect(isDesktopPlatform(TargetPlatform.iOS), isFalse);
+    expect(isDesktopPlatform(TargetPlatform.android), isFalse);
+  });
+
   testWidgets('Android: a Material bottom sheet', (tester) async {
     await tester.pumpWidget(
       _host(
@@ -110,6 +139,8 @@ void main() {
     (TargetPlatform.iOS, true),
     (TargetPlatform.macOS, true),
     (TargetPlatform.android, false),
+    (TargetPlatform.windows, false),
+    (TargetPlatform.linux, false),
   ]) {
     testWidgets('confirm on ${platform.name}', (tester) async {
       bool? result;

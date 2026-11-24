@@ -17,7 +17,9 @@ Future<void> main() async {
     ProviderScope(
       overrides: [
         keyValueStoreProvider.overrideWithValue(PrefsKeyValueStore(prefs)),
-        secretStoreProvider.overrideWithValue(SecureSecretStore()),
+        secretStoreProvider.overrideWithValue(
+          FallbackSecretStore(SecureSecretStore()),
+        ),
         chatHistoryStoreProvider.overrideWithValue(
           FileChatHistoryStore(Directory('${support.path}/history')),
         ),

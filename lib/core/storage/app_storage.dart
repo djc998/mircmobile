@@ -16,8 +16,9 @@ abstract interface class KeyValueStore {
   Future<void> remove(String key);
 }
 
-/// Secrets such as account passwords. Backed by the iOS/macOS Keychain and
-/// Android Keystore-encrypted storage.
+/// Secrets such as account passwords. Backed by the iOS/macOS Keychain,
+/// Android Keystore-encrypted storage, the Windows Credential Manager and,
+/// on Linux, the Secret Service (GNOME Keyring, KWallet) through libsecret.
 abstract interface class SecretStore {
   Future<String?> read(String key);
   Future<void> write(String key, String value);
@@ -70,6 +71,41 @@ class SecureSecretStore implements SecretStore {
 
   @override
   Future<void> delete(String key) => _storage.delete(key: key);
+}
+
+/// Uses [primary] while it works and falls back to memory when it can't be
+/// reached: a Linux desktop with no keyring running, say. Passwords then
+/// last until the app quits instead of failing to save.
+class FallbackSecretStore implements SecretStore {
+  FallbackSecretStore(this.primary);
+
+  final SecretStore primary;
+  final _memory = MemorySecretStore();
+  bool _failed = false;
+
+  /// Whether the system store failed and secrets are only kept in memory.
+  bool get usingMemory => _failed;
+
+  Future<T> _try<T>(Future<T> Function(SecretStore store) run) async {
+    if (!_failed) {
+      try {
+        return await run(primary);
+      } on Object {
+        _failed = true;
+      }
+    }
+    return await run(_memory);
+  }
+
+  @override
+  Future<String?> read(String key) => _try((s) => s.read(key));
+
+  @override
+  Future<void> write(String key, String value) =>
+      _try((s) => s.write(key, value));
+
+  @override
+  Future<void> delete(String key) => _try((s) => s.delete(key));
 }
 
 class MemorySecretStore implements SecretStore {

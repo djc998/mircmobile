@@ -1,6 +1,7 @@
 #!/bin/sh
 # Regenerates every app icon from tool/icon/render_icons_test.dart (the
-# icon's source) for iOS, Android and macOS. Needs ImageMagick (`magick`).
+# icon's source) for iOS, Android, macOS, Windows and Linux.
+# Needs ImageMagick (`magick`).
 set -eu
 cd "$(dirname "$0")/.."
 flutter test tool/icon/render_icons_test.dart >/dev/null
@@ -31,4 +32,11 @@ for pair in mdpi:48:108 hdpi:72:162 xhdpi:96:216 xxhdpi:144:324 xxxhdpi:192:432;
   magick "$work/foreground.png" -resize "${fg}x${fg}" \
     "$res/mipmap-$d/ic_launcher_foreground.png"
 done
+# Windows: one .ico with the sizes Explorer and the taskbar use.
+magick "$work/macos.png" -define icon:auto-resize=256,128,64,48,32,24,16 \
+  windows/runner/resources/app_icon.ico
+
+# Linux: a 512-px PNG the window and the .desktop entry use.
+magick "$work/macos.png" -resize 512x512 linux/runner/resources/app_icon.png
+
 echo "Icons written."
