@@ -7,6 +7,12 @@ and the project uses [Semantic Versioning](https://semver.org/).
 ## [Unreleased]
 
 ### Added
+- **Downloads for Mac, Windows and Linux** from GitHub releases: pushing a
+  version tag builds all three and publishes them (`release.yml`).
+- **Update checks** in those downloads: on launch and daily, a banner says
+  when a new version is out, with **Download** and **Later**; Settings →
+  About → **Check for updates** turns it off. Store builds never check. See
+  [docs/features/releases-and-updates.md](docs/features/releases-and-updates.md).
 - **Windows and Linux** desktop apps, built on every pull request (CI
   artifacts `IRCage-windows-x64` and `IRCage-linux-x64`). They work like
   the Mac app: right-click menus at the pointer, a save dialog for received

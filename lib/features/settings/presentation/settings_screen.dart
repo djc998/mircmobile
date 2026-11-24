@@ -15,6 +15,8 @@ import 'package:irc_client/features/calls/presentation/call_widgets.dart';
 import 'package:irc_client/features/chat/application/chat_controller.dart';
 import 'package:irc_client/features/favorites/application/room_prefs_controller.dart';
 import 'package:irc_client/features/safety/application/safety_controller.dart';
+import 'package:irc_client/features/updates/update_banner.dart';
+import 'package:irc_client/features/updates/update_checker.dart';
 import 'package:material_ui/material_ui.dart';
 
 /// Route `/settings`.
@@ -235,6 +237,8 @@ class _SettingsScreenState extends ConsumerState<SettingsScreen> {
                       title: const Text(appName),
                       subtitle: Text(IrcClient.clientVersion),
                     ),
+                    if (ref.watch(updatesSupportedProvider))
+                      const _UpdatesTile(),
                     ListTile(
                       leading: const Icon(Icons.gavel_outlined),
                       title: const Text('Terms of use'),
@@ -319,6 +323,47 @@ class _Group extends StatelessWidget {
           ),
         ],
       ),
+    );
+  }
+}
+
+/// Settings → About: check for updates (website downloads only), and
+/// what the last check found.
+class _UpdatesTile extends ConsumerWidget {
+  const _UpdatesTile();
+
+  @override
+  Widget build(BuildContext context, WidgetRef ref) {
+    final update = ref.watch(updateProvider);
+    final available = update.available;
+    final status = !update.enabled
+        ? 'Off'
+        : update.checking
+        ? 'Checking…'
+        : available != null
+        ? 'IRCage ${available.version} is available'
+        : update.lastChecked != null
+        ? "You're up to date"
+        : 'Looks for a new version once a day';
+    return Column(
+      children: [
+        SwitchListTile.adaptive(
+          secondary: const Icon(Icons.system_update_alt),
+          title: const Text('Check for updates'),
+          subtitle: Text(status),
+          value: update.enabled,
+          onChanged: (v) =>
+              ref.read(updateProvider.notifier).setEnabled(enabled: v),
+        ),
+        if (available != null && update.enabled)
+          ListTile(
+            leading: const SizedBox(width: 24),
+            title: Text('Download IRCage ${available.version}'),
+            trailing: const Icon(Icons.open_in_new),
+            onTap: () =>
+                unawaited(ref.read(openUpdatePageProvider)(available.page)),
+          ),
+      ],
     );
   }
 }
