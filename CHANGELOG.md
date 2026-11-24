@@ -7,6 +7,8 @@ and the project uses [Semantic Versioning](https://semver.org/).
 ## [Unreleased]
 
 ### Changed
+- ircage.com no longer tells Mac users to click **Open Anyway**: the Mac
+  download is signed and notarized by Apple since 1.0.1.
 - Photos, files and calls now go through **share.ircage.com** (the same
   server, on IRCage's own domain). The old workers.dev address keeps
   working for 1.0.0 and earlier.
