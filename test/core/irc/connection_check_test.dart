@@ -107,6 +107,21 @@ void main() {
     expect(client.status, IrcConnectionStatus.connected);
   });
 
+  test('only the automatic rejoin is marked as one', () async {
+    await start();
+    expect(events.whereType<JoinEvent>().single.isRejoin, isFalse);
+    client.checkConnection(timeout: const Duration(milliseconds: 20));
+    await Future<void>.delayed(const Duration(milliseconds: 60));
+    await server(':s 001 me :Welcome back');
+    await server(':me!u@h JOIN #KEEP');
+    await server(':me!u@h JOIN #other');
+    await server(':me!u@h PART #keep');
+    await server(':me!u@h JOIN #keep');
+
+    final joins = events.whereType<JoinEvent>().skip(1).toList();
+    expect(joins.map((e) => e.isRejoin), [true, false, false]);
+  });
+
   test('a write that fails on the dead socket reconnects at once', () async {
     await start();
     last().writeFailsWith = Exception('Broken pipe');
