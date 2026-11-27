@@ -123,6 +123,51 @@ void main() {
       expect(find.byType(NavigationBar), findsOneWidget);
     });
 
+    testWidgets('the back button counts new messages in other chats', (
+      tester,
+    ) async {
+      final (transport, _) = await start(tester, phone);
+      expect(find.bySemanticsLabel('Back to rooms'), findsOneWidget);
+
+      // A message in #linux while you're in #flutter.
+      transport.incoming.add(':tux!t@h PRIVMSG #linux :anyone?');
+      await tester.pumpAndSettle();
+      expect(
+        find.bySemanticsLabel('Back to rooms, 1 chat with new messages'),
+        findsOneWidget,
+      );
+      expect(find.text('1'), findsOneWidget);
+
+      // A private message, and a mention in #linux: coral `@ 2`.
+      transport.incoming
+        ..add(':bob!b@h PRIVMSG me :hi there')
+        ..add(':tux!t@h PRIVMSG #linux :me: are you around?');
+      await tester.pumpAndSettle();
+      expect(find.text('@ 2'), findsOneWidget);
+      expect(
+        find.bySemanticsLabel(
+          'Back to rooms, 2 chats with new messages, one mentions you',
+        ),
+        findsOneWidget,
+      );
+
+      // Messages in the open chat don't count.
+      transport.incoming.add(':alice!a@h PRIVMSG #flutter :hello');
+      await tester.pumpAndSettle();
+      expect(find.text('@ 2'), findsOneWidget);
+
+      // Reading them clears the badge.
+      await tester.tap(find.byTooltip('Back to rooms'));
+      await tester.pumpAndSettle();
+      await tester.tap(row('#linux'));
+      await tester.pumpAndSettle();
+      await tester.tap(find.byTooltip('Back to rooms'));
+      await tester.pumpAndSettle();
+      await tester.tap(row('bob'));
+      await tester.pumpAndSettle();
+      expect(find.bySemanticsLabel('Back to rooms'), findsOneWidget);
+    });
+
     testWidgets('search, and swipe to favorite or leave', (tester) async {
       final (transport, container) = await start(tester, phone);
       await tester.tap(find.byTooltip('Back to rooms'));
