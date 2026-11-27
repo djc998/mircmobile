@@ -157,7 +157,11 @@ void main() {
   testWidgets('nothing while the app is in front', (tester) async {
     await start(tester);
     await server(tester, ':bob!b@h PRIVMSG me :hi');
+    // A system alert over the app makes it inactive, not hidden.
+    await go(tester, const [AppLifecycleState.inactive]);
+    await server(tester, ':bob!b@h PRIVMSG me :still here?');
     expect(notifier.shown, isEmpty);
+    await go(tester, const [AppLifecycleState.resumed]);
   });
 
   testWidgets('muted rooms and the setting turned off stay quiet', (

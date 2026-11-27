@@ -21,6 +21,10 @@ and the project uses [Semantic Versioning](https://semver.org/).
 - **Android: Stay connected in the background** (Settings →
   Notifications, off by default) keeps your networks connected after you
   leave the app, with an ongoing notification while it does.
+- **iPhone and iPad:** the app asks iOS for about 30 seconds more after
+  you leave it, so messages that come in right then still notify you.
+  Staying connected all the time on iOS needs a bouncer (soju) plus push
+  notifications, which are planned in docs/features/background.md.
 
 ## [1.0.2] - 2026-11-24
 

@@ -72,7 +72,9 @@ Linux too).
 Available on iOS, Android and macOS (flutter_local_notifications). Not on
 Windows and Linux yet: there the app shows no notifications.
 
-- While the app is in the background (or, on a Mac, hidden or minimised),
+- While the app is in the background (on a Mac: hidden, minimised or
+  behind another app; a system alert over the app on a phone doesn't
+  count),
   a private message or a room message that says your nickname shows a
   notification: **bob** with the message, or **ann in #chat**. With
   several networks open the network is added (`bob · OFTC`). `/me`
@@ -152,3 +154,79 @@ nothing in the foreground; muted rooms and the switch turned off stay
 quiet; tapping opens the chat and opening clears it; permission is asked
 once; the service runs only with the setting on and a network open; the
 Settings switches.
+
+## iOS: the short background window
+
+- iOS suspends an app a few seconds after you leave it, and its sockets
+  stop. IRCage asks for a little more time when it goes to the background
+  (`beginBackgroundTask` in `ios/Runner/AppDelegate.swift`, normally
+  about 30 seconds). Until iOS ends that, private messages and mentions
+  still arrive and show as notifications. Then the app is suspended and
+  the server drops the connection after its ping timeout; coming back
+  reconnects at once (above).
+- `AppDelegate` also makes flutter_local_notifications the
+  `UNUserNotificationCenter` delegate, so tapping a notification opens
+  the chat.
+- Settings → Notifications on iOS says this, and points to a bouncer for
+  staying online.
+- Apple doesn't allow an App Store app to keep a chat socket open in the
+  background (the VoIP and audio modes are for calls and audio only), so
+  staying connected on iOS means letting a server stay connected instead,
+  and having it **push** what matters to the phone. That's the plan below.
+
+## Plan: staying connected on iOS (bouncer + push)
+
+Not built yet. It needs server-side pieces, and each one is a separate
+piece of work.
+
+### How it would work
+
+1. **A bouncer stays connected.** The user connects through soju (already
+   supported, see [bouncers.md](bouncers.md)). soju stays on IRC while the
+   phone sleeps and keeps history, which the app already fetches through
+   chathistory when it comes back.
+2. **soju pushes.** soju implements the `soju.im/webpush` extension: a
+   client registers a Web Push subscription (`WEBPUSH REGISTER <endpoint>
+   <keys>`, with the server's VAPID key from `ISUPPORT VAPID=`), and soju
+   sends an encrypted Web Push message (RFC 8030/8291) to that endpoint
+   for each private message and mention, while the client is away.
+3. **A push relay turns Web Push into APNs.** An iPhone app can't receive
+   Web Push itself, so the endpoint is ours: a small relay that accepts
+   the Web Push request and forwards it to Apple Push Notification service
+   for the device token it was registered with. The payload stays
+   encrypted end to end: the relay only sees ciphertext and a token. It
+   fits next to the picture host as a Cloudflare Worker
+   (`server/picture-host`, or its own Worker), with the APNs key as a
+   secret.
+4. **The phone decrypts and shows it.** A Notification Service Extension
+   in the iOS app decrypts the payload with the subscription's private key
+   (kept in a Keychain access group shared with the app), and shows
+   "bob: hey" or "ann in #chat: me: lunch?". Tapping it opens the chat,
+   which catches up through chathistory.
+
+### What to build, in order
+
+- **App:** on a bouncer that offers `soju.im/webpush`, create a P-256 key
+  pair and auth secret, register for remote notifications (APNs device
+  token), register the subscription with soju, and unregister when the
+  network is removed or notifications are turned off. Add the Push
+  Notifications capability and the Notification Service Extension target
+  (iOS and macOS).
+- **Relay:** `POST /push/<subscription-id>` receives Web Push and sends
+  to APNs (token-based auth, `apns-push-type: alert`,
+  `mutable-content: 1`); registration stores subscription id → device
+  token, nothing else; rate limits; deletes on APNs `410 Unregistered`.
+- **Android:** the same relay can forward to Firebase Cloud Messaging, so
+  Android users can get push through a bouncer too, without **Stay
+  connected** and its battery cost. UnifiedPush is an alternative that
+  needs no Google services.
+- **Privacy:** the relay never sees message text; the privacy policy and
+  App Store privacy labels need updating for the device token it keeps.
+- **Without a bouncer:** a plain IRC server can't push, so there's
+  nothing to do there; the app keeps reconnecting on return.
+
+### Code (today)
+
+- `ios/Runner/AppDelegate.swift`: background task and notification
+  center delegate.
+- iOS notifications use the same Dart code as Android and macOS (above).

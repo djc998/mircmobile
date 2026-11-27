@@ -7,6 +7,8 @@ import 'dart:io';
 import 'dart:typed_data';
 
 import 'package:clock/clock.dart';
+import 'package:flutter/foundation.dart'
+    show TargetPlatform, defaultTargetPlatform;
 import 'package:flutter/widgets.dart' show AppLifecycleState, WidgetsBinding;
 import 'package:flutter_riverpod/flutter_riverpod.dart';
 import 'package:irc_client/core/irc/cap_negotiator.dart';
@@ -1581,7 +1583,7 @@ class ChatController extends Notifier<ChatState> {
   /// the server replays, own messages, notices, ignored people or muted
   /// rooms.
   void _maybeNotify(NetworkSession session, MessageEvent e) {
-    if (_appVisible || e.isOwn || e.isNotice || e.history) return;
+    if (!_appAway || e.isOwn || e.isNotice || e.history) return;
     if (!ref.read(notificationSettingsProvider).messages) return;
     final notifier = ref.read(messageNotifierProvider);
     if (!notifier.supportsMessages) return;
@@ -1602,6 +1604,18 @@ class ChatController extends Notifier<ChatState> {
       ),
     );
   }
+
+  /// Whether the app is out of sight: hidden or in the background. On a
+  /// phone "inactive" doesn't count (a system alert, Control Center or the
+  /// app switcher is over the app); on a Mac it means another app is in
+  /// front, which does.
+  static bool get _appAway => switch (WidgetsBinding.instance.lifecycleState) {
+    AppLifecycleState.hidden ||
+    AppLifecycleState.paused ||
+    AppLifecycleState.detached => true,
+    AppLifecycleState.inactive => defaultTargetPlatform == TargetPlatform.macOS,
+    AppLifecycleState.resumed || null => false,
+  };
 
   /// Whether the user can see the app (not in the background).
   static bool get _appVisible {
