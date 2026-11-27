@@ -16,6 +16,12 @@ view changes layout as it's resized.
   Android back button and the iOS back swipe do the same. Joining a room,
   opening a private chat, or someone messaging you opens their chat.
   Leaving or closing the chat goes back to the tabs.
+- **New messages elsewhere** show on that back arrow: the number of other
+  chats with unread messages, or coral **@ n** when one of them mentions
+  you, so a busy room is visible while you're in a private chat. Server
+  tabs don't count; muted chats only count when they mention you
+  (`unreadElsewhere` in `conversations.dart`, `_BackToRooms` in
+  `chat_screen.dart`).
 - In a chat, **People** and **Chat info** open as a slide-over and a sheet.
 
 ## Rooms home

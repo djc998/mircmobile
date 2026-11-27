@@ -6,6 +6,11 @@ and the project uses [Semantic Versioning](https://semver.org/).
 
 ## [Unreleased]
 
+### Added
+- Phones: the back arrow in a chat shows how many other chats have new
+  messages (coral `@` when one mentions you), so activity in a room shows
+  while you're in a private chat.
+
 ## [1.0.2] - 2026-11-24
 
 ### Fixed
