@@ -6,6 +6,13 @@ and the project uses [Semantic Versioning](https://semver.org/).
 
 ## [Unreleased]
 
+### Added
+- App Store preparation: an iOS privacy manifest (`PrivacyInfo.xcprivacy`),
+  the signing team on the iOS app so `flutter build ipa` makes an App Store
+  build, the store listing, privacy answers, age rating and reviewer notes
+  (`docs/app-store.md`), and iPhone and iPad screenshots taken against a
+  pretend demo network (`tool/demo_ircd.py`).
+
 ## [1.0.2] - 2026-11-24
 
 ### Fixed
