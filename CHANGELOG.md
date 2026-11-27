@@ -40,6 +40,9 @@ and the project uses [Semantic Versioning](https://semver.org/).
   tablet screenshots with a feature graphic (`store/android/`).
 
 ### Fixed
+- **Settings → About shows the real version** (such as "Version 1.0.2
+  (3)"), read from the app itself, and CTCP VERSION replies say
+  "IRCage 1.0.2". Both said 0.1.0 before.
 - Reconnecting no longer adds another "You joined #room" line to every
   room it rejoins; the line shows only when you join a room yourself.
 

@@ -2,10 +2,12 @@ import 'dart:io';
 
 import 'package:flutter_riverpod/flutter_riverpod.dart';
 import 'package:irc_client/app/app.dart';
+import 'package:irc_client/core/irc/irc_client.dart';
 import 'package:irc_client/core/storage/app_storage.dart';
 import 'package:irc_client/features/chat/data/chat_history_store.dart';
 import 'package:irc_client/features/notifications/data/message_notifier.dart';
 import 'package:material_ui/material_ui.dart';
+import 'package:package_info_plus/package_info_plus.dart';
 import 'package:path_provider/path_provider.dart';
 import 'package:shared_preferences/shared_preferences.dart';
 
@@ -15,6 +17,11 @@ Future<void> main() async {
   // App-private folder (not backed up to iCloud Documents, not user-visible).
   final support = await getApplicationSupportDirectory();
   final notifier = await LocalMessageNotifier.create();
+  final info = await PackageInfo.fromPlatform();
+  IrcClient.clientVersion = '$appName ${info.version}';
+  final versionLabel = info.buildNumber.isEmpty
+      ? info.version
+      : '${info.version} (${info.buildNumber})';
   runApp(
     ProviderScope(
       overrides: [
@@ -23,6 +30,7 @@ Future<void> main() async {
           FallbackSecretStore(SecureSecretStore()),
         ),
         messageNotifierProvider.overrideWithValue(notifier),
+        appVersionLabelProvider.overrideWithValue(versionLabel),
         chatHistoryStoreProvider.overrideWithValue(
           FileChatHistoryStore(Directory('${support.path}/history')),
         ),
