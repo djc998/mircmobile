@@ -148,6 +148,13 @@ void main() {
       expect(last().written, contains(startsWith('CHATHISTORY LATEST #chat ')));
       expect(last().written, contains(startsWith('CHATHISTORY LATEST bob ')));
       expect(last().written, contains(startsWith('CHATHISTORY TARGETS ')));
+      // No second "You joined" line for the quiet rejoin.
+      expect(
+        state().buffers[ChatState.bufferKey(_net, '#chat')]!.lines.where(
+          (l) => l.text == 'You joined #chat',
+        ),
+        hasLength(1),
+      );
       // One welcome, not one per reconnect.
       expect(
         state().buffers[ChatState.bufferKey(_net, statusBuffer)]!.lines.where(

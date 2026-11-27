@@ -39,6 +39,10 @@ and the project uses [Semantic Versioning](https://semver.org/).
   safety and content rating answers, reviewer notes, and Android phone and
   tablet screenshots with a feature graphic (`store/android/`).
 
+### Fixed
+- Reconnecting no longer adds another "You joined #room" line to every
+  room it rejoins; the line shows only when you join a room yourself.
+
 ## [1.0.2] - 2026-11-24
 
 ### Fixed
