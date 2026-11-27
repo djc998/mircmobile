@@ -25,6 +25,14 @@ and the project uses [Semantic Versioning](https://semver.org/).
   you leave it, so messages that come in right then still notify you.
   Staying connected all the time on iOS needs a bouncer (soju) plus push
   notifications, which are planned in docs/features/background.md.
+- Phones: the back arrow in a chat shows how many other chats have new
+  messages (coral `@` when one mentions you), so activity in a room shows
+  while you're in a private chat.
+- App Store preparation: an iOS privacy manifest (`PrivacyInfo.xcprivacy`),
+  the signing team on the iOS app so `flutter build ipa` makes an App Store
+  build, the store listing, privacy answers, age rating and reviewer notes
+  (`docs/app-store.md`), and iPhone and iPad screenshots taken against a
+  pretend demo network (`tool/demo_ircd.py`).
 
 ## [1.0.2] - 2026-11-24
 

@@ -153,6 +153,25 @@ int unreadMentionChats(ChatState state, [RoomPrefs? prefs]) => state
     )
     .length;
 
+/// New messages in the chats you're not looking at, for the badge on a
+/// phone chat's back button.
+typedef UnreadElsewhere = ({int chats, bool mention});
+
+/// How many conversations other than the open one have unread messages,
+/// and whether any of them mentions you. Server tabs don't count, and muted
+/// chats only count when they mention you.
+UnreadElsewhere unreadElsewhere(ChatState state, RoomPrefs prefs) {
+  var chats = 0;
+  var mention = false;
+  for (final b in state.buffers.values) {
+    if (b.key == state.activeKey || b.isStatus || b.unread == 0) continue;
+    if (prefs.isMuted(b.networkId, b.name) && !b.mentioned) continue;
+    chats++;
+    mention = mention || b.mentioned;
+  }
+  return (chats: chats, mention: mention);
+}
+
 /// A short network name for the chip on each row: `Libera.Chat` → `Libera`,
 /// `irc.oftc.net` → `oftc`.
 String shortNetworkName(String label) {
