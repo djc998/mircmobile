@@ -39,6 +39,14 @@ and the project uses [Semantic Versioning](https://semver.org/).
   safety and content rating answers, reviewer notes, and Android phone and
   tablet screenshots with a feature graphic (`store/android/`).
 
+### Changed
+- **IRCage is for people 18 and older.** The terms (in the app and on
+  ircage.com) gain a "You must be 18 or older" section, so everyone is
+  asked to agree to them again, and the privacy policy says the same. This
+  matches the 18+ age rating on the App Store and Google Play.
+- The iOS app declares its encryption (`ITSAppUsesNonExemptEncryption`) in
+  Info.plist, as answered in App Store Connect: standard algorithms.
+
 ### Fixed
 - **Settings → About shows the real version** (such as "Version 1.0.2
   (3)"), read from the app itself, and CTCP VERSION replies say

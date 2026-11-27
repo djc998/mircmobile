@@ -60,9 +60,14 @@ standard algorithm, so the honest answers are:
 
 That usually needs no documents for distribution outside France; for
 France, Apple asks for a French declaration or you can leave France out.
-This is a legal question, so check it if you're unsure. Once answered, the
-key `ITSAppUsesNonExemptEncryption` can be added to `ios/Runner/Info.plist`
-so the question isn't asked again.
+This is a legal question, so check it if you're unsure. Some developers
+of apps with standard encryption also file a yearly self-classification
+report with the US Bureau of Industry and Security.
+
+`ios/Runner/Info.plist` sets `ITSAppUsesNonExemptEncryption` to `true`,
+matching the answer above, so App Store Connect knows the answer from the
+build. If Apple ever issues an export compliance code for the app, add it
+as `ITSEncryptionExportComplianceCode`.
 
 ## App information
 
@@ -145,13 +150,27 @@ The label will read **Data Not Linked to You: User Content**.
 
 ## Age rating
 
-Answer the questionnaire as it is: no violence, sexual content or
-gambling in the app itself; **user-generated content: yes**; **messaging
-and chat: yes**; **unrestricted web access: no** (links open in Safari);
-content controls: yes (word filter and adult-room filter, on by default,
-plus reporting and ignoring). Public chat with strangers usually ends up
-at **18+** (or 17+). Accept it: the terms and privacy policy already say
-IRCage isn't for children.
+The answers given for the first build (App Store Connect's questionnaire,
+November 2026):
+
+- Parental controls: No. Age assurance: No.
+- Unrestricted web access: No (links open in Safari). User-generated
+  content: **Yes**. Social media: No (no feed; you see only rooms you join
+  and chats you open). Under-13 social media: No. Messaging and chat:
+  **Yes**. Shared location: No. Advertising: No.
+- Profanity or crude humor: **Infrequent** (people swear in public rooms;
+  the word filter hides most of it). Horror, alcohol/drugs: None. Dating:
+  No.
+- Mature or suggestive themes: **Infrequent**. Sexual content or nudity,
+  graphic sexual content: None (answered with the safety settings on, as
+  the form asks; adult rooms are hidden by default).
+- Violence, gambling, contests, medical: None.
+
+That calculates **9+**, which is too low for open chat with strangers, so
+choose **Override to Higher Age Rating → 18+**. The terms (in the app and
+at ircage.com/terms) and the privacy policy say you must be 18 or older,
+and Apple requires the rating to match a minimum age in the terms. Google
+Play's target audience is 18+ too.
 
 ## Notes for the reviewer
 

@@ -3,7 +3,7 @@
 library;
 
 /// Bump when the terms change so everyone is asked to agree again.
-const int termsVersion = 1;
+const int termsVersion = 2;
 
 /// Where people can reach the app's makers about abuse and anything else.
 /// Apple requires published contact information for apps with
@@ -19,6 +19,13 @@ const List<({String title, String body})> termsSections = [
         "independent networks. We don't run those networks or their rooms, "
         "and we can't see or remove what people write there. Each network "
         'has its own rules and staff, and each room has its own operators.',
+  ),
+  (
+    title: 'You must be 18 or older',
+    body:
+        'IRCage is for adults only. IRC rooms are public, anyone can send '
+        "you a message, and some rooms are for adults, so don't use IRCage "
+        "if you're under 18.",
   ),
   (
     title: 'No tolerance for abuse',
