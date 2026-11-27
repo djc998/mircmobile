@@ -34,8 +34,10 @@
       right-click menus, save dialogs, calls and camera as the Mac
 - [x] Mac, Windows and Linux downloads from GitHub releases, with in-app
       update checks
-- [ ] Signed downloads (Apple Developer ID + notarization, Windows code
-      signing)
+- [~] Signed downloads: the Mac app is signed and notarized (1.0.1);
+      Windows code signing still to do
+- [~] App Store (iPhone and iPad): ready to submit
+      ([app-store.md](app-store.md)); Google Play still to do
 - [ ] Windows installer (MSIX) and Linux packages (Flatpak/AppImage), and
       notifications on those desktops
 
