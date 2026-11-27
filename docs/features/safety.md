@@ -8,8 +8,9 @@ the makers.
 ## What the user sees
 
 - **Terms of use, first.** Before the welcome screen, a page of short
-  sections (what IRCage is, no tolerance for abuse, keeping yourself safe,
-  reports, photos and calls, contact) with **Agree and continue**. It's
+  sections (what IRCage is, 18 or older, no tolerance for abuse, keeping
+  yourself safe, reports, photos and calls, contact) with **Agree and
+  continue**. It's
   asked once, and again when the terms change. Settings → About →
   **Terms of use** shows them again without the button; **Contact** shows
   the address.

@@ -136,6 +136,7 @@ void main() {
       );
       await tester.pumpAndSettle();
       expect(find.text('Terms of use'), findsOneWidget);
+      expect(find.text('You must be 18 or older'), findsOneWidget);
       expect(find.text('No tolerance for abuse'), findsOneWidget);
       expect(find.text('Welcome to IRCage'), findsNothing);
       expect(find.byTooltip('Back'), findsNothing);
@@ -162,7 +163,8 @@ void main() {
 
     testWidgets('new terms are asked for again', (tester) async {
       final store = MemoryKeyValueStore();
-      await store.setString('safety', '{"termsAgreed":0}');
+      // Agreed to the first terms, before the 18+ section.
+      await store.setString('safety', '{"termsAgreed":1}');
       await tester.pumpWidget(
         ProviderScope(
           overrides: [keyValueStoreProvider.overrideWithValue(store)],
