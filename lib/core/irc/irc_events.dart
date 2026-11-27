@@ -109,12 +109,17 @@ class JoinEvent extends IrcEvent {
     required this.channel,
     required this.nick,
     required this.isSelf,
+    this.isRejoin = false,
     super.time,
   });
 
   final String channel;
   final String nick;
   final bool isSelf;
+
+  /// The client rejoining a room on its own after a reconnect, not the
+  /// user joining it.
+  final bool isRejoin;
 }
 
 class PartEvent extends IrcEvent {

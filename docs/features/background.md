@@ -21,7 +21,9 @@ Linux too).
   backoff. A network that was already waiting to reconnect tries again
   now.
 - After reconnecting it rejoins its rooms **without jumping to them**: you
-  stay on the chat you were reading. The "Welcome" line isn't repeated.
+  stay on the chat you were reading. The "Welcome" line isn't repeated,
+  and the rooms don't get another "You joined" line (the client marks its
+  own rejoins with `JoinEvent.isRejoin`).
 - Missed messages come back through IRCv3 chathistory where the server
   keeps history (Ergo, soju…; see [chathistory.md](chathistory.md)): each
   room and private chat gets what was said while you were away, and

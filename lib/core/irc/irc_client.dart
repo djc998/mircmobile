@@ -179,6 +179,8 @@ class IrcClient {
   int _reconnectAttempt = 0;
   int _nickAttempt = 0;
   final Set<String> _rejoin = {};
+  // Rooms rejoined after a reconnect, case-folded, until their JOIN echo.
+  final Set<String> _rejoining = {};
   final List<ChannelListEntry> _listBuffer = [];
   // Ban masks arriving (367) per case-folded channel, until 368.
   final _banBuffer = <String, List<String>>{};
@@ -388,6 +390,7 @@ class IrcClient {
     }
     await _teardown();
     _rejoin.clear();
+    _rejoining.clear();
     _setStatus(IrcConnectionStatus.disconnected, reason: reason);
   }
 
@@ -879,6 +882,9 @@ class IrcClient {
 
   void _joinAfterRegistration() {
     final targets = <String>{...config.autoJoin, ..._rejoin}.toList();
+    _rejoining
+      ..clear()
+      ..addAll(_rejoin.map(_isupport.fold));
     _rejoin.clear();
     // JOIN accepts comma-separated channels; keep lines short.
     for (var i = 0; i < targets.length; i += 10) {
@@ -901,7 +907,15 @@ class IrcClient {
     final self = isMe(nick);
     final chan = self ? _ensureChannel(name) : channel(name);
     chan?.members[_isupport.fold(nick)] = IrcMember(nick);
-    _emit(JoinEvent(channel: name, nick: nick, isSelf: self, time: time));
+    _emit(
+      JoinEvent(
+        channel: name,
+        nick: nick,
+        isSelf: self,
+        isRejoin: self && _rejoining.remove(_isupport.fold(name)),
+        time: time,
+      ),
+    );
     _emit(MembersChangedEvent(name));
     // Learn the room's settings (invite only, password, ...).
     if (self) requestModes(name);

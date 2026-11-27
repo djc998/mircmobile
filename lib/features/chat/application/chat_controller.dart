@@ -1986,23 +1986,32 @@ class ChatController extends Notifier<ChatState> {
                 : ChatLineKind.message,
           ),
         );
-      case JoinEvent(:final channel, :final nick, :final isSelf):
+      case JoinEvent(
+        :final channel,
+        :final nick,
+        :final isSelf,
+        :final isRejoin,
+      ):
         // Back in a room we were in before a reconnect: stay where we are.
         final rejoin =
             isSelf &&
             session.registrations > 1 &&
             _bufferNamed(session, channel) != null;
-        add(
-          channel,
-          ChatLine(
-            text: isSelf ? 'You joined $channel' : '$nick joined',
-            kind: ChatLineKind.event,
-            time: e.time,
-            presence: isSelf ? null : PresenceChange.joined,
-            subject: nick,
-          ),
-          countUnread: false,
-        );
+        // The client rejoining on its own isn't news: no "You joined" line
+        // after every reconnect.
+        if (!(rejoin && isRejoin)) {
+          add(
+            channel,
+            ChatLine(
+              text: isSelf ? 'You joined $channel' : '$nick joined',
+              kind: ChatLineKind.event,
+              time: e.time,
+              presence: isSelf ? null : PresenceChange.joined,
+              subject: nick,
+            ),
+            countUnread: false,
+          );
+        }
         if (isSelf) {
           // Open the room if the user asked for it, or if they're looking
           // at this network. Don't jump away from another network's chat.
