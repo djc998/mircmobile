@@ -73,8 +73,8 @@ Available on iOS, Android and macOS (flutter_local_notifications). Not on
 Windows and Linux yet: there the app shows no notifications.
 
 - While the app is in the background (on a Mac: hidden, minimised or
-  behind another app; a system alert over the app on a phone doesn't
-  count),
+  behind another app; on Android also while you're leaving the app; a
+  system alert over the app on an iPhone doesn't count),
   a private message or a room message that says your nickname shows a
   notification: **bob** with the message, or **ann in #chat**. With
   several networks open the network is added (`bob · OFTC`). `/me`

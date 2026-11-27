@@ -157,12 +157,25 @@ void main() {
   testWidgets('nothing while the app is in front', (tester) async {
     await start(tester);
     await server(tester, ':bob!b@h PRIVMSG me :hi');
-    // A system alert over the app makes it inactive, not hidden.
+    // On an iPhone a system alert over the app makes it inactive, not
+    // hidden.
     await go(tester, const [AppLifecycleState.inactive]);
     await server(tester, ':bob!b@h PRIVMSG me :still here?');
     expect(notifier.shown, isEmpty);
     await go(tester, const [AppLifecycleState.resumed]);
-  });
+  }, variant: TargetPlatformVariant.only(TargetPlatform.iOS));
+
+  testWidgets('Android: a message while leaving the app (inactive) notifies', (
+    tester,
+  ) async {
+    await start(tester);
+    expect(notifier.shown, isEmpty);
+    // Leaving the app is inactive for a second or more before it's paused.
+    await go(tester, const [AppLifecycleState.inactive]);
+    await server(tester, ':bob!b@h PRIVMSG me :you there?');
+    expect(notifier.shown.single.body, 'you there?');
+    await go(tester, const [AppLifecycleState.resumed]);
+  }, variant: TargetPlatformVariant.only(TargetPlatform.android));
 
   testWidgets('muted rooms and the setting turned off stay quiet', (
     tester,

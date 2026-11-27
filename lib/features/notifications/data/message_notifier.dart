@@ -94,7 +94,7 @@ class LocalMessageNotifier implements MessageNotifier {
     try {
       await plugin.initialize(
         settings: const InitializationSettings(
-          android: AndroidInitializationSettings('@mipmap/ic_launcher'),
+          android: AndroidInitializationSettings('ic_stat_notify'),
           iOS: darwin,
           macOS: darwin,
         ),

@@ -1605,15 +1605,19 @@ class ChatController extends Notifier<ChatState> {
     );
   }
 
-  /// Whether the app is out of sight: hidden or in the background. On a
-  /// phone "inactive" doesn't count (a system alert, Control Center or the
-  /// app switcher is over the app); on a Mac it means another app is in
-  /// front, which does.
+  /// Whether the app is out of sight: hidden or in the background. On an
+  /// iPhone or iPad "inactive" doesn't count (a system alert, Control
+  /// Center or the app switcher is over the app). On Android it does: the
+  /// notification shade doesn't make the app inactive, but leaving it does,
+  /// for a second or more before it's paused. On a Mac it means another app
+  /// is in front, which counts too.
   static bool get _appAway => switch (WidgetsBinding.instance.lifecycleState) {
     AppLifecycleState.hidden ||
     AppLifecycleState.paused ||
     AppLifecycleState.detached => true,
-    AppLifecycleState.inactive => defaultTargetPlatform == TargetPlatform.macOS,
+    AppLifecycleState.inactive =>
+      defaultTargetPlatform == TargetPlatform.macOS ||
+          defaultTargetPlatform == TargetPlatform.android,
     AppLifecycleState.resumed || null => false,
   };
 
