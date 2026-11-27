@@ -6,6 +6,15 @@ and the project uses [Semantic Versioning](https://semver.org/).
 
 ## [Unreleased]
 
+### Added
+- **Coming back to the app reconnects fast.** Every network is checked as
+  soon as the app is back in the foreground: a dropped connection (iOS
+  drops them within seconds of leaving the app) reconnects at once instead
+  of after the next keep-alive, rejoins its rooms and fetches what you
+  missed where the server keeps history. A **Reconnecting…** bar shows
+  meanwhile, and you stay on the chat you were reading. See
+  docs/features/background.md.
+
 ## [1.0.2] - 2026-11-24
 
 ### Fixed

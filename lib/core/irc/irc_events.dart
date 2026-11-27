@@ -36,6 +36,12 @@ class StatusChangedEvent extends IrcEvent {
   final String? reason;
 }
 
+/// The server answered `IrcClient.checkConnection`: the connection is
+/// alive and nothing needs reconnecting.
+class ConnectionCheckedEvent extends IrcEvent {
+  ConnectionCheckedEvent();
+}
+
 /// Registration finished (RPL_WELCOME).
 class RegisteredEvent extends IrcEvent {
   RegisteredEvent({required this.nick, required this.network});

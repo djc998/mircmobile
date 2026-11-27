@@ -170,6 +170,10 @@ class IrcClient {
   CapNegotiator? _cap;
   Timer? _idleTimer;
   Timer? _reconnectTimer;
+  Timer? _checkTimer;
+  // The PING token [checkConnection] is waiting for, or null.
+  String? _checkToken;
+  int _checkCount = 0;
   bool _awaitingPong = false;
   bool _userQuit = false;
   int _reconnectAttempt = 0;
@@ -337,6 +341,44 @@ class IrcClient {
     _register();
   }
 
+  /// Checks right away that the connection still works, e.g. when the app
+  /// comes back from the background, where the system may have dropped the
+  /// socket without telling us.
+  ///
+  /// A live connection answers the PING within [timeout] and a
+  /// [ConnectionCheckedEvent] follows; a dead one is closed and reconnected
+  /// at once (no backoff), and rejoins its channels. A connection that is
+  /// already waiting to reconnect tries again now. Does nothing while
+  /// disconnected or still connecting.
+  void checkConnection({Duration timeout = const Duration(seconds: 6)}) {
+    switch (_status) {
+      case IrcConnectionStatus.reconnecting:
+        _reconnectTimer?.cancel();
+        _reconnectAttempt = 0;
+        unawaited(connect());
+      case IrcConnectionStatus.connected || IrcConnectionStatus.registering:
+        if (_checkToken != null) return; // Already checking.
+        final token = 'check-${++_checkCount}';
+        _checkToken = token;
+        _flood.sendNow('PING :$token');
+        // Writing can fail at once on a dead socket, which reconnects.
+        if (_checkToken != token) return;
+        _checkTimer = Timer(timeout, () {
+          if (_checkToken == token) {
+            _handleClosed(reason: 'No answer from the server');
+          }
+        });
+      case IrcConnectionStatus.connecting || IrcConnectionStatus.disconnected:
+        return;
+    }
+  }
+
+  void _endCheck() {
+    _checkTimer?.cancel();
+    _checkTimer = null;
+    _checkToken = null;
+  }
+
   /// Sends QUIT and closes. Does not reconnect.
   Future<void> disconnect([String reason = 'Leaving']) async {
     _userQuit = true;
@@ -398,6 +440,7 @@ class IrcClient {
   }
 
   Future<void> _teardown() async {
+    _endCheck();
     _idleTimer?.cancel();
     _idleTimer = null;
     _flood.reset();
@@ -414,12 +457,16 @@ class IrcClient {
     _rejoin.addAll(channels.values.map((c) => c.name));
     channels.clear();
     _batches.clear();
+    // Found dead by checkConnection: the user is waiting, so no backoff.
+    final checking = _checkToken != null;
     unawaited(_teardown());
     if (_userQuit || !config.autoReconnect) {
       _setStatus(IrcConnectionStatus.disconnected, reason: reason);
       return;
     }
-    final delay = reconnectDelay(_reconnectAttempt++, maxReconnectDelay);
+    final delay = checking
+        ? Duration.zero
+        : reconnectDelay(_reconnectAttempt++, maxReconnectDelay);
     _setStatus(IrcConnectionStatus.reconnecting, reason: reason);
     _reconnectTimer = Timer(delay, () => unawaited(connect()));
   }
@@ -638,6 +685,11 @@ class IrcClient {
         _flood.sendNow(m.params.isEmpty ? 'PONG' : 'PONG :${m.params.last}');
       case 'PONG':
         _awaitingPong = false;
+        final token = _checkToken;
+        if (token != null && m.params.contains(token)) {
+          _endCheck();
+          _emit(ConnectionCheckedEvent());
+        }
       case '001':
         _nick = m.param(0) ?? _nick;
         _serverName = m.prefix?.raw;
