@@ -1,8 +1,8 @@
 # Submitting to the App Store
 
 Everything App Store Connect asks for IRCage on iPhone and iPad, ready to
-paste, and the steps to get a build there. Android (Google Play) is a
-separate checklist, still to come.
+paste, and the steps to get a build there. Android (Google Play) is in
+[google-play.md](google-play.md).
 
 ## Before the first submission
 

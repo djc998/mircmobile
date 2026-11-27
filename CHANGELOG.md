@@ -33,6 +33,11 @@ and the project uses [Semantic Versioning](https://semver.org/).
   build, the store listing, privacy answers, age rating and reviewer notes
   (`docs/app-store.md`), and iPhone and iPad screenshots taken against a
   pretend demo network (`tool/demo_ircd.py`).
+- Google Play preparation: the Android app ID is now `com.ircage.app`,
+  release builds are signed with your upload key from
+  `android/key.properties`, and `docs/google-play.md` has the listing, Data
+  safety and content rating answers, reviewer notes, and Android phone and
+  tablet screenshots with a feature graphic (`store/android/`).
 
 ## [1.0.2] - 2026-11-24
 
