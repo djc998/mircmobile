@@ -7,6 +7,9 @@ and the project uses [Semantic Versioning](https://semver.org/).
 ## [Unreleased]
 
 ### Added
+- Phones: the back arrow in a chat shows how many other chats have new
+  messages (coral `@` when one mentions you), so activity in a room shows
+  while you're in a private chat.
 - App Store preparation: an iOS privacy manifest (`PrivacyInfo.xcprivacy`),
   the signing team on the iOS app so `flutter build ipa` makes an App Store
   build, the store listing, privacy answers, age rating and reviewer notes

@@ -24,6 +24,7 @@ import 'package:irc_client/features/calls/application/call_controller.dart';
 import 'package:irc_client/features/calls/presentation/call_widgets.dart';
 import 'package:irc_client/features/chat/application/chat_controller.dart';
 import 'package:irc_client/features/chat/application/chat_layout.dart';
+import 'package:irc_client/features/chat/application/conversations.dart';
 import 'package:irc_client/features/chat/application/panel_prefs.dart';
 import 'package:irc_client/features/chat/presentation/change_nick_dialog.dart';
 import 'package:irc_client/features/chat/presentation/find_in_chat.dart';
@@ -100,15 +101,16 @@ class ChatScreen extends ConsumerWidget {
             ),
           );
 
+    // Phones: what's new in other chats, on the back button.
+    final elsewhere = compact
+        ? unreadElsewhere(state, ref.watch(roomPrefsProvider))
+        : (chats: 0, mention: false);
     return Scaffold(
       appBar: AppBar(
         automaticallyImplyLeading: false,
+        leadingWidth: elsewhere.chats > 0 ? 100 : null,
         leading: switch (layout) {
-          ChatLayout.phone => IconButton(
-            tooltip: 'Back to rooms',
-            icon: const BackButtonIcon(),
-            onPressed: onBack,
-          ),
+          ChatLayout.phone => _BackToRooms(unread: elsewhere, onBack: onBack),
           ChatLayout.sidebar => IconButton(
             tooltip: panels.chatsPinned
                 ? 'Hide servers and chats'
@@ -2574,6 +2576,57 @@ class TypingLine extends StatelessWidget {
                 ),
               ),
             ),
+    );
+  }
+}
+
+/// The back button on a phone chat, with how many other chats have new
+/// messages (coral `@` when one of them mentions you), so a busy room
+/// shows while you're in a private chat.
+class _BackToRooms extends StatelessWidget {
+  const _BackToRooms({required this.unread, this.onBack});
+
+  final UnreadElsewhere unread;
+  final VoidCallback? onBack;
+
+  @override
+  Widget build(BuildContext context) {
+    final n = unread.chats;
+    final label = n == 0
+        ? 'Back to rooms'
+        : 'Back to rooms, $n ${n == 1 ? 'chat' : 'chats'} with new messages'
+              '${unread.mention ? ', one mentions you' : ''}';
+    return Semantics(
+      button: true,
+      label: label,
+      excludeSemantics: true,
+      child: Tooltip(
+        message: 'Back to rooms',
+        child: InkResponse(
+          onTap: onBack,
+          radius: 24,
+          child: Padding(
+            padding: const EdgeInsetsDirectional.only(start: 12, end: 4),
+            // Large text shrinks the badge rather than overflowing.
+            child: FittedBox(
+              fit: BoxFit.scaleDown,
+              alignment: AlignmentDirectional.centerStart,
+              // At least 48 tall: an easy target.
+              child: Row(
+                mainAxisSize: MainAxisSize.min,
+                children: [
+                  const SizedBox(height: 48),
+                  const BackButtonIcon(),
+                  if (n > 0) ...[
+                    const SizedBox(width: 4),
+                    UnreadBadge(count: n, mention: unread.mention),
+                  ],
+                ],
+              ),
+            ),
+          ),
+        ),
+      ),
     );
   }
 }
