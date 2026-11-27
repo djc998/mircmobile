@@ -7,6 +7,24 @@ and the project uses [Semantic Versioning](https://semver.org/).
 ## [Unreleased]
 
 ### Added
+- **Coming back to the app reconnects fast.** Every network is checked as
+  soon as the app is back in the foreground: a dropped connection (iOS
+  drops them within seconds of leaving the app) reconnects at once instead
+  of after the next keep-alive, rejoins its rooms and fetches what you
+  missed where the server keeps history. A **Reconnecting…** bar shows
+  meanwhile, and you stay on the chat you were reading. See
+  docs/features/background.md.
+- **Notifications for private messages and mentions** while the app is in
+  the background, on iPhone, iPad, Android and Mac. Tap one to open the
+  chat. Muted rooms and ignored people stay quiet; turn them off in
+  **Settings → Notifications**.
+- **Android: Stay connected in the background** (Settings →
+  Notifications, off by default) keeps your networks connected after you
+  leave the app, with an ongoing notification while it does.
+- **iPhone and iPad:** the app asks iOS for about 30 seconds more after
+  you leave it, so messages that come in right then still notify you.
+  Staying connected all the time on iOS needs a bouncer (soju) plus push
+  notifications, which are planned in docs/features/background.md.
 - Phones: the back arrow in a chat shows how many other chats have new
   messages (coral `@` when one mentions you), so activity in a room shows
   while you're in a private chat.

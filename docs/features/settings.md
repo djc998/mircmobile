@@ -8,6 +8,10 @@ Grouped lists, like the system settings:
 
 - **Look:** Appearance (theme, accent, density, message font, text size;
   see [appearance.md](appearance.md)).
+- **Notifications** (iOS, Android, macOS): private messages and mentions
+  while the app is in the background; on Android, **Stay connected in
+  the background**; on iOS, a note that staying online needs a bouncer
+  ([background.md](background.md)).
 - **Safety:** hide offensive words; hide adult rooms in Discover
   ([safety.md](safety.md)).
 - **Chat history:** save chat history on this device; delete saved
@@ -30,4 +34,5 @@ Advanced options.
 ## Tests
 
 `test/features/polish/polish_test.dart` (ignored people, muted chats);
+`test/features/notifications/notifications_test.dart` (Notifications);
 `test/accessibility/a11y_test.dart` (settings meets the guidelines).

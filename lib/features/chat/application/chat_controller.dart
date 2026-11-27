@@ -7,6 +7,8 @@ import 'dart:io';
 import 'dart:typed_data';
 
 import 'package:clock/clock.dart';
+import 'package:flutter/foundation.dart'
+    show TargetPlatform, defaultTargetPlatform;
 import 'package:flutter/widgets.dart' show AppLifecycleState, WidgetsBinding;
 import 'package:flutter_riverpod/flutter_riverpod.dart';
 import 'package:irc_client/core/irc/cap_negotiator.dart';
@@ -26,6 +28,8 @@ import 'package:irc_client/features/chat/data/chat_history_store.dart';
 import 'package:irc_client/features/connection/data/certificate_trust.dart';
 import 'package:irc_client/features/connection/data/saved_connection.dart';
 import 'package:irc_client/features/favorites/application/room_prefs_controller.dart';
+import 'package:irc_client/features/notifications/application/notification_settings.dart';
+import 'package:irc_client/features/notifications/data/message_notifier.dart';
 import 'package:irc_client/features/pictures/data/picture_service.dart';
 import 'package:irc_client/features/pictures/domain/dcc_transfer.dart';
 import 'package:irc_client/features/pictures/domain/file_link.dart';
@@ -268,6 +272,15 @@ class NetworkSession {
 
   /// Logged in to a services account (SASL succeeded).
   bool loggedIn = false;
+
+  /// The app just came back to the foreground and is checking (or
+  /// re-making) this connection; the chat shows "Reconnecting…".
+  bool resuming = false;
+
+  /// How many times this network has finished logging in. From the second
+  /// time on it's a reconnect: rooms rejoin quietly, without jumping to
+  /// them.
+  int registrations = 0;
 
   /// This network's NickServ/ChanServ.
   NetworkServices get services => NetworkServices(servicesFor(id));
@@ -959,6 +972,34 @@ class ChatController extends Notifier<ChatState> {
     await _network(networkId)?.client.disconnect();
   }
 
+  /// The app went to the background: remember when messages were last
+  /// seen, so a reconnect asks the server for what came after.
+  void appPaused() {
+    for (final session in state.networks.values) {
+      if (session.isConnected) _markSeen(session, force: true);
+    }
+  }
+
+  /// The app is back in the foreground. The system may have dropped the
+  /// sockets while it was away (iOS does within seconds), so check every
+  /// connection now: live ones answer within seconds, dead ones reconnect
+  /// at once, rejoin their rooms and fetch what they missed (CHATHISTORY,
+  /// where the server offers it).
+  void appResumed() {
+    var changed = false;
+    for (final session in state.networks.values) {
+      final status = session.status;
+      if (status == IrcConnectionStatus.disconnected ||
+          status == IrcConnectionStatus.connecting) {
+        continue;
+      }
+      session.resuming = true;
+      changed = true;
+      session.client.checkConnection();
+    }
+    if (changed) _touch();
+  }
+
   /// Reconnects a network that was disconnected.
   Future<void> reconnect([String? networkId]) async {
     final session = _network(networkId);
@@ -1280,6 +1321,7 @@ class ChatController extends Notifier<ChatState> {
       ..mentioned = false;
     state = state.copyWith(activeKey: key);
     _syncRead(buffer);
+    unawaited(ref.read(messageNotifierProvider).cancel(notificationId(key)));
   }
 
   /// Closes a conversation, leaving the channel if needed.
@@ -1525,6 +1567,60 @@ class ChatController extends Notifier<ChatState> {
     });
   }
 
+  /// The system notification id for conversation [key]: one per
+  /// conversation, so a newer message replaces the older one. Never 0 or
+  /// 1 (1 is Android's "staying connected" notification).
+  static int notificationId(String key) {
+    var h = 0;
+    for (final c in key.codeUnits) {
+      h = (h * 31 + c) & 0x3fffffff;
+    }
+    return h < 16 ? h + 16 : h;
+  }
+
+  /// While the app is in the background: a notification for a private
+  /// message or a message mentioning the user's nickname. Not for history
+  /// the server replays, own messages, notices, ignored people or muted
+  /// rooms.
+  void _maybeNotify(NetworkSession session, MessageEvent e) {
+    if (!_appAway || e.isOwn || e.isNotice || e.history) return;
+    if (!ref.read(notificationSettingsProvider).messages) return;
+    final notifier = ref.read(messageNotifierProvider);
+    if (!notifier.supportsMessages) return;
+    final private = !session.client.isChannel(e.target);
+    final mentioned = session.nick.isNotEmpty && mentions(e.text, session.nick);
+    if (!private && !mentioned) return;
+    final name = private ? e.sender : e.target;
+    if (ref.read(roomPrefsProvider).isMuted(session.id, name)) return;
+    final key = ChatState.bufferKey(session.id, name);
+    final text = stripFormatting(e.text);
+    final where = state.networks.length > 1 ? ' · ${session.label}' : '';
+    unawaited(
+      notifier.show(
+        id: notificationId(key),
+        title: private ? '${e.sender}$where' : '${e.sender} in $name$where',
+        body: e.isAction ? '* ${e.sender} $text' : text,
+        payload: key,
+      ),
+    );
+  }
+
+  /// Whether the app is out of sight: hidden or in the background. On an
+  /// iPhone or iPad "inactive" doesn't count (a system alert, Control
+  /// Center or the app switcher is over the app). On Android it does: the
+  /// notification shade doesn't make the app inactive, but leaving it does,
+  /// for a second or more before it's paused. On a Mac it means another app
+  /// is in front, which counts too.
+  static bool get _appAway => switch (WidgetsBinding.instance.lifecycleState) {
+    AppLifecycleState.hidden ||
+    AppLifecycleState.paused ||
+    AppLifecycleState.detached => true,
+    AppLifecycleState.inactive =>
+      defaultTargetPlatform == TargetPlatform.macOS ||
+          defaultTargetPlatform == TargetPlatform.android,
+    AppLifecycleState.resumed || null => false,
+  };
+
   /// Whether the user can see the app (not in the background).
   static bool get _appVisible {
     final s = WidgetsBinding.instance.lifecycleState;
@@ -1710,10 +1806,21 @@ class ChatController extends Notifier<ChatState> {
     switch (e) {
       case RawLineEvent():
         return;
+      case ConnectionCheckedEvent():
+        session.resuming = false;
+        _touch();
       case StatusChangedEvent(:final status, :final reason):
         session.status = status;
         if (status != IrcConnectionStatus.connected) {
           session.roomsLoading = false;
+          // History asked for on the old connection never comes now.
+          for (final b in state.buffers.values) {
+            if (b.networkId == session.id) b.historyWant = null;
+          }
+        }
+        if (status == IrcConnectionStatus.connected ||
+            status == IrcConnectionStatus.disconnected) {
+          session.resuming = false;
         }
         final label = switch (status) {
           IrcConnectionStatus.connecting => 'Connecting…',
@@ -1747,21 +1854,28 @@ class ChatController extends Notifier<ChatState> {
           ),
         );
       case RegisteredEvent(:final nick, :final network):
+        final again = session.registrations > 0;
         session
           ..nick = nick
           ..name = network
+          ..registrations += 1
           ..clearConnectionProblem();
-        add(
-          statusBuffer,
-          ChatLine(
-            text:
-                'Welcome, $nick! Tap "Browse rooms" (the compass) to find '
-                'a room, or type /join #room.',
-            kind: ChatLineKind.event,
-          ),
-          countUnread: false,
-        );
+        if (!again) {
+          add(
+            statusBuffer,
+            ChatLine(
+              text:
+                  'Welcome, $nick! Tap "Browse rooms" (the compass) to find '
+                  'a room, or type /join #room.',
+              kind: ChatLineKind.event,
+            ),
+            countUnread: false,
+          );
+        }
         _catchUp(session);
+        if (!again) {
+          unawaited(ref.read(notificationSettingsProvider.notifier).askOnce());
+        }
       case ServerInfoEvent(:final network):
         if (network != session.name) {
           session.name = network;
@@ -1848,6 +1962,7 @@ class ChatController extends Notifier<ChatState> {
         }
       case MessageEvent():
         _maybeRing(session, e);
+        _maybeNotify(session, e);
         final room = _bufferNamed(session, e.target);
         if (room != null &&
             room.typing.remove(session.client.isupport.fold(e.sender)) !=
@@ -1872,6 +1987,11 @@ class ChatController extends Notifier<ChatState> {
           ),
         );
       case JoinEvent(:final channel, :final nick, :final isSelf):
+        // Back in a room we were in before a reconnect: stay where we are.
+        final rejoin =
+            isSelf &&
+            session.registrations > 1 &&
+            _bufferNamed(session, channel) != null;
         add(
           channel,
           ChatLine(
@@ -1888,7 +2008,8 @@ class ChatController extends Notifier<ChatState> {
           // at this network. Don't jump away from another network's chat.
           final asked = session.pendingSelect == channel.toLowerCase();
           if (asked) session.pendingSelect = null;
-          if (asked || state.activeBuffer?.networkId == session.id) {
+          if (asked ||
+              (!rejoin && state.activeBuffer?.networkId == session.id)) {
             selectBuffer(ChatState.bufferKey(session.id, channel));
           }
           ref.read(roomPrefsProvider.notifier).addRecent(session.id, channel);
