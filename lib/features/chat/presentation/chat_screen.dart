@@ -108,7 +108,7 @@ class ChatScreen extends ConsumerWidget {
     return Scaffold(
       appBar: AppBar(
         automaticallyImplyLeading: false,
-        leadingWidth: elsewhere.chats > 0 ? 100 : null,
+        leadingWidth: elsewhere.chats > 0 ? 84 : null,
         leading: switch (layout) {
           ChatLayout.phone => _BackToRooms(unread: elsewhere, onBack: onBack),
           ChatLayout.sidebar => IconButton(
@@ -2606,7 +2606,7 @@ class _BackToRooms extends StatelessWidget {
           onTap: onBack,
           radius: 24,
           child: Padding(
-            padding: const EdgeInsetsDirectional.only(start: 12, end: 4),
+            padding: const EdgeInsetsDirectional.only(start: 8),
             // Large text shrinks the badge rather than overflowing.
             child: FittedBox(
               fit: BoxFit.scaleDown,

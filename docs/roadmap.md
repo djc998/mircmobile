@@ -36,8 +36,8 @@
       update checks
 - [~] Signed downloads: the Mac app is signed and notarized (1.0.1);
       Windows code signing still to do
-- [~] App Store (iPhone and iPad): ready to submit
-      ([app-store.md](app-store.md)); Google Play still to do
+- [~] App Store (iPhone and iPad) and Google Play: ready to submit
+      ([app-store.md](app-store.md), [google-play.md](google-play.md))
 - [ ] Windows installer (MSIX) and Linux packages (Flatpak/AppImage), and
       notifications on those desktops
 
