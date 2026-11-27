@@ -209,6 +209,7 @@ class ChatScreen extends ConsumerWidget {
             Expanded(
               child: Column(
                 children: [
+                  if (net != null && net.resuming) const ReconnectingBar(),
                   if (net != null && net.hasConnectionProblem)
                     _ConnectionProblemBanner(
                       network: net,
@@ -430,7 +431,10 @@ class ChatScreen extends ConsumerWidget {
     if (error != null) messenger.showSnackBar(SnackBar(content: Text(error)));
   }
 
-  static String _statusLabel(NetworkSession s) => switch (s.status) {
+  static String _statusLabel(NetworkSession s) =>
+      s.resuming ? 'Reconnecting…' : _connectionLabel(s);
+
+  static String _connectionLabel(NetworkSession s) => switch (s.status) {
     IrcConnectionStatus.connected => 'Connected as ${s.nick}',
     IrcConnectionStatus.connecting => 'Connecting…',
     IrcConnectionStatus.registering => 'Logging in…',
@@ -2426,6 +2430,43 @@ NickRole nickRoleOf(IrcMember m) => m.prefixes.contains(RegExp('[~&@%]'))
 
 /// Asks what to do when a secure connection can't be made: trust an
 /// unverified certificate, or fall back to an unencrypted connection.
+/// A thin "Reconnecting…" strip while the app checks its connection after
+/// coming back from the background.
+class ReconnectingBar extends StatelessWidget {
+  const ReconnectingBar({super.key});
+
+  @override
+  Widget build(BuildContext context) {
+    final scheme = Theme.of(context).colorScheme;
+    return Semantics(
+      liveRegion: true,
+      child: Container(
+        width: double.infinity,
+        color: scheme.secondaryContainer,
+        padding: const EdgeInsets.symmetric(horizontal: 16, vertical: 6),
+        child: Row(
+          mainAxisAlignment: MainAxisAlignment.center,
+          children: [
+            SizedBox.square(
+              dimension: 14,
+              child: CircularProgressIndicator(
+                strokeWidth: 2,
+                color: scheme.onSecondaryContainer,
+              ),
+            ),
+            const SizedBox(width: 8),
+            Text(
+              'Reconnecting…',
+              style: Theme.of(context).textTheme.labelMedium
+                  ?.copyWith(color: scheme.onSecondaryContainer),
+            ),
+          ],
+        ),
+      ),
+    );
+  }
+}
+
 class _ConnectionProblemBanner extends StatelessWidget {
   const _ConnectionProblemBanner({
     required this.network,

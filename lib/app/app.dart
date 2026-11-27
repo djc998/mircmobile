@@ -1,5 +1,6 @@
 import 'package:flutter_riverpod/flutter_riverpod.dart';
 import 'package:go_router/go_router.dart';
+import 'package:irc_client/app/app_lifecycle.dart';
 import 'package:irc_client/core/safety/content_filter.dart';
 import 'package:irc_client/core/theme/app_theme.dart';
 import 'package:irc_client/features/calls/presentation/call_widgets.dart';
@@ -89,7 +90,9 @@ class IrcApp extends ConsumerWidget {
         ),
         child: ContentFilter(
           enabled: ref.watch(safetyProvider.select((s) => s.filterWords)),
-          child: UpdateBannerHost(child: CallOverlay(child: child!)),
+          child: AppLifecycleWatcher(
+            child: UpdateBannerHost(child: CallOverlay(child: child!)),
+          ),
         ),
       ),
     );

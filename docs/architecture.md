@@ -69,8 +69,10 @@ server/picture-host/         Cloudflare Worker + R2 that stores the
 
 ## Why the transport is an interface
 
-iOS suspends sockets in the background. v1 reconnects when the app returns;
-v2 adds bouncer support (soju/ZNC) and push. Because `IrcClient` only uses
+iOS suspends sockets in the background. The app checks every connection
+the moment it returns and reconnects dead ones at once (see
+[features/background.md](features/background.md)); bouncer support
+(soju) is there, and push through a bouncer is planned. Because `IrcClient` only uses
 `IrcTransport`, a bouncer or WebSocket transport can be dropped in without
 touching the protocol code. Tests use an in-memory transport the same way.
 
