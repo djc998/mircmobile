@@ -7,7 +7,6 @@ import 'package:flutter_riverpod/flutter_riverpod.dart';
 import 'package:go_router/go_router.dart';
 import 'package:irc_client/app/app.dart';
 import 'package:irc_client/app/legal.dart';
-import 'package:irc_client/core/irc/irc_client.dart';
 import 'package:irc_client/core/theme/tokens.dart';
 import 'package:irc_client/core/ui/adaptive.dart';
 import 'package:irc_client/features/calls/application/call_controller.dart';
@@ -284,7 +283,10 @@ class _SettingsScreenState extends ConsumerState<SettingsScreen> {
                     ListTile(
                       leading: const Icon(Icons.info_outline),
                       title: const Text(appName),
-                      subtitle: Text(IrcClient.clientVersion),
+                      subtitle: switch (ref.watch(appVersionLabelProvider)) {
+                        '' => null,
+                        final v => Text('Version $v'),
+                      },
                     ),
                     if (ref.watch(updatesSupportedProvider))
                       const _UpdatesTile(),

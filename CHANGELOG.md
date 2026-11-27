@@ -39,6 +39,11 @@ and the project uses [Semantic Versioning](https://semver.org/).
   safety and content rating answers, reviewer notes, and Android phone and
   tablet screenshots with a feature graphic (`store/android/`).
 
+### Fixed
+- **Settings → About shows the real version** (such as "Version 1.0.2
+  (3)"), read from the app itself, and CTCP VERSION replies say
+  "IRCage 1.0.2". Both said 0.1.0 before.
+
 ## [1.0.2] - 2026-11-24
 
 ### Fixed

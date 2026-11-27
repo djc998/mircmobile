@@ -18,6 +18,10 @@ import 'package:material_ui/material_ui.dart';
 /// The app's name, shown in the task switcher and window title.
 const String appName = 'IRCage';
 
+/// This build's version and build number, such as `1.0.2 (3)`, read from
+/// the app at startup (in `main`); empty in tests.
+final appVersionLabelProvider = Provider<String>((ref) => '');
+
 final routerProvider = Provider<GoRouter>(
   (ref) => GoRouter(
     // The terms come first, once (and again when they change).

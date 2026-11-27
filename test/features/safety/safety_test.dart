@@ -279,11 +279,16 @@ void main() {
     expect(find.byType(RoomCard), findsNWidgets(4));
   });
 
-  testWidgets('Settings: Safety switches, terms and contact', (tester) async {
+  testWidgets('Settings: Safety switches, terms, contact and version', (
+    tester,
+  ) async {
     final store = MemoryKeyValueStore();
     await tester.pumpWidget(
       ProviderScope(
-        overrides: [keyValueStoreProvider.overrideWithValue(store)],
+        overrides: [
+          keyValueStoreProvider.overrideWithValue(store),
+          appVersionLabelProvider.overrideWithValue('1.0.2 (3)'),
+        ],
         child: const IrcApp(),
       ),
     );
@@ -318,6 +323,7 @@ void main() {
       scrollable: settingsList,
     );
     expect(find.text(supportContact), findsOneWidget);
+    expect(find.text('Version 1.0.2 (3)'), findsOneWidget);
     await tester.ensureVisible(find.text('Terms of use'));
     await tester.pumpAndSettle();
     await tester.tap(find.text('Terms of use'));

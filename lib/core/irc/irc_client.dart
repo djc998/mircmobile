@@ -1265,8 +1265,8 @@ class IrcClient {
     return cleaned.isEmpty ? defaultRealname : cleaned;
   }
 
-  /// Reported in CTCP VERSION replies.
-  static String clientVersion = 'IRCage (Flutter) 0.1.0';
+  /// Reported in CTCP VERSION replies. `main` adds this build's version.
+  static String clientVersion = 'IRCage';
 }
 
 /// An open IRCv3 batch: its type, first parameter (the conversation, for
