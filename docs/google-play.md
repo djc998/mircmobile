@@ -141,6 +141,21 @@ fine for trying them, but Play refuses them.
 - **News app:** No. **Government app:** No. **Financial features:** none.
   **Health:** none.
 - **Data safety:** see below.
+- **Foreground service permissions:** the app declares a *special use*
+  foreground service for **Stay connected in the background** (off by
+  default; see [features/background.md](features/background.md)). Play
+  asks why and wants a short video:
+  - Task: *Other*. Description:
+    > Keeps the user's IRC chat connection open while the app is in the
+    > background, so they keep receiving messages. It only runs when the
+    > user turns on Settings → Notifications → Stay connected in the
+    > background, shows an ongoing notification the whole time, and stops
+    > when the app is closed. No other foreground service type covers a
+    > user-requested chat connection.
+  - Video (an unlisted YouTube link is fine): open Settings →
+    Notifications, turn on Stay connected, go Home and show the ongoing
+    "Staying connected" notification, then a message arriving while the
+    app is in the background.
 
 ### Data safety
 
