@@ -6,12 +6,16 @@ plugins {
 
 android {
     namespace = "com.djc998.irc_client"
-    compileSdk = flutter.compileSdkVersion
+    // flutter_local_notifications (and androidx.core 1.19) compile against
+    // API 37. Only the compile SDK; targetSdk stays Flutter's default.
+    compileSdk = maxOf(flutter.compileSdkVersion, 37)
     ndkVersion = flutter.ndkVersion
 
     compileOptions {
         sourceCompatibility = JavaVersion.VERSION_17
         targetCompatibility = JavaVersion.VERSION_17
+        // flutter_local_notifications needs java.time on older Androids.
+        isCoreLibraryDesugaringEnabled = true
     }
 
     defaultConfig {
@@ -46,4 +50,8 @@ kotlin {
 
 flutter {
     source = "../.."
+}
+
+dependencies {
+    coreLibraryDesugaring("com.android.tools:desugar_jdk_libs:2.1.4")
 }

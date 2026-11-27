@@ -14,6 +14,13 @@ and the project uses [Semantic Versioning](https://semver.org/).
   missed where the server keeps history. A **Reconnecting…** bar shows
   meanwhile, and you stay on the chat you were reading. See
   docs/features/background.md.
+- **Notifications for private messages and mentions** while the app is in
+  the background, on iPhone, iPad, Android and Mac. Tap one to open the
+  chat. Muted rooms and ignored people stay quiet; turn them off in
+  **Settings → Notifications**.
+- **Android: Stay connected in the background** (Settings →
+  Notifications, off by default) keeps your networks connected after you
+  leave the app, with an ongoing notification while it does.
 
 ## [1.0.2] - 2026-11-24
 

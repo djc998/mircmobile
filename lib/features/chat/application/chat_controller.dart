@@ -26,6 +26,8 @@ import 'package:irc_client/features/chat/data/chat_history_store.dart';
 import 'package:irc_client/features/connection/data/certificate_trust.dart';
 import 'package:irc_client/features/connection/data/saved_connection.dart';
 import 'package:irc_client/features/favorites/application/room_prefs_controller.dart';
+import 'package:irc_client/features/notifications/application/notification_settings.dart';
+import 'package:irc_client/features/notifications/data/message_notifier.dart';
 import 'package:irc_client/features/pictures/data/picture_service.dart';
 import 'package:irc_client/features/pictures/domain/dcc_transfer.dart';
 import 'package:irc_client/features/pictures/domain/file_link.dart';
@@ -1317,6 +1319,7 @@ class ChatController extends Notifier<ChatState> {
       ..mentioned = false;
     state = state.copyWith(activeKey: key);
     _syncRead(buffer);
+    unawaited(ref.read(messageNotifierProvider).cancel(notificationId(key)));
   }
 
   /// Closes a conversation, leaving the channel if needed.
@@ -1560,6 +1563,44 @@ class ChatController extends Notifier<ChatState> {
       buffer.readUntil = newest;
       session.client.markRead(buffer.name, newest);
     });
+  }
+
+  /// The system notification id for conversation [key]: one per
+  /// conversation, so a newer message replaces the older one. Never 0 or
+  /// 1 (1 is Android's "staying connected" notification).
+  static int notificationId(String key) {
+    var h = 0;
+    for (final c in key.codeUnits) {
+      h = (h * 31 + c) & 0x3fffffff;
+    }
+    return h < 16 ? h + 16 : h;
+  }
+
+  /// While the app is in the background: a notification for a private
+  /// message or a message mentioning the user's nickname. Not for history
+  /// the server replays, own messages, notices, ignored people or muted
+  /// rooms.
+  void _maybeNotify(NetworkSession session, MessageEvent e) {
+    if (_appVisible || e.isOwn || e.isNotice || e.history) return;
+    if (!ref.read(notificationSettingsProvider).messages) return;
+    final notifier = ref.read(messageNotifierProvider);
+    if (!notifier.supportsMessages) return;
+    final private = !session.client.isChannel(e.target);
+    final mentioned = session.nick.isNotEmpty && mentions(e.text, session.nick);
+    if (!private && !mentioned) return;
+    final name = private ? e.sender : e.target;
+    if (ref.read(roomPrefsProvider).isMuted(session.id, name)) return;
+    final key = ChatState.bufferKey(session.id, name);
+    final text = stripFormatting(e.text);
+    final where = state.networks.length > 1 ? ' · ${session.label}' : '';
+    unawaited(
+      notifier.show(
+        id: notificationId(key),
+        title: private ? '${e.sender}$where' : '${e.sender} in $name$where',
+        body: e.isAction ? '* ${e.sender} $text' : text,
+        payload: key,
+      ),
+    );
   }
 
   /// Whether the user can see the app (not in the background).
@@ -1814,6 +1855,9 @@ class ChatController extends Notifier<ChatState> {
           );
         }
         _catchUp(session);
+        if (!again) {
+          unawaited(ref.read(notificationSettingsProvider.notifier).askOnce());
+        }
       case ServerInfoEvent(:final network):
         if (network != session.name) {
           session.name = network;
@@ -1900,6 +1944,7 @@ class ChatController extends Notifier<ChatState> {
         }
       case MessageEvent():
         _maybeRing(session, e);
+        _maybeNotify(session, e);
         final room = _bufferNamed(session, e.target);
         if (room != null &&
             room.typing.remove(session.client.isupport.fold(e.sender)) !=

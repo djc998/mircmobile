@@ -55,7 +55,7 @@ Linux too).
 - `NetworkSession.registrations` counts logins: from the second one on, a
   self-JOIN for a room that's already open doesn't select it.
 
-### Tests
+### Tests (coming back)
 
 - `test/core/irc/connection_check_test.dart`: live connection answers;
   buffered lines and other PONGs don't count; no answer reconnects at once
@@ -66,3 +66,89 @@ Linux too).
   `CHATHISTORY LATEST` for the room and the private chat plus
   `CHATHISTORY TARGETS`, and doesn't repeat the welcome; inactive without
   hidden doesn't check; a disconnected network is left alone.
+
+## Notifications for private messages and mentions
+
+Available on iOS, Android and macOS (flutter_local_notifications). Not on
+Windows and Linux yet: there the app shows no notifications.
+
+- While the app is in the background (or, on a Mac, hidden or minimised),
+  a private message or a room message that says your nickname shows a
+  notification: **bob** with the message, or **ann in #chat**. With
+  several networks open the network is added (`bob · OFTC`). `/me`
+  actions read `* ann waves`. mIRC colours and bold are stripped.
+- Not for: anything while the app is in front, your own messages,
+  notices (NickServ and friends), history the server replays after a
+  reconnect, ignored people, muted rooms and private chats.
+- One notification per conversation: a newer message replaces the older
+  one. Opening that conversation clears it.
+- Tapping it opens the app on that conversation.
+- **Settings → Notifications → Private messages and mentions** turns them
+  off (on by default). The system asks for permission once, after you
+  first log in to a network (Android 13+, iOS, macOS); turning the switch
+  on asks again if needed.
+- They only come while the app is still running: on Android until the
+  system stops it (or always, with **Stay connected**, below), on iOS for
+  about 30 seconds after leaving the app (below).
+
+## Android: Stay connected in the background
+
+Android only: iOS has no equivalent that an App Store app may use for a
+chat connection (see the plan below), and on a Mac or PC the app keeps
+running anyway.
+
+- **Settings → Notifications → Stay connected in the background**, off by
+  default. When on and at least one network is open, a foreground service
+  keeps the app running after you leave it, with a quiet ongoing
+  notification: **IRCage is staying connected**. Your networks stay
+  connected, so private messages and mentions arrive as they're sent.
+- It stops when the setting is turned off, when every network is
+  disconnected or closed, and when the app is swiped away from recent
+  apps (the connection goes with it).
+- It uses more battery: the setting says so. Some phone makers' battery
+  savers stop background apps anyway; allowing IRCage in the system's
+  battery settings helps there.
+
+### How it works
+
+- The service is flutter_local_notifications' `ForegroundService`
+  (`android/app/src/main/AndroidManifest.xml`), type `specialUse` with a
+  `PROPERTY_SPECIAL_USE_FGS_SUBTYPE` explanation and `stopWithTask`.
+  Permissions: `POST_NOTIFICATIONS`, `FOREGROUND_SERVICE`,
+  `FOREGROUND_SERVICE_SPECIAL_USE`. It only keeps the process alive; the
+  IRC connections are the app's usual ones in the Flutter engine.
+  **Play Console:** the app's foreground service declaration needs the
+  same explanation (special use: keeping a user-requested chat connection
+  open) and a short video of the setting.
+- Android 12+ doesn't let an app start a foreground service from the
+  background, so it's started in the foreground (when the setting is
+  turned on, or a network is opened). A network that drops in the
+  background stays "reconnecting", which keeps the service running.
+- Notification channels: **Messages** (high importance) and **Staying
+  connected** (low, ongoing). Core library desugaring is on in
+  `android/app/build.gradle.kts`, which the plugin needs.
+
+### Code
+
+- `lib/features/notifications/data/message_notifier.dart`:
+  `MessageNotifier` (what the app needs), `NoMessageNotifier` (tests,
+  Windows, Linux), `LocalMessageNotifier` (the plugin), and
+  `messageNotifierProvider`, overridden in `main.dart`.
+- `lib/features/notifications/application/notification_settings.dart`:
+  `NotificationSettings` (`messages`, `stayConnected`, `askedPermission`,
+  saved as `notifications`).
+- `lib/features/notifications/application/keep_alive.dart`:
+  `keepAliveProvider` starts and stops the service; `AppLifecycleWatcher`
+  watches it and routes notification taps to the chat.
+- `ChatController._maybeNotify`, `ChatController.notificationId`;
+  `selectBuffer` clears the conversation's notification.
+- `settings_screen.dart`: the Notifications group.
+
+### Tests
+
+`test/features/notifications/notifications_test.dart`: private messages,
+mentions and actions notify in the background, other messages don't;
+nothing in the foreground; muted rooms and the switch turned off stay
+quiet; tapping opens the chat and opening clears it; permission is asked
+once; the service runs only with the setting on and a network open; the
+Settings switches.

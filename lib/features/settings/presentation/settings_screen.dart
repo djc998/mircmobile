@@ -14,6 +14,8 @@ import 'package:irc_client/features/calls/application/call_controller.dart';
 import 'package:irc_client/features/calls/presentation/call_widgets.dart';
 import 'package:irc_client/features/chat/application/chat_controller.dart';
 import 'package:irc_client/features/favorites/application/room_prefs_controller.dart';
+import 'package:irc_client/features/notifications/application/notification_settings.dart';
+import 'package:irc_client/features/notifications/data/message_notifier.dart';
 import 'package:irc_client/features/safety/application/safety_controller.dart';
 import 'package:irc_client/features/updates/update_banner.dart';
 import 'package:irc_client/features/updates/update_checker.dart';
@@ -54,6 +56,9 @@ class _SettingsScreenState extends ConsumerState<SettingsScreen> {
     final prefs = ref.watch(roomPrefsProvider);
     final call = ref.watch(callControllerProvider);
     final safety = ref.watch(safetyProvider);
+    final notify = ref.watch(notificationSettingsProvider);
+    final notifier = ref.watch(messageNotifierProvider);
+    final notifyCtl = ref.read(notificationSettingsProvider.notifier);
     final tokens = AppTokens.of(context);
     final ignored = controller.blockedNicks.toList()..sort();
     final muted = [
@@ -84,6 +89,50 @@ class _SettingsScreenState extends ConsumerState<SettingsScreen> {
                     ),
                   ],
                 ),
+                if (notifier.supportsMessages)
+                  _Group(
+                    title: 'Notifications',
+                    children: [
+                      SwitchListTile.adaptive(
+                        secondary: const Icon(
+                          Icons.notifications_active_outlined,
+                        ),
+                        title: const Text('Private messages and mentions'),
+                        subtitle: const Text(
+                          'Get a notification when someone writes to you or '
+                          'says your nickname while the app is in the '
+                          'background. Muted rooms stay quiet.',
+                        ),
+                        value: notify.messages,
+                        onChanged: (v) =>
+                            unawaited(notifyCtl.setMessages(enabled: v)),
+                      ),
+                      if (notifier.supportsKeepAlive)
+                        SwitchListTile.adaptive(
+                          secondary: const Icon(Icons.sync_alt),
+                          title: const Text('Stay connected in the background'),
+                          subtitle: const Text(
+                            'Keeps your networks connected after you leave '
+                            'the app, with a notification while it does. '
+                            'Uses more battery.',
+                          ),
+                          value: notify.stayConnected,
+                          onChanged: (v) =>
+                              unawaited(notifyCtl.setStayConnected(enabled: v)),
+                        )
+                      else if (Theme.of(context).platform == TargetPlatform.iOS)
+                        const ListTile(
+                          leading: Icon(Icons.info_outline),
+                          title: Text('In the background'),
+                          subtitle: Text(
+                            "iOS pauses the app's connections a few seconds "
+                            'after you leave it, and the app reconnects when '
+                            'you come back. To stay online all the time, '
+                            'connect through a bouncer such as soju.',
+                          ),
+                        ),
+                    ],
+                  ),
                 _Group(
                   title: 'Safety',
                   children: [
